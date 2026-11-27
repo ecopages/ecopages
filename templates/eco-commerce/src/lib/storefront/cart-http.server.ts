@@ -1,3 +1,4 @@
+import { createMiddleware } from '@ecopages/core';
 import { z } from 'zod';
 import type { CartBackend } from '../commerce/backend.ts';
 import type { CartToken, CartUpdate } from '../commerce/types.ts';
@@ -101,15 +102,25 @@ export const updateCartSchema = cartChangeSchema(0);
 
 export type CartChange = z.output<typeof addToCartSchema>;
 
+/**
+ * Answers 403 to a post a browser sent from another site, or `null` to go on.
+ */
+export function refuseCrossSite(request: Request): Response | null {
+	return isCrossSite(request) ? reject(request, 403, 'Cart changes must come from this site.') : null;
+}
+
+/**
+ * The first stage of the cart change Endpoints: it refuses a cross-site post before the body is read.
+ */
+export const sameSiteOnly = createMiddleware((context, next) => refuseCrossSite(context.request) ?? next());
+
 /** `POST /cart/add`: adds `quantity` (default 1) units of `variantId`; plain forms are redirected to `/order`. */
 export async function addToCartAction(request: Request, change: CartChange, deps: CartHttpDeps): Promise<Response> {
-	if (isCrossSite(request)) return reject(request, 403, 'Cart changes must come from this site.');
 	return respond(request, await deps.cart.addItem(readCartToken(request), change), deps);
 }
 
 /** `POST /cart/update`: sets the quantity of `variantId`; zero removes the line. */
 export async function updateCartAction(request: Request, change: CartChange, deps: CartHttpDeps): Promise<Response> {
-	if (isCrossSite(request)) return reject(request, 403, 'Cart changes must come from this site.');
 	return respond(request, await deps.cart.updateItem(readCartToken(request), change), deps);
 }
 

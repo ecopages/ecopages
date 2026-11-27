@@ -187,6 +187,21 @@ describe('NodeServerAdapter', () => {
 		vi.restoreAllMocks();
 	});
 
+	it('hands the trustProxy option of the config to the server options', async () => {
+		const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-trust-proxy-')));
+		const trusting = makeNodeServerAdapter({
+			appConfig: await finalizeEcoPagesConfig({ rootDir, trustProxy: true }),
+			options: { watch: false },
+		});
+		const defaulting = makeNodeServerAdapter({
+			appConfig: await finalizeEcoPagesConfig({ rootDir }),
+			options: { watch: false },
+		});
+
+		expect(trusting.getServerOptions().trustProxy).toBe(true);
+		expect(defaulting.getServerOptions().trustProxy).toBeUndefined();
+	});
+
 	it('adds configured headers to matching responses and keeps the handler headers', async () => {
 		const appConfig = await finalizeEcoPagesConfig({
 			rootDir: path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-response-headers-'))),

@@ -15,6 +15,7 @@ import {
 	DEFAULT_ECOPAGES_HOSTNAME,
 	DEFAULT_ECOPAGES_PORT,
 	DEFAULT_ECOPAGES_WORK_DIR,
+	DEFAULT_MAX_REQUEST_BODY_SIZE,
 } from '../../constants.ts';
 import { assertResponseHeaderRules } from '../../adapters/shared/http/response-headers.ts';
 import { collectConfigModuleFiles } from '../config-module-files.ts';
@@ -392,7 +393,7 @@ export async function finalizeEcoPagesConfig(
 			serverFiles: userConfig.serverFiles,
 			headers: userConfig.headers,
 			trustProxy: userConfig.trustProxy,
-			maxRequestBodySize: userConfig.maxRequestBodySize,
+			maxRequestBodySize: userConfig.maxRequestBodySize ?? DEFAULT_MAX_REQUEST_BODY_SIZE,
 			cache: userConfig.cache,
 			devToolbar: userConfig.devToolbar,
 		};

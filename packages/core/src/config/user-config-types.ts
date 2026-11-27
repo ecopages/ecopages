@@ -129,7 +129,7 @@ export type EcoPagesUserConfig = {
 	 *
 	 * @remarks
 	 * The limit is checked against `Content-Length` first and counted while the body streams, so an oversized body
-	 * is refused without being buffered. It covers JSON, text, urlencoded and multipart bodies read for a
+	 * is refused without buffering more than the limit. It covers JSON, text, urlencoded and multipart bodies read for a
 	 * `schema.body`; a handler that reads `request` itself is not limited. Use `Infinity` for no limit.
 	 *
 	 * @default 10485760 (10 MiB)
@@ -140,7 +140,7 @@ export type EcoPagesUserConfig = {
 	 * Whether the request URL takes its host and protocol from `X-Forwarded-Host` and `X-Forwarded-Proto`.
 	 *
 	 * @remarks
-	 * By default the origin of `request.url` on Node is the `Host` header the visitor sent, and the address the
+	 * By default the origin of `request.url` on the Ecopages server (Node or Bun) is the `Host` header the visitor sent, and the address the
 	 * server listens on when that header is missing or not a host. Set this to `true` only when every request comes
 	 * through a proxy you control that overwrites both forwarded headers: any other client can send them, and an app
 	 * that builds absolute links or compares origins would then trust a value the visitor chose.

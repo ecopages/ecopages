@@ -160,8 +160,8 @@ Ecopages now discovers the document shell and error pages semantically:
 <ApiField name="maxRequestBodySize" type="number" defaultValue="10485760">
 	The most bytes of request body a route's `schema.body` reads before it answers HTTP 413 (10 MiB by default). It is
 	checked against `Content-Length` first and counted while the body streams, so an oversized JSON, text, urlencoded or
-	multipart body is refused without being buffered. A handler that reads `request` itself is not limited. Use
-	`Infinity` for no limit.
+	multipart body is refused without buffering more than the limit. A handler that reads `request` itself is not limited. Use
+	`Infinity` for no limit. A value that is not above 0 fails when the config loads.
 </ApiField>
 
 ```typescript
@@ -174,7 +174,7 @@ export default defineConfig({
 
 <ApiField name="trustProxy" type="boolean" defaultValue="false">
 	Whether `new URL(request.url)` takes its host and protocol from `X-Forwarded-Host` and `X-Forwarded-Proto`. By
-	default the origin of `request.url` on Node is the `Host` header the visitor sent, so `new URL(request.url).origin`
+	default the origin of `request.url` on the Ecopages server (Node or Bun) is the `Host` header the visitor sent, so `new URL(request.url).origin`
 	is the address they used even behind a proxy that passes `Host` on; the address the server listens on is used only
 	when `Host` is missing or is not a plain host. Set `trustProxy` only when every request comes through a proxy you
 	control that overwrites both forwarded headers. Any other client can send them, and an app that builds absolute links,

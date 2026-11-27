@@ -88,6 +88,7 @@ function firstHeaderValue(value: string | string[] | undefined): string | undefi
 
 /**
  * The origin a request's URL carries: the `Host` the visitor sent, or the listen origin when there is none.
+ * Shared by the HTTP bridge and the WebSocket upgrade, so both give a handler the same origin.
  *
  * @remarks
  * A host that is not a plain authority (a path, credentials, whitespace) is ignored rather than refused, so a
@@ -95,13 +96,13 @@ function firstHeaderValue(value: string | string[] | undefined): string | undefi
  * host and the protocol only with `trustProxy`: any client can send them, so an app that does not sit behind its
  * own proxy must not read them. The protocol is `http` or `https`, the listen origin's protocol by default.
  */
-function resolveRequestOrigin(req: IncomingMessage, runtimeOrigin: string, trustProxy: boolean): string {
+export function resolveRequestOrigin(req: IncomingMessage, runtimeOrigin: string, trustProxy: boolean): string {
 	const fallback = new URL(runtimeOrigin);
 	const forwardedProto = trustProxy ? firstHeaderValue(req.headers['x-forwarded-proto'])?.toLowerCase() : undefined;
 	const protocol = forwardedProto === 'http' || forwardedProto === 'https' ? `${forwardedProto}:` : fallback.protocol;
 	const hosts = [
 		trustProxy ? firstHeaderValue(req.headers['x-forwarded-host']) : undefined,
-		firstHeaderValue(req.headers.host),
+		req.headers.host?.trim(),
 	];
 	for (const host of hosts) {
 		const origin = host ? originOfAuthority(protocol, host) : null;
@@ -115,7 +116,7 @@ function resolveRequestOrigin(req: IncomingMessage, runtimeOrigin: string, trust
  * optional port).
  */
 function originOfAuthority(protocol: string, host: string): string | null {
-	if (/[\s/?#@\\]/u.test(host)) return null;
+	if (/[\s,/?#@\\]/u.test(host)) return null;
 	try {
 		const candidate = new URL(`${protocol}//${host}`);
 		return candidate.host === '' ? null : candidate.origin;
@@ -141,6 +142,8 @@ export class NodeHttpRequestBridge {
 	 * @remarks
 	 * Requests with body framing retain streaming semantics via a `ReadableStream`
 	 * so large request bodies do not need to be buffered before route handling begins.
+	 * The Node request is paused once a chunk is queued and resumed as the body is read, so a handler that waits
+	 * before it reads, such as one behind slow middleware, does not make the server queue the whole upload.
 	 *
 	 * The request URL carries the origin the visitor used: the `Host` header, or the forwarded headers
 	 * when `trustProxy` is set, and `runtimeOrigin` only when neither is usable.
@@ -181,7 +184,9 @@ export class NodeHttpRequestBridge {
 			const body = new ReadableStream({
 				start(controller) {
 					const dataListener = (chunk: Buffer) => {
-						if (!cancelled) controller.enqueue(chunk);
+						if (cancelled) return;
+						controller.enqueue(chunk);
+						if ((controller.desiredSize ?? 1) <= 0) req.pause();
 					};
 					const onEnd = () => {
 						cleanup();
@@ -218,6 +223,9 @@ export class NodeHttpRequestBridge {
 					req.once('aborted', onAborted);
 					req.once('error', onError);
 					req.once('close', onClose);
+				},
+				pull() {
+					req.resume();
 				},
 				cancel() {
 					cancelled = true;

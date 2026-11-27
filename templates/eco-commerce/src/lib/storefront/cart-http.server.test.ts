@@ -7,6 +7,7 @@ import {
 	CART_COOKIE,
 	cartSummaryAction,
 	readCartToken,
+	refuseCrossSite,
 	serializeCartCookie,
 	updateCartAction,
 	updateCartSchema,
@@ -109,10 +110,11 @@ describe('cart HTTP', () => {
 		expect(updateCartSchema.parse({ variantId })).toEqual({ variantId, quantity: 0 });
 	});
 
-	test('refuses a post a browser sent from another site', async () => {
-		const response = await add({ variantId }, { fetchSite: 'cross-site' });
-
-		expect(response.status).toBe(403);
+	test('refuses a post a browser sent from another site, and lets the others go on', () => {
+		expect(refuseCrossSite(post('/cart/add', { variantId }, { fetchSite: 'cross-site' }))?.status).toBe(403);
+		for (const fetchSite of ['same-origin', 'none', undefined]) {
+			expect(refuseCrossSite(post('/cart/add', { variantId }, { fetchSite }))).toBeNull();
+		}
 	});
 
 	test('refuses an addition past the cart limit with the reason', async () => {

@@ -511,6 +511,7 @@ export class NodeServerAdapter {
 				}
 				attachNodeHttpWebSocketUpgrades(server, {
 					runtimeOrigin: this.runtime.origin,
+					trustProxy: this.appConfig.trustProxy,
 					websocketHandlers: this.websocketHandlers,
 				});
 			}

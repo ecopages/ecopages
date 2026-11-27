@@ -8,6 +8,7 @@ import { test } from '../../app-fixture.ts';
  */
 const WEBHOOK_SECRET = 'whsec-ecoshop-e2e';
 const fieldShirtM = 'gid://ecoshop/ProductVariant/field-shirt-m';
+const canvasTote = 'gid://ecoshop/ProductVariant/canvas-tote';
 const fieldShirtHandle = 'field-shirt';
 
 const mcpHeaders = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
@@ -58,6 +59,14 @@ test('the cart answers a form post with a redirect and a failed one with 400', a
 
 	const page = await request.get('/cart');
 	expect(await page.text()).toContain('$204.00');
+
+	const repeated = await request.post('/api/cart', {
+		data: `intent=add&variantId=${encodeURIComponent(canvasTote)}&variantId=${encodeURIComponent(fieldShirtM)}`,
+		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+		maxRedirects: 0,
+	});
+	expect(repeated.status()).toBe(303);
+	expect(await (await request.get('/api/cart')).json()).toEqual({ totalQuantity: 4, subtotal: '$272.00' });
 });
 
 test('the MCP server lists its tools and runs one', async ({ request }) => {

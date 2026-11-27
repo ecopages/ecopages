@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { createDemoProvider } from '@/lib/commerce/demo/demo-provider';
 import type { CommerceProvider } from '@/lib/commerce/types';
 import { CART_COOKIE, readCartId } from './cart-cookie';
-import { cartActionSchema, handleCartGet, handleCartPost as applyCartAction } from './cart-endpoint.server';
+import {
+	cartActionSchema,
+	handleCartGet,
+	handleCartPost as applyCartAction,
+	refuseCrossOrigin,
+} from './cart-endpoint.server';
 
 const provider = createDemoProvider();
 
@@ -148,21 +153,17 @@ describe('cart endpoint input and totals', () => {
 });
 
 describe('cart endpoint origin check', () => {
-	it('accepts a form posted from the store itself', async () => {
-		const response = await handleCartPost(
-			formPost({ intent: 'add', variantId: fieldShirtM }, { Origin: 'https://shop.test' }),
-			provider,
-		);
-
-		expect(response.status).toBe(303);
+	it('lets a form posted from the store itself, or by a client with no Origin, go on', () => {
+		expect(refuseCrossOrigin(formPost({}, { Origin: 'https://shop.test' }))).toBeNull();
+		expect(refuseCrossOrigin(formPost({}))).toBeNull();
 	});
 
-	it('refuses a form posted from another site', async () => {
-		const response = await handleCartPost(
-			formPost({ intent: 'add', variantId: fieldShirtM }, { Origin: 'https://evil.test' }),
-			provider,
-		);
+	it('refuses a form posted from another site, before its body is read', async () => {
+		const request = formPost({ intent: 'add', variantId: fieldShirtM }, { Origin: 'https://evil.test' });
 
-		expect(response.status).toBe(403);
+		const response = refuseCrossOrigin(request);
+
+		expect(response?.status).toBe(403);
+		expect(request.bodyUsed).toBe(false);
 	});
 });

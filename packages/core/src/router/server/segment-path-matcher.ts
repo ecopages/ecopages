@@ -8,7 +8,7 @@ export type ParsedSegmentPath = readonly string[];
 
 type PatternSegment =
 	| { kind: 'literal'; value: string }
-	| { kind: 'parameter'; name: string; suffix: string }
+	| { kind: 'parameter'; name: string; suffix: string; rawSuffix: string }
 	| { kind: 'catch-all'; name: string }
 	| { kind: 'wildcard' };
 
@@ -80,6 +80,21 @@ function parseCatchAllSegment(segment: string, options: SegmentPathSyntaxOptions
 }
 
 /**
+ * The literal text after a parameter name, which cannot hold the characters that start another parameter.
+ *
+ * @throws When the suffix holds `:`, `[` or `]`, so a pattern like `/x/:name.:ext` fails when it is compiled
+ * instead of matching nothing.
+ */
+function toParameterSuffix(segment: string, suffix: string): string {
+	if (/[:[\]]/u.test(suffix)) {
+		throw new Error(
+			`Invalid route segment "${segment}": the text after a param name is a literal suffix and cannot hold ":", "[" or "]".`,
+		);
+	}
+	return decodePatternLiteral(suffix);
+}
+
+/**
  * Reads `[name]` or `[name].suffix`: the name ends at the first `]`, and what follows must be empty or a literal
  * suffix that starts with a dot.
  */
@@ -90,7 +105,7 @@ function parseBracketParameter(segment: string): PatternSegment | null {
 	if (close === -1 || !name || name.startsWith('...')) return null;
 	const suffix = segment.slice(close + 1);
 	if (suffix && !(suffix.startsWith('.') && suffix.length > 1)) return null;
-	return { kind: 'parameter', name, suffix: decodePatternLiteral(suffix) };
+	return { kind: 'parameter', name, suffix: toParameterSuffix(segment, suffix), rawSuffix: suffix };
 }
 
 /**
@@ -100,8 +115,9 @@ function parseColonParameter(segment: string): PatternSegment | null {
 	if (!segment.startsWith(':')) return null;
 	const dot = segment.indexOf('.');
 	const name = segment.slice(1, dot === -1 ? undefined : dot);
-	if (!name) return null;
-	return { kind: 'parameter', name, suffix: dot === -1 ? '' : decodePatternLiteral(segment.slice(dot)) };
+	if (!name || dot === segment.length - 1) return null;
+	const rawSuffix = dot === -1 ? '' : segment.slice(dot);
+	return { kind: 'parameter', name, suffix: rawSuffix && toParameterSuffix(segment, rawSuffix), rawSuffix };
 }
 
 function parseParameterSegment(segment: string, options: SegmentPathSyntaxOptions): PatternSegment | null {
@@ -156,7 +172,8 @@ function scorePatternSegments(segments: readonly PatternSegment[], syntax: Segme
 	if (syntax === 'websocket') {
 		const literals = segments.filter((segment) => segment.kind === 'literal').length;
 		const params = segments.length - literals;
-		return literals * 100 - params * 10 + segments.length;
+		const suffixed = segments.filter((segment) => segment.kind === 'parameter' && segment.suffix).length;
+		return literals * 100 - params * 10 + suffixed * 5 + segments.length;
 	}
 
 	return segments.reduce((score, segment) => {
@@ -164,6 +181,19 @@ function scorePatternSegments(segments: readonly PatternSegment[], syntax: Segme
 		if (segment.kind === 'parameter') return score + (segment.suffix ? 75 : 50);
 		return score + 10;
 	}, 0);
+}
+
+/**
+ * How loosely each segment of a pattern matches, up to its catch-all: a literal `0`, a parameter with a literal
+ * suffix `1`, a bare parameter `2`. A lower rank is more specific.
+ */
+export function segmentPathLooseness(pattern: string, syntax: SegmentPathSyntax): number[] {
+	const ranks: number[] = [];
+	for (const segment of parsePattern(pattern, syntax)) {
+		if (segment.kind === 'catch-all' || segment.kind === 'wildcard') break;
+		ranks.push(segment.kind === 'literal' ? 0 : segment.suffix ? 1 : 2);
+	}
+	return ranks;
 }
 
 export function compileSegmentPattern<S extends SegmentPathSyntax>(pattern: string, syntax: S): SegmentPattern<S> {
@@ -293,7 +323,7 @@ export function buildSegmentPath(pattern: string, params: SegmentPathParams, syn
 
 			const values = Array.isArray(value) ? value : [value];
 			if (patternSegment.kind !== 'parameter' || !patternSegment.suffix || values.length === 0) return values;
-			return [...values.slice(0, -1), `${values.at(-1)}${patternSegment.suffix}`];
+			return [...values.slice(0, -1), `${values.at(-1)}${patternSegment.rawSuffix}`];
 		})
 		.filter((segment) => segment !== '');
 

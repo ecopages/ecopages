@@ -22,7 +22,7 @@ function createPipeline(maxRequestBodySize?: number) {
 				render: vi.fn(),
 			}) as unknown as RenderContext,
 		getCacheService: () => null,
-		getMaxRequestBodySize: () => maxRequestBodySize,
+		...(maxRequestBodySize === undefined ? {} : { getMaxRequestBodySize: () => maxRequestBodySize }),
 	});
 }
 
@@ -532,12 +532,13 @@ describe('ApiRequestPipeline', () => {
 			);
 
 			expect(response?.status).toBe(413);
+			expect(response?.headers.get('connection')).toBe('close');
 			expect(await response?.json()).toEqual({ error: 'Payload Too Large' });
 			expect(handler).not.toHaveBeenCalled();
 			expect(pulls).toBeLessThanOrEqual(1);
 		});
 
-		it('answers HTTP 413 once a chunked body passes the limit, and stops reading it', async () => {
+		it('answers HTTP 413 as soon as a chunked body passes the limit', async () => {
 			const incomingRequest = new NodeRequestFixture();
 			incomingRequest.headers = { 'content-type': 'application/json', 'transfer-encoding': 'chunked' };
 			const request = new NodeHttpRequestBridge().createWebRequest(
@@ -556,7 +557,7 @@ describe('ApiRequestPipeline', () => {
 			incomingRequest.end('"}');
 		});
 
-		it('reads a body of exactly the limit and one below it, and leaves the request readable', async () => {
+		it('reads a body at the limit, refuses one a byte over it, and leaves the request readable', async () => {
 			const payload = JSON.stringify({ title: 'abc' });
 			const limit = Buffer.byteLength(payload);
 			const { routes } = postRoute(
@@ -572,32 +573,93 @@ describe('ApiRequestPipeline', () => {
 			expect(below?.status).toBe(413);
 		});
 
-		it('limits form and text bodies the same way, and Infinity sets no limit', async () => {
-			const form = new Request('http://localhost/api/posts', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-				body: `title=${'x'.repeat(64)}`,
-			});
+		it('limits form and text bodies the same way', async () => {
 			const { routes } = postRoute();
+			const withBody = (type: string) =>
+				new Request('http://localhost/api/posts', {
+					method: 'POST',
+					headers: { 'Content-Type': type },
+					body: `title=${'x'.repeat(64)}`,
+				});
 
-			expect((await createPipeline(16).tryHandle(form, routes, undefined))?.status).toBe(413);
-			const unlimited = await createPipeline(Number.POSITIVE_INFINITY).tryHandle(
-				jsonPost('x'.repeat(4096)),
+			expect(
+				(await createPipeline(16).tryHandle(withBody('application/x-www-form-urlencoded'), routes, undefined))
+					?.status,
+			).toBe(413);
+			expect((await createPipeline(16).tryHandle(withBody('text/plain'), routes, undefined))?.status).toBe(413);
+		});
+
+		it('sets no limit for Infinity, and leaves the request readable', async () => {
+			const { routes } = postRoute(
+				vi.fn<ApiHandler['handler']>(({ body, request }) =>
+					request.text().then((text) => Response.json({ body, length: text.length })),
+				),
+			);
+
+			const response = await createPipeline(Number.POSITIVE_INFINITY).tryHandle(
+				jsonPost('x'.repeat(4096), { 'Content-Length': String(20 * 1024 * 1024) }),
 				routes,
 				undefined,
 			);
-			expect(unlimited?.status).toBe(200);
+
+			expect(response?.status).toBe(200);
+			expect(((await response?.json()) as { length: number }).length).toBeGreaterThan(4096);
 		});
 
 		it('applies a default limit of 10 MiB', async () => {
 			const { routes } = postRoute();
+			const declared = (length: number) =>
+				createPipeline().tryHandle(jsonPost('x', { 'Content-Length': String(length) }), routes, undefined);
 
-			const response = await createPipeline().tryHandle(
-				jsonPost('x', { 'Content-Length': String(10 * 1024 * 1024 + 1) }),
+			expect((await declared(10 * 1024 * 1024))?.status).toBe(200);
+			expect((await declared(10 * 1024 * 1024 + 1))?.status).toBe(413);
+		});
+
+		it('does not limit a route without a body schema', async () => {
+			const routes = compileApiRoutes([
+				{
+					path: '/api/posts',
+					method: 'POST',
+					handler: async ({ request }) => new Response(await request.text()),
+				},
+			]);
+
+			const response = await createPipeline(4).tryHandle(jsonPost('x'.repeat(64)), routes, undefined);
+
+			expect(response?.status).toBe(200);
+		});
+
+		it('answers HTTP 500 and names the cause when a middleware read the body first', async () => {
+			const consume = createMiddleware(async (context, next) => {
+				await context.request.text();
+				return next();
+			});
+			const { handler, routes } = postRoute(undefined, [consume]);
+			const logged = vi.spyOn(appLogger, 'error').mockImplementation(() => appLogger);
+
+			const response = await createPipeline().tryHandle(jsonPost('x'), routes, undefined);
+
+			expect(response?.status).toBe(500);
+			expect(handler).not.toHaveBeenCalled();
+			expect(logged.mock.calls.flat().join(' ')).toContain('request.clone()');
+			logged.mockRestore();
+		});
+
+		it('answers HTTP 413 even when a middleware keeps an unread clone of the request', async () => {
+			let kept: Request | undefined;
+			const keep = createMiddleware(async (context, next) => {
+				kept = context.request.clone();
+				return next();
+			});
+			const { routes } = postRoute(undefined, [keep]);
+
+			const response = await createPipeline(8).tryHandle(
+				jsonPost('x'.repeat(64), { 'Content-Length': '4096' }),
 				routes,
 				undefined,
 			);
 
+			expect(kept).toBeDefined();
 			expect(response?.status).toBe(413);
 		});
 
@@ -622,7 +684,6 @@ describe('ApiRequestPipeline', () => {
 
 			expect(response?.status).toBe(401);
 			expect(handler).not.toHaveBeenCalled();
-			expect(request.bodyUsed).toBe(false);
 			expect(pulls).toBeLessThanOrEqual(1);
 		});
 
@@ -637,7 +698,7 @@ describe('ApiRequestPipeline', () => {
 					path: '/api/posts/:id',
 					method: 'POST',
 					schema: { body: bodySchema, params: z.object({ id: z.string().regex(/^\d+$/) }) },
-					middleware: [track] as never,
+					middleware: [track],
 					handler: () => {
 						order.push('handler');
 						return new Response('ok');

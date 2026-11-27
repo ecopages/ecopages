@@ -77,8 +77,20 @@ describe('matchSegmentPath', () => {
 		});
 	});
 
-	it('keeps a suffix on a catch-all as part of its name', () => {
-		expect(matchSegmentPath('/files/:...path', '/files/a/b.md', 'explicit')).toEqual({ path: 'a/b.md' });
+	it('keeps a dot after a catch-all name as part of that name', () => {
+		expect(matchSegmentPath('/files/:...path.md', '/files/a/b', 'explicit')).toEqual({ 'path.md': 'a/b' });
+	});
+
+	it('reads a dot with nothing after it, and a catch-all with text after it, as literal segments', () => {
+		expect(matchSegmentPath('/x/:a.', '/x/:a.', 'api')).toEqual({});
+		expect(matchSegmentPath('/x/[a].', '/x/[a].', 'api')).toEqual({});
+		expect(matchSegmentPath('/x/[...path].md', '/x/[...path].md', 'api')).toEqual({});
+	});
+
+	it('refuses a suffix that holds another param marker', () => {
+		for (const pattern of ['/x/:name.:ext', '/x/:name.[ext]', '/x/[slug].[format]', '/x/[slug].a]']) {
+			expect(() => compileSegmentPattern(pattern, 'api')).toThrow('literal suffix');
+		}
 	});
 
 	it('builds pathnames from a suffixed param', () => {
@@ -89,6 +101,20 @@ describe('matchSegmentPath', () => {
 			'/products/linen-shirt.md',
 		);
 		expect(buildSegmentPath('/products/:handle.md', {}, 'explicit')).toBe('/products/:handle.md');
+	});
+
+	it('ranks a suffixed WebSocket param before a bare one, whatever the registration order', () => {
+		const score = (pattern: string) => compileSegmentPattern(pattern, 'websocket').score;
+
+		expect(score('/ws/:id.json')).toBeGreaterThan(score('/ws/:id'));
+		expect(score('/ws/lobby')).toBeGreaterThan(score('/ws/:id.json'));
+	});
+
+	it('builds a suffix as the pattern wrote it, so an encoded character stays encoded', () => {
+		const built = buildSegmentPath('/posts/[slug].%23raw', { slug: 'hello' }, 'filesystem');
+
+		expect(built).toBe('/posts/hello.%23raw');
+		expect(matchSegmentPath('/posts/[slug].%23raw', built, 'filesystem')).toEqual({ slug: 'hello' });
 	});
 
 	it('ranks a suffixed param between a literal and a bare param', () => {

@@ -1,3 +1,4 @@
+import { createMiddleware } from '@ecopages/core';
 import { z } from 'zod';
 import { CartInputError } from '@/lib/commerce/errors';
 import { formatMoney } from '@/lib/commerce/money';
@@ -16,7 +17,7 @@ import type { CartTotals } from './cart-events';
 const variantIdField = z.preprocess((value) => (Array.isArray(value) ? value.at(-1) : value), z.string().min(1));
 
 /**
- * A cart change posted by a form or the `cart-form` host. `add` adds to the line; `set` replaces its quantity, and `0`
+ * A cart change posted by a plain form. `add` adds to the line; `set` replaces its quantity, and `0`
  * removes it.
  */
 export const cartActionSchema = z.discriminatedUnion('intent', [
@@ -40,23 +41,33 @@ const totals = (cart: Cart | null): CartTotals => ({
 });
 
 /**
+ * Answers 403 to a post from another site, or `null` to go on.
+ */
+export function refuseCrossOrigin(request: Request): Response | null {
+	return isSameOriginRequest(request, siteOrigin)
+		? null
+		: Response.json({ error: 'Origin not allowed' }, { status: 403 });
+}
+
+/**
+ * The cart Endpoint's first stage: it refuses a post from another site before the body is read.
+ */
+export const sameOriginOnly = createMiddleware((context, next) => refuseCrossOrigin(context.request) ?? next());
+
+/**
  * Applies a cart change the Endpoint already validated against {@link cartActionSchema}, and answers the form with a
  * 303 back to `/cart`.
  *
  * @remarks
- * Ecopages parses the form body and answers a change that fails the schema with HTTP 400 before this runs, so a post
- * that fails validation never reaches the origin check below. The product form and the agent tools add through
- * `/api/agent-tools`, so this Endpoint serves plain form posts only.
+ * Ecopages parses the form body after the route's middleware, so {@link sameOriginOnly} has already refused a post
+ * from another site, and answers a change that fails the schema with HTTP 400 before this runs. The product form and
+ * the agent tools add through `/api/agent-tools`, so this Endpoint serves plain form posts only.
  */
 export async function handleCartPost(
 	request: Request,
 	provider: CommerceProvider,
 	{ intent, variantId, quantity }: CartAction,
 ): Promise<Response> {
-	if (!isSameOriginRequest(request, siteOrigin)) {
-		return Response.json({ error: 'Origin not allowed' }, { status: 403 });
-	}
-
 	const cartId = readCartId(request.headers);
 	let cart: Cart;
 	try {

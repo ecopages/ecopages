@@ -94,12 +94,12 @@ describe('finalizeEcoPagesConfig headers', () => {
 });
 
 describe('finalizeEcoPagesConfig maxRequestBodySize', () => {
-	test('keeps a size in bytes or Infinity and leaves it unset by default', async () => {
+	test('keeps a size in bytes or Infinity and defaults to 10 MiB', async () => {
 		expect((await finalize({ maxRequestBodySize: 1024 })).maxRequestBodySize).toBe(1024);
 		expect((await finalize({ maxRequestBodySize: Number.POSITIVE_INFINITY })).maxRequestBodySize).toBe(
 			Number.POSITIVE_INFINITY,
 		);
-		expect((await finalize({})).maxRequestBodySize).toBeUndefined();
+		expect((await finalize({})).maxRequestBodySize).toBe(10 * 1024 * 1024);
 	});
 
 	test.each([0, -1, Number.NaN])('rejects %s', async (size) => {

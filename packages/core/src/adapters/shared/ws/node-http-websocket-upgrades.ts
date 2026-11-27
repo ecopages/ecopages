@@ -10,6 +10,7 @@ import type {
 	IncomingWebSocketMessage,
 	PageQuery,
 } from '../../../types/contracts.ts';
+import { resolveRequestOrigin } from '../../node/http-request-bridge.ts';
 import { compileWebSocketRoutes, findWebSocketRoute, type WebSocketRouteMatch } from './ws-pattern-matcher.ts';
 import { createEcopagesSocket, invokeWebSocketHandlerHook, toWebSocketCloseInfo } from './websocket-lifecycle.ts';
 
@@ -17,6 +18,8 @@ export type NodeHttpWebSocketUpgradePreflight = (req: IncomingMessage, socket: D
 
 export type AttachNodeHttpWebSocketUpgradesOptions = {
 	runtimeOrigin: string;
+	/** Whether the upgrade request's URL may take its host and protocol from the forwarded headers. */
+	trustProxy?: boolean;
 	websocketHandlers: Map<string, EcopagesWebSocketHandler<unknown, Record<string, string>>>;
 	preflight?: NodeHttpWebSocketUpgradePreflight;
 };
@@ -39,8 +42,8 @@ function adaptNodeWebSocket<TContext, TParams extends Record<string, string>>(
 	);
 }
 
-function toUpgradeRequest(runtimeOrigin: string, req: IncomingMessage): Request {
-	const upgradeUrl = new URL(req.url ?? '/', runtimeOrigin);
+function toUpgradeRequest(runtimeOrigin: string, req: IncomingMessage, trustProxy: boolean): Request {
+	const upgradeUrl = new URL(req.url ?? '/', resolveRequestOrigin(req, runtimeOrigin, trustProxy));
 	return new Request(upgradeUrl, {
 		method: req.method,
 		headers: req.headers as HeadersInit,
@@ -170,7 +173,7 @@ export function attachNodeHttpWebSocketUpgrades(
 
 		const search = parseSearchParams(url.searchParams);
 		const handler = wsMatch.handler as EcopagesWebSocketHandler<unknown, Record<string, string>>;
-		const baseRequest = toUpgradeRequest(options.runtimeOrigin, req);
+		const baseRequest = toUpgradeRequest(options.runtimeOrigin, req, options.trustProxy === true);
 
 		void resolveNodeContext(baseRequest, handler, wsMatch.kind, wsMatch.params, search).then(
 			(context) => {

@@ -111,9 +111,8 @@ export type EcoPagesAppConfig = {
 	devPrewarmPaths?: string[];
 	/** Response headers from the user's `headers` option, validated at finalization. */
 	headers?: ResponseHeaderRule[];
-	/** The user's `maxRequestBodySize` option, validated at finalization. */
-	maxRequestBodySize?: number;
-	/** The user's `trustProxy` option. */
+	/** The user's `maxRequestBodySize` in bytes, validated at finalization, or the default. */
+	maxRequestBodySize: number;
 	trustProxy?: boolean;
 	/**
 	 * @default { title: 'Ecopages', description: 'Ecopages' }

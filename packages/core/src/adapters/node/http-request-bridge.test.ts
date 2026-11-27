@@ -93,6 +93,17 @@ describe('NodeHttpRequestBridge', () => {
 			}
 		});
 
+		it('treats a Host that is a list as not a host', () => {
+			expect(requestUrl({ host: 'a.example,evil.example' })).toBe('http://127.0.0.1:3000/submit?ok=1');
+			expect(requestUrl({ host: 'shop.example:99999' })).toBe('http://127.0.0.1:3000/submit?ok=1');
+		});
+
+		it('keeps a forwarded protocol when no host is usable', () => {
+			expect(requestUrl({ 'x-forwarded-proto': 'https' }, { trustProxy: true })).toBe(
+				'https://127.0.0.1:3000/submit?ok=1',
+			);
+		});
+
 		it('ignores forwarded headers unless the app trusts its proxy', () => {
 			const headers = { host: 'internal:3000', 'x-forwarded-host': 'evil.example', 'x-forwarded-proto': 'https' };
 
@@ -123,6 +134,22 @@ describe('NodeHttpRequestBridge', () => {
 				'http://internal:3000/submit?ok=1',
 			);
 		});
+	});
+
+	it('pauses the Node request while no one reads the body, and resumes it as the body is read', async () => {
+		const bridge = new NodeHttpRequestBridge();
+		const req = new MockIncomingMessage();
+		const request = bridge.createWebRequest(req as unknown as IncomingMessage, 'http://localhost:3000');
+
+		req.write('a'.repeat(1024));
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(req.isPaused()).toBe(true);
+
+		const reader = request.body!.getReader();
+		await reader.read();
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(req.isPaused()).toBe(false);
+		await reader.cancel();
 	});
 
 	it('does not attach a body for GET requests', () => {

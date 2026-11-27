@@ -8,6 +8,7 @@ import { Processor, type ProcessorConfig } from '../../../../plugins/processor.t
 function createMockConfig(processors = new Map<string, Processor>()): EcoPagesAppConfig {
 	return {
 		baseUrl: 'http://localhost:3000',
+		maxRequestBodySize: 1024,
 		rootDir: '/test/project',
 		srcDir: 'src',
 		publicDir: 'public',

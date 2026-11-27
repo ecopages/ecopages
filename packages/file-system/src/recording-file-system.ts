@@ -21,7 +21,7 @@ export type RecordingFileSystem = FileSystem & {
  * Wraps `inner` and records path arguments passed to each method.
  *
  * @remarks
- * Glob patterns are not recorded; the glob `cwd` is. Copy, rename and watch
+ * Glob patterns are not recorded; the glob `cwd` is. Copy, rename, link and watch
  * record every path they receive.
  */
 export function createRecordingFileSystem(inner: FileSystem): RecordingFileSystem {
@@ -114,6 +114,16 @@ export function createRecordingFileSystem(inner: FileSystem): RecordingFileSyste
 			recordString(recorded, source);
 			recordString(recorded, destination);
 			inner.rename(source, destination);
+		},
+		linkNew: (source, destination) => {
+			recordString(recorded, source);
+			recordString(recorded, destination);
+			return inner.linkNew(source, destination);
+		},
+		linkNewAsync: (source, destination) => {
+			recordString(recorded, source);
+			recordString(recorded, destination);
+			return inner.linkNewAsync(source, destination);
 		},
 		isDirectoryAsync: (path) => {
 			recordString(recorded, path);

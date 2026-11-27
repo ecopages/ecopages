@@ -1,4 +1,5 @@
-import { fileSystem } from '@ecopages/file-system';
+import { fileSystem, installFileSystem } from '@ecopages/file-system';
+import { nodeFs } from '@ecopages/file-system/node';
 import { createClient } from '@libsql/client';
 import { path } from '@ecopages/file-system/path';
 import { count, eq } from 'drizzle-orm';
@@ -218,6 +219,84 @@ describe('openCatalogDatabase', () => {
 
 		expect(remaining).toHaveLength(1);
 		expect(fileSystem.readdir(path.dirname(filePath)).map((entry) => entry.name)).toEqual(['catalog.db']);
+	});
+
+	test('a catalog another process installs at the instant this one installs is kept, with its carts', async () => {
+		const winnerPath = path.join(temp.dir, 'winner.db');
+		const winner = await openCatalogDatabase({
+			url: path.toFileUrl(winnerPath).href,
+			migrationsFolder,
+			sizeName: 'small',
+		});
+		await winner.db.insert(carts).values({ id: '00000000-0000-4000-8000-000000000003', updatedAt: Date.now() });
+		winner.close();
+		const restore = installFileSystem(
+			Object.assign(Object.create(nodeFs), {
+				linkNewAsync: async (source: string, destination: string) => {
+					nodeFs.copyFile(winnerPath, destination);
+					return nodeFs.linkNewAsync(source, destination);
+				},
+			}),
+		);
+
+		try {
+			const { db, close } = await openCatalogDatabase({
+				url: path.toFileUrl(filePath).href,
+				migrationsFolder,
+				sizeName: 'small',
+			});
+			const remaining = await db.select().from(carts);
+			close();
+
+			expect(remaining).toHaveLength(1);
+		} finally {
+			restore();
+		}
+		expect(fileSystem.readdir(path.dirname(filePath)).map((entry) => entry.name)).toEqual(['catalog.db']);
+	});
+
+	test('a volume without hard links installs the seeded file with a rename and leaves no temporary file', async () => {
+		const restore = installFileSystem(
+			Object.assign(Object.create(nodeFs), {
+				linkNewAsync: async () => {
+					throw Object.assign(new Error('operation not permitted'), { code: 'EPERM' });
+				},
+			}),
+		);
+
+		try {
+			const { db, close } = await openCatalogDatabase({
+				url: path.toFileUrl(filePath).href,
+				migrationsFolder,
+				sizeName: 'small',
+			});
+			const [row] = await db.select({ value: count() }).from(products);
+			close();
+
+			expect(row?.value).toBe(productTotal(CATALOG_SIZES.small));
+		} finally {
+			restore();
+		}
+		expect(fileSystem.readdir(path.dirname(filePath)).map((entry) => entry.name)).toEqual(['catalog.db']);
+	});
+
+	test('a link that fails for another reason leaves no temporary file and reports the error', async () => {
+		const restore = installFileSystem(
+			Object.assign(Object.create(nodeFs), {
+				linkNewAsync: async () => {
+					throw Object.assign(new Error('input/output error'), { code: 'EIO' });
+				},
+			}),
+		);
+
+		try {
+			await expect(
+				openCatalogDatabase({ url: path.toFileUrl(filePath).href, migrationsFolder, sizeName: 'small' }),
+			).rejects.toThrow('input/output error');
+		} finally {
+			restore();
+		}
+		expect(fileSystem.readdir(path.dirname(filePath)).map((entry) => entry.name)).toEqual([]);
 	});
 
 	test('two concurrent opens of a missing file both end with a seeded database', async () => {

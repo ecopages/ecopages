@@ -74,7 +74,7 @@ export interface ReaddirOptions {
  * File system interface. `NodeFileSystem` implements it on every runtime.
  *
  * @remarks
- * `stat`, `lstat`, `readdir`, `readlink`, `mkdtemp` and `rename` throw the Node error unchanged, so
+ * `stat`, `lstat`, `readdir`, `readlink`, `mkdtemp`, `rename` and `linkNew` throw the Node error unchanged, so
  * callers can branch on its `code` (for example `ENOENT`).
  */
 export interface FileSystem {
@@ -209,6 +209,27 @@ export interface FileSystem {
 	 * @throws If the source does not exist
 	 */
 	rename(source: string, destination: string): void;
+
+	/**
+	 * Install `source` at `destination` as a hard link, only when nothing is at `destination` yet, in one atomic step.
+	 * A dangling symlink at `destination` counts as something.
+	 *
+	 * @remarks
+	 * `rename` replaces an existing file, so two processes that each seeded a file and then check for one before
+	 * renaming can still overwrite each other. `link(2)` fails with `EEXIST` when the destination exists, so exactly
+	 * one of several processes that call this at once installs its file and every other one gets `false` and leaves
+	 * the installed file untouched. Both paths must be on one volume, and `source` stays where it is: remove it
+	 * afterwards.
+	 *
+	 * @returns `true` when the link was created, `false` when `destination` already exists. Any other failure,
+	 * such as a missing source (`ENOENT`) or a volume without hard links (`EPERM`, `EXDEV`), throws Node's error.
+	 */
+	linkNew(source: string, destination: string): boolean;
+
+	/**
+	 * Asynchronous {@link FileSystem.linkNew}.
+	 */
+	linkNewAsync(source: string, destination: string): Promise<boolean>;
 
 	/**
 	 * Check if a path is a directory asynchronously.

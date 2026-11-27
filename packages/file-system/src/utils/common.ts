@@ -7,6 +7,7 @@ import {
 	cpSync,
 	type Dirent,
 	existsSync,
+	linkSync,
 	lstatSync,
 	mkdirSync,
 	mkdtempSync,
@@ -20,7 +21,14 @@ import {
 	type Stats,
 	writeFileSync,
 } from 'node:fs';
-import { cp as cpAsync, mkdir as mkdirAsync, readdir, rm as rmAsync, stat as statAsync } from 'node:fs/promises';
+import {
+	cp as cpAsync,
+	link as linkAsync,
+	mkdir as mkdirAsync,
+	readdir,
+	rm as rmAsync,
+	stat as statAsync,
+} from 'node:fs/promises';
 import { path } from '../path.ts';
 import { tmpdir } from 'node:os';
 import zlib from 'node:zlib';
@@ -31,6 +39,11 @@ import {
 	type GlobOptions,
 	type ReaddirOptions,
 } from '../types.ts';
+
+/** True for the error `link(2)` raises when the destination exists, the one failure `linkNew` reports as `false`. */
+function isAlreadyExistsError(error: unknown): boolean {
+	return error instanceof Error && (error as NodeJS.ErrnoException).code === 'EEXIST';
+}
 
 function toFileStats(stats: Stats): FileStats {
 	return {
@@ -231,6 +244,26 @@ export abstract class BaseFileSystem {
 
 	rename(source: string, destination: string): void {
 		renameSync(source, destination);
+	}
+
+	linkNew(source: string, destination: string): boolean {
+		try {
+			linkSync(source, destination);
+			return true;
+		} catch (error) {
+			if (isAlreadyExistsError(error)) return false;
+			throw error;
+		}
+	}
+
+	async linkNewAsync(source: string, destination: string): Promise<boolean> {
+		try {
+			await linkAsync(source, destination);
+			return true;
+		} catch (error) {
+			if (isAlreadyExistsError(error)) return false;
+			throw error;
+		}
 	}
 
 	/**

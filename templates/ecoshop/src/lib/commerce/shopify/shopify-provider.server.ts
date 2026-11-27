@@ -1,3 +1,4 @@
+import { describeLine, describeShortage } from '../../cart/cart-messages';
 import { CartInputError, CommerceBackendError } from '../errors';
 import {
 	type Cart,
@@ -5,6 +6,8 @@ import {
 	type Collection,
 	type CommerceProvider,
 	MAX_LINE_QUANTITY,
+	type ProductListOptions,
+	type ProductSort,
 	type StorePolicyType,
 } from '../types';
 import {
@@ -35,9 +38,28 @@ import {
 	SHOP_POLICIES_QUERY,
 	SHOP_QUERY,
 } from './queries';
+import { normalizeStoreDomain } from './store-domain';
 import { createStorefrontClient, type StorefrontClientOptions } from './storefront-client.server';
 
 const DEFAULT_LIMIT = 24;
+
+/**
+ * The most nodes the Storefront API returns for one `first`.
+ */
+const PAGE_SIZE = 250;
+
+/**
+ * How Shopify orders a product list for each {@link ProductSort}. Products and collection products take the same
+ * key names, and `reverse` turns the order around. A collection read without a sort sends none, so Shopify uses the
+ * order the merchant set for it.
+ */
+const SORT_KEYS: Record<ProductSort, { sortKey: string; reverse: boolean }> = {
+	'best-selling': { sortKey: 'BEST_SELLING', reverse: false },
+	'price-ascending': { sortKey: 'PRICE', reverse: false },
+	'price-descending': { sortKey: 'PRICE', reverse: true },
+	'title-ascending': { sortKey: 'TITLE', reverse: false },
+	'title-descending': { sortKey: 'TITLE', reverse: true },
+};
 
 type CartMutationResult = {
 	cart: ShopifyCart | null;
@@ -83,7 +105,32 @@ function heldBefore(cart: Cart | null, add: CartLineInput[] = []): Map<string, n
 	);
 }
 
+/**
+ * How many of each variant a change wants the cart to hold afterwards: the quantity of a set, or what the cart held
+ * plus the quantity of an addition. A variant the change removes wants nothing, so it is left out.
+ */
+function wantedTotals(lines: CartLineQuantity[], existing: Cart | null, mode: 'add' | 'set'): Map<string, number> {
+	const wanted = new Map<string, number>();
+	for (const { variantId, quantity } of lines) {
+		if (quantity <= 0) continue;
+		const base =
+			mode === 'set'
+				? 0
+				: (wanted.get(variantId) ??
+					(existing?.lines ?? [])
+						.filter((line) => line.variantId === variantId)
+						.reduce((sum, line) => sum + line.quantity, 0));
+		wanted.set(variantId, base + quantity);
+	}
+	return wanted;
+}
+
 const CART_ID_PREFIX = 'gid://shopify/Cart/';
+
+/**
+ * The warning code with which Shopify says a quantity was capped at the stock.
+ */
+const STOCK_WARNING = 'MERCHANDISE_NOT_ENOUGH_STOCK';
 
 const PRODUCT_ID_PREFIX = 'gid://shopify/Product/';
 
@@ -181,7 +228,8 @@ function assertWithinCap(lines: CartLineQuantity[], existing: Cart | null, mode:
  * sold-out or unknown variant it would add before anything changes, then writes in at most two requests (see
  * `changeCart`). A new cart is created in one request, refused afterwards when Shopify added nothing. `addToCart` reads
  * the cart first for the line cap of 99. The Storefront API has no transaction or conditional write, so a change made
- * elsewhere between the read and the write is not seen.
+ * elsewhere between the read and the write is not seen: the cart a write returns is checked against the cap again
+ * (`enforceCap`), and a refused second write returns the cart as it now is with a message (`changeCart`).
  */
 export function createShopifyProvider(options: StorefrontClientOptions): CommerceProvider {
 	const query = createStorefrontClient(options);
@@ -202,6 +250,33 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 			pageInfo = page.pageInfo;
 		}
 		return nodes;
+	}
+
+	/**
+	 * Reads a product list from `offset` for `limit` products by following the connection's cursors, at most
+	 * {@link PAGE_SIZE} to a request.
+	 *
+	 * @remarks
+	 * The Storefront API pages forward by cursor only, so the products before `offset` are read and dropped: a request
+	 * for the tenth page of 30 reads 300 products in two requests. The order is the provider's, so the list is the
+	 * catalog's, not a page of it sorted afterwards. A source that answers `null` ends the list.
+	 */
+	async function pageProducts(
+		list: ProductListOptions | undefined,
+		fetchPage: (first: number, after: string | null) => Promise<ShopifyConnection<ShopifyProductSummary> | null>,
+	): Promise<ShopifyProductSummary[]> {
+		const offset = list?.offset ?? 0;
+		const wanted = offset + (list?.limit ?? DEFAULT_LIMIT);
+		const nodes: ShopifyProductSummary[] = [];
+		let after: string | null = null;
+		while (nodes.length < wanted) {
+			const page = await fetchPage(Math.min(PAGE_SIZE, wanted - nodes.length), after);
+			if (!page) break;
+			nodes.push(...page.nodes);
+			if (!page.pageInfo.hasNextPage || !page.pageInfo.endCursor) break;
+			after = page.pageInfo.endCursor;
+		}
+		return nodes.slice(offset, wanted);
 	}
 
 	async function completeCart(cart: ShopifyCart): Promise<Cart> {
@@ -237,6 +312,7 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 		const last = results.at(-1)?.cart;
 		if (!last) throw new CommerceBackendError(`${fields.join(', ')} returned no cart`);
 		const cart = await completeCart(last);
+		const warnings = results.flatMap((result) => result?.warnings ?? []);
 		const missing = [...before]
 			.filter(
 				([variantId, held]) =>
@@ -246,10 +322,52 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 			)
 			.map(([variantId]) => variantId);
 		if (missing.length) {
-			const reasons = results.flatMap((result) => result?.warnings ?? []).map((warning) => warning.message);
+			const reasons = warnings.map((warning) => warning.message);
 			throw new CartInputError(reasons.length ? reasons.join('; ') : `Could not add ${missing.join(', ')}.`);
 		}
-		return cart;
+		return warnings.length
+			? {
+					...cart,
+					messages: warnings.map((warning) => ({
+						type: 'warning' as const,
+						code: warning.code,
+						content: warning.message,
+					})),
+				}
+			: cart;
+	}
+
+	/**
+	 * Says which lines hold fewer than the change asked for, and why, in numbers.
+	 *
+	 * @remarks
+	 * Since API 2024-07 Shopify caps a quantity at the stock it has and reports a warning, not an error, so the change
+	 * succeeds with less than was asked. When Shopify warned of stock, comparing the cart with what the change wanted
+	 * names the line and the stock for the shopper and the agent, and the warning Shopify worded for the same cause is
+	 * dropped; its other warnings stay. A change that was only partly made has lines short for its own reason, so it
+	 * is left to its message.
+	 */
+	function explainShortages(cart: Cart, wanted: Map<string, number>): Cart {
+		const stockWarned = (cart.messages ?? []).some((message) => message.code === STOCK_WARNING);
+		if (!stockWarned || cart.messages?.some((message) => message.code === 'change_incomplete')) return cart;
+		const shortages = [...wanted].flatMap(([variantId, target]) => {
+			const lines = cart.lines.filter((line) => line.variantId === variantId);
+			const available = lines.reduce((sum, line) => sum + line.quantity, 0);
+			const first = lines[0];
+			if (available >= target || !first) return [];
+			return [
+				{
+					type: 'warning' as const,
+					code: 'quantity_reduced',
+					content: describeShortage(describeLine(first), available, target),
+					variantId,
+					wanted: target,
+				},
+			];
+		});
+		if (!shortages.length) return cart;
+		const others = (cart.messages ?? []).filter((message) => message.code !== STOCK_WARNING);
+		return { ...cart, messages: [...others, ...shortages] };
 	}
 
 	/**
@@ -292,19 +410,80 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 	 * @remarks
 	 * Shopify runs every field of a mutation even after one reports an error, so a refused addition sent with the
 	 * removals would still remove lines. Sent first and alone, a refused addition changes nothing. A refusal of the
-	 * second request comes after the additions are in the cart, and its message says so.
+	 * second request comes after the additions are in the cart, so the cart is read again and returned as it now is,
+	 * with a message that says which changes were not made, instead of an error that hides the additions.
 	 */
 	async function changeCart(cart: Cart, { add, update, remove }: CartChange): Promise<Cart> {
 		const added = add.length ? await sendCartChange(cart, { add }) : cart;
 		if (!update.length && !remove.length) return added;
 		try {
-			return await sendCartChange(added, { update, remove });
+			const changed = await sendCartChange(added, { update, remove });
+			const messages = [...(added.messages ?? []), ...(changed.messages ?? [])];
+			return messages.length ? { ...changed, messages } : changed;
 		} catch (error) {
 			if (!add.length || !(error instanceof CartInputError)) throw error;
-			throw new CartInputError(
-				`${error.message} The new items were added to the cart, and other lines may have changed.`,
-			);
+			const current = await getCart(cart.id).catch(() => null);
+			if (!current) {
+				throw new CartInputError(
+					`${error.message} The new items were added to the cart, and other lines may have changed.`,
+				);
+			}
+			return {
+				...current,
+				messages: [
+					{
+						type: 'error',
+						code: 'change_incomplete',
+						content: `The new items were added, but the rest of the change was refused: ${error.message} The cart shows what it holds now.`,
+					},
+				],
+			};
 		}
+	}
+
+	/**
+	 * Takes a line that a change from another tab pushed past {@link MAX_LINE_QUANTITY} back to it.
+	 *
+	 * @remarks
+	 * The cap is checked before a write from the cart that was read, and the Storefront API has no conditional write,
+	 * so two tabs that each add one unit to a line of 98 both pass the check and Shopify merges them into 100. The
+	 * cart a write returns is the one it ended with, so the check runs again on it.
+	 */
+	async function enforceCap(cart: Cart): Promise<Cart> {
+		const over = cart.lines.filter((line) => line.quantity > MAX_LINE_QUANTITY);
+		if (!over.length) return cart;
+		const names = over.map(describeLine).join(', ');
+		let capped: Cart;
+		try {
+			capped = await sendCartChange(cart, {
+				update: over.map((line) => ({ id: line.id, quantity: MAX_LINE_QUANTITY })),
+			});
+		} catch (error) {
+			if (!(error instanceof CartInputError || error instanceof CommerceBackendError)) throw error;
+			return {
+				...cart,
+				messages: [
+					...(cart.messages ?? []),
+					{
+						type: 'warning',
+						code: 'quantity_over_cap',
+						content: `A cart line holds at most ${MAX_LINE_QUANTITY} of one variant, but ${names} holds more and could not be set back: ${error.message}`,
+					},
+				],
+			};
+		}
+		return {
+			...capped,
+			messages: [
+				...(cart.messages ?? []),
+				...(capped.messages ?? []),
+				{
+					type: 'warning',
+					code: 'quantity_capped',
+					content: `A cart line holds at most ${MAX_LINE_QUANTITY} of one variant, so ${names} was set back to ${MAX_LINE_QUANTITY}.`,
+				},
+			],
+		};
 	}
 
 	/**
@@ -318,24 +497,31 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 		return data.cart ? completeCart(data.cart) : null;
 	}
 
-	const createCart = (lines: CartLineQuantity[]) => {
+	const createCart = async (lines: CartLineQuantity[]) => {
 		const add = lines
 			.filter((line) => line.quantity > 0)
 			.map((line) => ({ merchandiseId: line.variantId, quantity: line.quantity }));
-		return runCartMutation(CART_CREATE_MUTATION, { lines: add }, ['cartCreate'], heldBefore(null, add));
+		const cart = await runCartMutation(CART_CREATE_MUTATION, { lines: add }, ['cartCreate'], heldBefore(null, add));
+		return explainShortages(cart, wantedTotals(lines, null, 'add'));
 	};
 
 	return {
+		ucpOrigin: () => `https://${normalizeStoreDomain(options.storeDomain)}`,
 		getStore: async () => {
 			const data = await query<{ shop: { name: string; description: string | null } }>(SHOP_QUERY);
 			return { name: data.shop.name, description: data.shop.description ?? '' };
 		},
 		listProducts: async (list) => {
-			const data = await query<{ products: { nodes: ShopifyProductSummary[] } }>(PRODUCTS_QUERY, {
-				first: list?.limit ?? DEFAULT_LIMIT,
-				sortKey: 'BEST_SELLING',
+			const order = SORT_KEYS[list?.sort ?? 'best-selling'];
+			const nodes = await pageProducts(list, async (first, after) => {
+				const data = await query<{ products: ShopifyConnection<ShopifyProductSummary> }>(PRODUCTS_QUERY, {
+					first,
+					after,
+					...order,
+				});
+				return data.products;
 			});
-			return data.products.nodes.map(toProductSummary);
+			return nodes.map(toProductSummary);
 		},
 		searchProducts: async (text, list) => {
 			const data = await query<{ products: { nodes: ShopifyProductSummary[] } }>(PRODUCTS_QUERY, {
@@ -370,12 +556,18 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 			return data.collections.nodes;
 		},
 		getCollection: async (handle, list) => {
-			const data = await query<{
-				collection: (Collection & { products: { nodes: ShopifyProductSummary[] } }) | null;
-			}>(COLLECTION_QUERY, { handle, first: list?.limit ?? DEFAULT_LIMIT });
-			if (!data.collection) return null;
-			const { products, ...collection } = data.collection;
-			return { collection, products: products.nodes.map(toProductSummary) };
+			const order = list?.sort ? SORT_KEYS[list.sort] : {};
+			let collection: Collection | undefined;
+			const nodes = await pageProducts(list, async (first, after) => {
+				const data = await query<{
+					collection: (Collection & { products: ShopifyConnection<ShopifyProductSummary> }) | null;
+				}>(COLLECTION_QUERY, { handle, first, after, ...order });
+				if (!data.collection) return null;
+				const { products, ...found } = data.collection;
+				collection = found;
+				return products;
+			});
+			return collection ? { collection, products: nodes.map(toProductSummary) } : null;
 		},
 		listPolicies: async () => {
 			const data = await query<{ shop: Record<string, ShopifyPolicy | null> }>(SHOP_POLICIES_QUERY);
@@ -392,9 +584,10 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 			const cart = cartId ? await getCart(cartId) : null;
 			assertWithinCap(lines, cart, 'add');
 			if (!cart) return createCart(lines);
-			return sendCartChange(cart, {
+			const changed = await sendCartChange(cart, {
 				add: lines.map((line) => ({ merchandiseId: line.variantId, quantity: line.quantity })),
 			});
+			return enforceCap(explainShortages(changed, wantedTotals(lines, cart, 'add')));
 		},
 		setCartQuantities: async (cartId, lines) => {
 			assertVariantIds(lines);
@@ -410,7 +603,7 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 					`These variants are sold out or do not exist: ${refused.map((line) => line.merchandiseId).join(', ')}.`,
 				);
 			}
-			return changeCart(cart, change);
+			return enforceCap(explainShortages(await changeCart(cart, change), wantedTotals(lines, null, 'set')));
 		},
 	};
 }

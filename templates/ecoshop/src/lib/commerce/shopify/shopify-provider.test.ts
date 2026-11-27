@@ -57,6 +57,14 @@ const cartResult = (
 });
 const jacketM = 'gid://shopify/ProductVariant/4470000000001';
 
+describe('Shopify provider store', () => {
+	it('names the origin of its store, where its UCP profile lives', () => {
+		const { provider } = providerWith([]);
+
+		expect(provider.ucpOrigin()).toBe('https://north-pier.myshopify.com');
+	});
+});
+
 describe('Shopify provider catalog', () => {
 	it('reads a product from the Storefront API', async () => {
 		const { provider, calls } = providerWith([productFixture]);
@@ -110,7 +118,7 @@ describe('Shopify provider catalog', () => {
 
 		const results = await provider.searchProducts('shirt', { limit: 5 });
 
-		expect(calls[0]?.variables).toEqual({ first: 5, query: 'shirt', sortKey: 'RELEVANCE' });
+		expect(calls[0]?.variables).toMatchObject({ first: 5, query: 'shirt', sortKey: 'RELEVANCE' });
 		expect(results.map((product) => product.handle)).toEqual(['oxford-shirt', 'deck-shirt']);
 		expect(results[0]?.featuredImage).toBeNull();
 	});
@@ -127,6 +135,82 @@ describe('Shopify provider catalog', () => {
 			description: 'Layers for weather.',
 		});
 		expect(page?.products.map((product) => product.handle)).toEqual(['harbor-jacket']);
+	});
+
+	describe('sorted and paged product lists', () => {
+		const node = (index: number) => ({
+			...searchFixture.data.products.nodes[0]!,
+			id: `gid://shopify/Product/${index}`,
+			handle: `product-${index}`,
+		});
+		const connection = (from: number, count: number, total: number) => ({
+			nodes: Array.from({ length: count }, (_, index) => node(from + index)),
+			pageInfo: { hasNextPage: from + count <= total, endCursor: `cursor-${from + count - 1}` },
+		});
+
+		it('asks Shopify for the order and follows the cursors to the page, in 250 product requests', async () => {
+			const { provider, calls } = providerWith([
+				{ data: { products: connection(1, 250, 300) } },
+				{ data: { products: connection(251, 50, 300) } },
+			]);
+
+			const products = await provider.listProducts({ limit: 30, offset: 270, sort: 'price-ascending' });
+
+			expect(calls.map((call) => call.variables)).toEqual([
+				{ first: 250, after: null, sortKey: 'PRICE', reverse: false },
+				{ first: 50, after: 'cursor-250', sortKey: 'PRICE', reverse: false },
+			]);
+			expect(products.map((product) => product.handle)).toEqual(
+				Array.from({ length: 30 }, (_, index) => `product-${271 + index}`),
+			);
+		});
+
+		it('reverses the order for a descending sort and stops when the list ends', async () => {
+			const { provider, calls } = providerWith([
+				{ data: { products: { ...connection(1, 3, 3), pageInfo: { hasNextPage: false, endCursor: null } } } },
+			]);
+
+			const products = await provider.listProducts({ limit: 10, sort: 'title-descending' });
+
+			expect(calls).toHaveLength(1);
+			expect(calls[0]?.variables).toEqual({ first: 10, after: null, sortKey: 'TITLE', reverse: true });
+			expect(products).toHaveLength(3);
+		});
+
+		it('pages the products of a collection the same way, in the order of Shopify', async () => {
+			const collection = (from: number, count: number) => ({
+				data: {
+					collection: {
+						id: 'gid://shopify/Collection/1',
+						handle: 'all-things',
+						title: 'All things',
+						description: '',
+						products: connection(from, count, 300),
+					},
+				},
+			});
+			const { provider, calls } = providerWith([collection(1, 250), collection(251, 50)]);
+
+			const page = await provider.getCollection('all-things', {
+				limit: 30,
+				offset: 270,
+				sort: 'price-descending',
+			});
+
+			expect(calls.map((call) => call.variables)).toEqual([
+				{ handle: 'all-things', first: 250, after: null, sortKey: 'PRICE', reverse: true },
+				{ handle: 'all-things', first: 50, after: 'cursor-250', sortKey: 'PRICE', reverse: true },
+			]);
+			expect(page?.collection.handle).toBe('all-things');
+			expect(page?.products).toHaveLength(30);
+			expect(page?.products[0]?.handle).toBe('product-271');
+		});
+
+		it('resolves a collection that does not exist to null', async () => {
+			const { provider } = providerWith([{ data: { collection: null } }]);
+
+			expect(await provider.getCollection('missing', { limit: 5, sort: 'title-ascending' })).toBeNull();
+		});
 	});
 
 	it('fails loudly on GraphQL errors and HTTP failures', async () => {
@@ -267,7 +351,43 @@ describe('Shopify provider cart', () => {
 		expect(calls[1]?.variables).toEqual({ cartId: cart.id, add: [{ merchandiseId: otherVariant, quantity: 1 }] });
 	});
 
-	it('says the new items are in the cart when the removal after them is refused', async () => {
+	it('returns the cart as it now is, with a message, when the removal after the additions is refused', async () => {
+		const { provider, calls } = providerWith([
+			state(cart.lines.nodes, [{ id: otherVariant, availableForSale: true }]),
+			changed(['add'], [...cart.lines.nodes, lineFor(otherVariant, 1)]),
+			{
+				data: {
+					remove: {
+						cart: null,
+						userErrors: [{ field: ['lineIds', '0'], message: 'The line does not exist' }],
+						warnings: [],
+					},
+				},
+			},
+			{
+				data: {
+					cart: { ...cart, lines: { ...cart.lines, nodes: [...cart.lines.nodes, lineFor(otherVariant, 1)] } },
+				},
+			},
+		]);
+
+		const result = await provider.setCartQuantities(cart.id, [
+			{ variantId: jacketM, quantity: 0 },
+			{ variantId: otherVariant, quantity: 1 },
+		]);
+
+		expect(calls.map((call) => call.operation)).toEqual(['CartState', 'CartChange', 'CartChange', 'Cart']);
+		expect(result.lines.map((line) => line.variantId)).toEqual([jacketM, otherVariant]);
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				type: 'error',
+				code: 'change_incomplete',
+				content: expect.stringContaining('The line does not exist'),
+			}),
+		]);
+	});
+
+	it('reports the refusal as an error when the cart cannot be read again', async () => {
 		const { provider } = providerWith([
 			state(cart.lines.nodes, [{ id: otherVariant, availableForSale: true }]),
 			changed(['add'], [...cart.lines.nodes, lineFor(otherVariant, 1)]),
@@ -280,6 +400,7 @@ describe('Shopify provider cart', () => {
 					},
 				},
 			},
+			new Response('', { status: 500 }),
 		]);
 
 		await expect(
@@ -287,9 +408,7 @@ describe('Shopify provider cart', () => {
 				{ variantId: jacketM, quantity: 0 },
 				{ variantId: otherVariant, quantity: 1 },
 			]),
-		).rejects.toThrow(
-			'The line does not exist The new items were added to the cart, and other lines may have changed.',
-		);
+		).rejects.toThrow('The line does not exist');
 	});
 
 	it('reports a refused update as it is when nothing was added', async () => {
@@ -515,6 +634,224 @@ describe('Shopify provider cart', () => {
 			]),
 		).rejects.toThrow(/at most 99/u);
 		expect(calls.map((call) => call.operation)).toEqual(['Cart']);
+	});
+
+	it('sets a line back to the cap when a change from another tab pushed it past', async () => {
+		const held = (quantity: number) => [{ ...cart.lines.nodes[0]!, quantity }];
+		const { provider, calls } = providerWith([
+			{ data: { cart: { ...cart, lines: { ...cart.lines, nodes: held(98) } } } },
+			changed(['add'], held(100)),
+			changed(['update'], held(99)),
+		]);
+
+		const result = await provider.addToCart(cart.id, [{ variantId: jacketM, quantity: 1 }]);
+
+		expect(calls.map((call) => call.operation)).toEqual(['Cart', 'CartChange', 'CartChange']);
+		expect(calls[2]?.variables).toEqual({
+			cartId: cart.id,
+			update: [{ id: cart.lines.nodes[0]?.id, quantity: 99 }],
+		});
+		expect(result.lines[0]?.quantity).toBe(99);
+		expect(result.messages).toEqual([expect.objectContaining({ type: 'warning', code: 'quantity_capped' })]);
+	});
+
+	it('sets a line back to the cap after a set that another tab raced', async () => {
+		const held = (quantity: number) => [{ ...cart.lines.nodes[0]!, quantity }];
+		const { provider, calls } = providerWith([
+			state(held(2)),
+			changed(['update'], held(120)),
+			changed(['update'], held(99)),
+		]);
+
+		const result = await provider.setCartQuantities(cart.id, [{ variantId: jacketM, quantity: 50 }]);
+
+		expect(calls.map((call) => call.operation)).toEqual(['CartState', 'CartChange', 'CartChange']);
+		expect(result.lines[0]?.quantity).toBe(99);
+	});
+
+	it('leaves a cart within the cap as it is, with no further request and no message', async () => {
+		const { provider, calls } = providerWith([
+			cartFixture,
+			changed(['add'], [{ ...cart.lines.nodes[0]!, quantity: 3 }]),
+		]);
+
+		const result = await provider.addToCart(cart.id, [{ variantId: jacketM, quantity: 1 }]);
+
+		expect(calls).toHaveLength(2);
+		expect(result.messages).toBeUndefined();
+	});
+
+	describe('stock warnings', () => {
+		const stock = (message = 'Not enough stock.') => [{ code: 'MERCHANDISE_NOT_ENOUGH_STOCK', message }];
+		const held = (quantity: number) => [{ ...cart.lines.nodes[0]!, quantity }];
+
+		it('names the line that holds less than a set asked for, with the stock', async () => {
+			const { provider } = providerWith([state(held(2)), changed(['update'], held(3), stock())]);
+
+			const result = await provider.setCartQuantities(cart.id, [{ variantId: jacketM, quantity: 5 }]);
+
+			expect(result.lines[0]?.quantity).toBe(3);
+			expect(result.messages).toEqual([
+				{
+					type: 'warning',
+					code: 'quantity_reduced',
+					content: expect.stringMatching(/only 3 in stock, so the cart holds 3 instead of 5/u),
+					variantId: jacketM,
+					wanted: 5,
+				},
+			]);
+		});
+
+		it('says how many of an addition went in when the store has fewer, on a new cart', async () => {
+			const { provider } = providerWith([
+				{
+					data: {
+						cartCreate: {
+							cart: { ...cart, lines: { ...cart.lines, nodes: held(2) } },
+							userErrors: [],
+							warnings: stock(),
+						},
+					},
+				},
+			]);
+
+			const result = await provider.addToCart(undefined, [{ variantId: jacketM, quantity: 5 }]);
+
+			expect(result.messages).toEqual([
+				expect.objectContaining({
+					code: 'quantity_reduced',
+					wanted: 5,
+					content: expect.stringContaining('only 2 in stock'),
+				}),
+			]);
+		});
+
+		it('counts what the cart held before an addition, so it asks for the total', async () => {
+			const { provider } = providerWith([cartFixture, changed(['add'], held(4), stock())]);
+
+			const result = await provider.addToCart(cart.id, [{ variantId: jacketM, quantity: 5 }]);
+
+			expect(result.messages).toEqual([expect.objectContaining({ code: 'quantity_reduced', wanted: 7 })]);
+		});
+
+		it('carries a warning about another line as Shopify worded it', async () => {
+			const { provider } = providerWith([
+				cartFixture,
+				changed(['add'], held(3), [{ code: 'MERCHANDISE_OUT_OF_STOCK', message: 'The tote is sold out.' }]),
+			]);
+
+			const result = await provider.addToCart(cart.id, [{ variantId: jacketM, quantity: 1 }]);
+
+			expect(result.messages).toEqual([
+				{ type: 'warning', code: 'MERCHANDISE_OUT_OF_STOCK', content: 'The tote is sold out.' },
+			]);
+		});
+
+		it('keeps the warnings of both requests of a change', async () => {
+			const { provider } = providerWith([
+				state(held(2), [{ id: otherVariant, availableForSale: true }]),
+				changed(['add'], [...held(2), lineFor(otherVariant, 1)], [{ code: 'NOTE', message: 'First.' }]),
+				changed(['update'], [...held(3), lineFor(otherVariant, 1)], [{ code: 'NOTE', message: 'Second.' }]),
+			]);
+
+			const result = await provider.setCartQuantities(cart.id, [
+				{ variantId: otherVariant, quantity: 1 },
+				{ variantId: jacketM, quantity: 3 },
+			]);
+
+			expect(result.messages?.map((message) => message.content)).toEqual(['First.', 'Second.']);
+		});
+
+		it('has no messages when nothing was reduced and Shopify warned of nothing', async () => {
+			const { provider } = providerWith([state(held(2)), changed(['update'], held(4))]);
+
+			const result = await provider.setCartQuantities(cart.id, [{ variantId: jacketM, quantity: 4 }]);
+
+			expect(result.messages).toBeUndefined();
+		});
+	});
+
+	it('leaves the order of a collection to Shopify unless a sort is asked for', async () => {
+		const { provider, calls } = providerWith([collectionFixture, collectionFixture]);
+
+		await provider.getCollection('outerwear');
+		await provider.getCollection('outerwear', { sort: 'best-selling' });
+
+		expect(calls[0]?.variables).not.toHaveProperty('sortKey');
+		expect(calls[1]?.variables).toMatchObject({ sortKey: 'BEST_SELLING', reverse: false });
+	});
+
+	it('does not blame stock for what a refused second write left undone', async () => {
+		const { provider } = providerWith([
+			state(cart.lines.nodes, [{ id: otherVariant, availableForSale: true }]),
+			changed(
+				['add'],
+				[...cart.lines.nodes, lineFor(otherVariant, 1)],
+				[{ code: 'MERCHANDISE_NOT_ENOUGH_STOCK', message: 'Low.' }],
+			),
+			{
+				data: {
+					update: {
+						cart: null,
+						userErrors: [{ field: ['lines', '0'], message: 'The quantity is not valid' }],
+						warnings: [],
+					},
+				},
+			},
+			{
+				data: {
+					cart: { ...cart, lines: { ...cart.lines, nodes: [...cart.lines.nodes, lineFor(otherVariant, 1)] } },
+				},
+			},
+		]);
+
+		const result = await provider.setCartQuantities(cart.id, [
+			{ variantId: otherVariant, quantity: 3 },
+			{ variantId: jacketM, quantity: 4 },
+		]);
+
+		expect(result.messages?.map((message) => message.code)).toEqual(['change_incomplete']);
+	});
+
+	it('keeps what a refused correction of an over-cap line leaves, with a message that says so', async () => {
+		const held = (quantity: number) => [{ ...cart.lines.nodes[0]!, quantity }];
+		const { provider } = providerWith([
+			{ data: { cart: { ...cart, lines: { ...cart.lines, nodes: held(98) } } } },
+			changed(['add'], held(100)),
+			{
+				data: {
+					update: {
+						cart: null,
+						userErrors: [{ field: ['lines', '0'], message: 'The line cannot change' }],
+						warnings: [],
+					},
+				},
+			},
+		]);
+
+		const result = await provider.addToCart(cart.id, [{ variantId: jacketM, quantity: 1 }]);
+
+		expect(result.lines[0]?.quantity).toBe(100);
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				code: 'quantity_over_cap',
+				content: expect.stringContaining('The line cannot change'),
+			}),
+		]);
+	});
+
+	it('keeps the cart and says the correction failed when the store is down for it', async () => {
+		const held = (quantity: number) => [{ ...cart.lines.nodes[0]!, quantity }];
+		const { provider } = providerWith([
+			{ data: { cart: { ...cart, lines: { ...cart.lines, nodes: held(98) } } } },
+			changed(['add'], held(100)),
+			new Response('', { status: 503 }),
+		]);
+
+		const result = await provider.addToCart(cart.id, [{ variantId: jacketM, quantity: 1 }]);
+
+		expect(result.lines[0]?.quantity).toBe(100);
+		expect(result.messages).toEqual([expect.objectContaining({ code: 'quantity_over_cap' })]);
 	});
 
 	it('reads every page of a long cart', async () => {

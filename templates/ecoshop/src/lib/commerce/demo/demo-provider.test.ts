@@ -22,6 +22,21 @@ describe('demo provider catalog', () => {
 		expect(await provider.listProducts({ limit: 2 })).toHaveLength(2);
 	});
 
+	it('sorts the whole catalog before it cuts the page', async () => {
+		const all = await provider.listProducts({ sort: 'price-ascending' });
+		const page = await provider.listProducts({ sort: 'price-ascending', offset: 2, limit: 3 });
+		const prices = all.map((product) => Number(product.priceRange.min.amount));
+
+		expect(prices).toEqual([...prices].sort((a, b) => a - b));
+		expect(page.map((product) => product.handle)).toEqual(all.slice(2, 5).map((product) => product.handle));
+		expect((await provider.listProducts({ sort: 'price-descending', limit: 1 }))[0]?.handle).toBe(
+			all.at(-1)?.handle,
+		);
+		expect((await provider.listProducts({ sort: 'title-ascending', limit: 1 }))[0]?.title).toBe(
+			[...all.map((product) => product.title)].sort((a, b) => a.localeCompare(b))[0],
+		);
+	});
+
 	it('returns a product with its variants and image', async () => {
 		const product = await provider.getProduct('field-shirt');
 
@@ -35,11 +50,48 @@ describe('demo provider catalog', () => {
 		expect(await provider.getCollection('missing')).toBeNull();
 	});
 
+	it('sorts and pages the products of a collection', async () => {
+		const page = await provider.getCollection('home', { sort: 'price-descending', limit: 1, offset: 0 });
+		const rest = await provider.getCollection('home', { sort: 'price-descending', limit: 5, offset: 1 });
+
+		expect(page?.products.map((product) => product.handle)).toEqual(['steel-bottle']);
+		expect(rest?.products.map((product) => product.handle)).toEqual(['beeswax-wraps']);
+	});
+
 	it('returns a collection with its products in order', async () => {
 		const page = await provider.getCollection('home');
 
 		expect(page?.collection.title).toBe('Home');
 		expect(page?.products.map((product) => product.handle)).toEqual(['steel-bottle', 'beeswax-wraps']);
+	});
+});
+
+describe('demo provider stock', () => {
+	const tote = 'gid://ecoshop/ProductVariant/canvas-tote';
+
+	it('holds a line at the stock and says so, as Shopify does', async () => {
+		const cart = await provider.addToCart(undefined, [{ variantId: tote, quantity: 5 }]);
+
+		expect(cart.lines[0]?.quantity).toBe(3);
+		expect(cart.messages).toEqual([
+			{
+				type: 'warning',
+				code: 'quantity_reduced',
+				content: 'Canvas Tote: only 3 in stock, so the cart holds 3 instead of 5.',
+				variantId: tote,
+				wanted: 5,
+			},
+		]);
+	});
+
+	it('counts what the cart holds, and refuses an addition that adds nothing', async () => {
+		const full = await provider.setCartQuantities(undefined, [{ variantId: tote, quantity: 3 }]);
+
+		await expect(provider.addToCart(full.id, [{ variantId: tote, quantity: 1 }])).rejects.toThrow(
+			/only 3 in stock/u,
+		);
+		const lowered = await provider.setCartQuantities(full.id, [{ variantId: tote, quantity: 2 }]);
+		expect(lowered.messages).toBeUndefined();
 	});
 });
 

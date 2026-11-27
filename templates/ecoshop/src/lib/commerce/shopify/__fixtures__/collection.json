@@ -46,7 +46,11 @@
 							"count": 2
 						}
 					}
-				]
+				],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": null
+				}
 			}
 		}
 	}

@@ -123,7 +123,7 @@ describe('store MCP server', () => {
 		});
 	});
 
-	it('replaces the lines of the cart named by its id', async () => {
+	it('changes the listed lines of the cart named by its id and keeps the others', async () => {
 		const created = await callTool('create_cart', {
 			cart: { line_items: [{ item: { id: 'gid://ecoshop/ProductVariant/canvas-tote' }, quantity: 1 }] },
 		});
@@ -135,8 +135,9 @@ describe('store MCP server', () => {
 		});
 
 		expect(updated.structuredContent).toMatchObject({
-			item_count: 3,
+			item_count: 4,
 			line_items: [
+				expect.objectContaining({ quantity: 1, item: expect.objectContaining({ title: 'Canvas Tote' }) }),
 				expect.objectContaining({ quantity: 3, item: expect.objectContaining({ title: 'Beeswax Wraps' }) }),
 			],
 		});

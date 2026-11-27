@@ -1,5 +1,5 @@
 /**
- * The window event the `cart-form` host dispatches after a change, so the header count follows without a reload.
+ * The window event dispatched after every cart change a host runs, so the header count follows without a reload.
  */
 export const CART_CHANGE_EVENT = 'ecoshop:cart-change';
 

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CART_CHANGE_EVENT } from '../cart/cart-events';
 import { NAVIGATE_EVENT } from '../navigation';
-import { callAgentTool, hasModelContext } from './agent-tool-client';
+import { callAgentTool } from './agent-tool-client';
 
 type Captured = { url: string; init: RequestInit };
 
@@ -30,18 +30,6 @@ function stubPage(pathname: string, body: unknown) {
 afterEach(() => {
 	vi.useRealTimers();
 	vi.unstubAllGlobals();
-});
-
-describe('WebMCP feature detection', () => {
-	it('reports no WebMCP when document.modelContext is missing', () => {
-		vi.stubGlobal('document', {});
-		expect(hasModelContext()).toBe(false);
-	});
-
-	it('reports WebMCP when the browser exposes document.modelContext', () => {
-		vi.stubGlobal('document', { modelContext: { registerTool: () => Promise.resolve() } });
-		expect(hasModelContext()).toBe(true);
-	});
 });
 
 describe('callAgentTool', () => {
@@ -78,6 +66,35 @@ describe('callAgentTool', () => {
 			{ type: NAVIGATE_EVENT, detail: { href: 'https://shop.test/collections/home', replace: undefined } },
 		]);
 		expect(page.assign).toHaveBeenCalledWith('https://shop.test/collections/home');
+	});
+
+	it('leaves the navigation to the host that already shows the page', async () => {
+		vi.useFakeTimers();
+		const page = stubPage('/products/field-shirt', {
+			result: { content: [{ type: 'text', text: 'Opening' }], structuredContent: {} },
+			navigateTo: '/products/field-shirt?variant=l',
+		});
+		const showsPage = vi.fn(() => true);
+
+		await callAgentTool('show_variant', {}, new AbortController().signal, { showsPage });
+		vi.runAllTimers();
+
+		expect(showsPage).toHaveBeenCalledWith('/products/field-shirt?variant=l');
+		expect(page.events).toEqual([]);
+		expect(page.assign).not.toHaveBeenCalled();
+	});
+
+	it('still opens the page when the host does not show it', async () => {
+		vi.useFakeTimers();
+		const page = stubPage('/products/field-shirt', {
+			result: { content: [{ type: 'text', text: 'Opening' }], structuredContent: {} },
+			navigateTo: '/products/linen-overshirt?variant=m',
+		});
+
+		await callAgentTool('show_variant', {}, new AbortController().signal, { showsPage: () => false });
+		vi.runAllTimers();
+
+		expect(page.assign).toHaveBeenCalledWith('/products/linen-overshirt?variant=m');
 	});
 
 	it('opens the cart page again after a cart change', async () => {

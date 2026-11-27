@@ -4,26 +4,15 @@ import type { CommerceProvider } from '@/lib/commerce/types';
 import { isSameOriginRequest } from '@/lib/http/same-origin';
 import { siteOrigin } from '@/lib/site-origin';
 import type { AgentToolResponse } from './agent-tool-types';
-import { findStoreTool, runStoreTool, storeToolDescriptors } from './store-tools.server';
-
-/**
- * Lists the tools a storefront page registers with WebMCP.
- *
- * @remarks
- * The page fetches this only in a browser that has `document.modelContext`, so other visitors never download the
- * schemas. The list is the same for every visitor, so it is cacheable.
- */
-export async function handleAgentToolList(): Promise<Response> {
-	return Response.json(storeToolDescriptors('page'), { headers: { 'Cache-Control': 'public, max-age=300' } });
-}
+import { findStoreTool, runStoreTool } from './store-tools.server';
 
 /**
  * Runs one WebMCP tool for the page: on the visitor's own cart, from the cart cookie, through the same definitions
  * and provider as `/mcp`.
  *
  * @remarks
- * The browser does no validation of its own: `inputSchema` is advisory for an agent, so the input is checked here,
- * where it is authoritative. `?product=<handle>` names the product of the calling page: `get_product` and
+ * The host that registered the tool parses an agent's input too, but a request can skip the browser, so the input
+ * is checked here, where it is authoritative. `?product=<handle>` names the product of the calling page: `get_product` and
  * `show_variant` default to it, and `add_to_cart` requires it.
  */
 export async function handleAgentToolCall(

@@ -30,7 +30,7 @@ export const AddToCart = eco.component<{ product: Product }, JsxRenderable>({
 		const pickerLabel = product.options.map((option) => option.name).join(' / ');
 
 		return (
-			<cart-form attr:success="Added to your cart" attr:product-title={product.title}>
+			<cart-form attr:success="Added to your cart">
 				<form method="post" action={storePaths.cartApi} class="add-to-cart">
 					<input type="hidden" name="intent" value="add" />
 					<input type="hidden" name="variantId" value={firstAvailable?.id ?? ''} />

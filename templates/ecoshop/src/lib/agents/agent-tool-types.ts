@@ -10,16 +10,13 @@ export interface StoreToolResult {
 }
 
 /**
- * The part of a tool an agent sees: what `/mcp` lists and what a page registers with `document.modelContext`.
+ * A message of a cart view, as the agent tools return it in `structuredContent.messages`.
  */
-export interface StoreToolDescriptor {
-	name: string;
-	title: string;
-	description: string;
-	inputSchema: Record<string, unknown>;
-	annotations: { readOnlyHint?: boolean; consequentialHint?: boolean; untrustedContentHint?: boolean };
-	/** Which host registers it: the layout's `<store-agent-tools>` on every page (`store`), or the product page's `<cart-form>` (`product`). */
-	scope: 'store' | 'product';
+export interface CartViewMessage {
+	type: 'error' | 'warning' | 'info';
+	code?: string;
+	content: string;
+	path?: string;
 }
 
 /**

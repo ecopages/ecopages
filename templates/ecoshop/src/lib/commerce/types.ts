@@ -86,8 +86,26 @@ export interface CartLine {
 	image: Image | null;
 }
 
+/**
+ * Something the shopper and an agent should know about a cart change that went through: a quantity the store capped,
+ * or a change it only partly made.
+ */
+export interface CartMessage {
+	type: 'error' | 'warning' | 'info';
+	code: string;
+	content: string;
+	/** For `quantity_reduced`: the variant whose line holds less than asked, and how many the change asked it to hold. */
+	variantId?: string;
+	wanted?: number;
+}
+
 export interface Cart {
 	id: string;
+	/**
+	 * What the provider has to say about the change that returned this cart. Only the result of a change carries any: a
+	 * cart that is read has none.
+	 */
+	messages?: CartMessage[];
 	/** Absolute, or root-relative to the store; pass it through `resolveUrl` before it leaves the site. */
 	checkoutUrl: string;
 	totalQuantity: number;
@@ -140,6 +158,28 @@ export interface ListOptions {
 }
 
 /**
+ * How a product list is ordered. `best-selling` is the provider's own order, the one a shopper sees first.
+ */
+export const PRODUCT_SORTS = [
+	'best-selling',
+	'price-ascending',
+	'price-descending',
+	'title-ascending',
+	'title-descending',
+] as const;
+
+export type ProductSort = (typeof PRODUCT_SORTS)[number];
+
+/**
+ * A product list read from the provider already ordered and cut: `sort` orders the whole catalog or collection,
+ * and the result starts at `offset` and holds at most `limit` products.
+ */
+export interface ProductListOptions extends ListOptions {
+	sort?: ProductSort;
+	offset?: number;
+}
+
+/**
  * The one boundary between the storefront and a commerce backend.
  *
  * @remarks
@@ -148,7 +188,12 @@ export interface ListOptions {
  */
 export interface CommerceProvider {
 	getStore(): Promise<StoreInfo>;
-	listProducts(options?: ListOptions): Promise<ProductSummary[]>;
+	/**
+	 * The origin of the connected store, such as `https://my-store.myshopify.com`, where its UCP profile and endpoint
+	 * live, or `null` for a provider with no store behind it.
+	 */
+	ucpOrigin(): string | null;
+	listProducts(options?: ProductListOptions): Promise<ProductSummary[]>;
 	searchProducts(query: string, options?: ListOptions): Promise<ProductSummary[]>;
 	/**
 	 * Reads a product by handle or by the provider's product GID.
@@ -156,7 +201,7 @@ export interface CommerceProvider {
 	getProduct(handleOrId: string): Promise<Product | null>;
 	listPolicies(): Promise<StorePolicy[]>;
 	listCollections(options?: ListOptions): Promise<Collection[]>;
-	getCollection(handle: string, options?: ListOptions): Promise<CollectionWithProducts | null>;
+	getCollection(handle: string, options?: ProductListOptions): Promise<CollectionWithProducts | null>;
 	getCart(cartId: string): Promise<Cart | null>;
 	/**
 	 * Adds quantities to the lines of a cart, creating the cart when `cartId` is missing or unknown.

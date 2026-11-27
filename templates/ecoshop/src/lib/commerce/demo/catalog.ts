@@ -16,6 +16,8 @@ export interface DemoVariantSeed {
 	price: string;
 	compareAtPrice?: string;
 	available?: boolean;
+	/** How many the demo store holds. A cart takes no more, as Shopify caps a line at its stock. Default: no limit. */
+	stock?: number;
 }
 
 export interface DemoProductSeed {
@@ -99,7 +101,7 @@ export const DEMO_PRODUCTS: DemoProductSeed[] = [
 		description:
 			'A roomy tote in recycled cotton canvas with an inner pocket and long handles that sit comfortably on the shoulder.',
 		options: [{ name: 'Title', values: ['Default Title'] }],
-		variants: [{ options: ['Default Title'], price: '36.00' }],
+		variants: [{ options: ['Default Title'], price: '36.00', stock: 3 }],
 	},
 	{
 		handle: 'seed-notebook',

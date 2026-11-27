@@ -15,13 +15,14 @@ class NodeRequestFixture extends PassThrough {
 	public headers: Record<string, string> = {};
 }
 
-function createPipeline() {
+function createPipeline(maxRequestBodySize?: number) {
 	return new ApiRequestPipeline({
 		getRenderContext: () =>
 			({
 				render: vi.fn(),
 			}) as unknown as RenderContext,
 		getCacheService: () => null,
+		getMaxRequestBodySize: () => maxRequestBodySize,
 	});
 }
 
@@ -486,6 +487,177 @@ describe('ApiRequestPipeline', () => {
 
 		const response = await responsePromise;
 		expect(response?.status).toBe(499);
+	});
+
+	describe('schema body limit and order', () => {
+		const bodySchema = z.object({ title: z.string() });
+		const postRoute = (
+			handler = vi.fn<ApiHandler['handler']>(({ body }) => Response.json(body)),
+			middleware: ApiHandler['middleware'] = [],
+		) => ({
+			handler,
+			routes: compileApiRoutes([
+				{ path: '/api/posts', method: 'POST', schema: { body: bodySchema }, middleware, handler },
+			]),
+		});
+		const jsonPost = (title: string, headers: Record<string, string> = {}) =>
+			new Request('http://localhost/api/posts', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', ...headers },
+				body: JSON.stringify({ title }),
+			});
+
+		it('answers HTTP 413 for a declared length over the limit without reading the body', async () => {
+			let pulls = 0;
+			const body = new ReadableStream<Uint8Array>({
+				pull(controller) {
+					pulls += 1;
+					controller.enqueue(new Uint8Array(1024));
+				},
+			});
+			const { handler, routes } = postRoute();
+
+			const response = await createPipeline(1024 * 1024).tryHandle(
+				new Request('http://localhost/api/posts', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'multipart/form-data; boundary=x',
+						'Content-Length': String(5 * 1024 * 1024),
+					},
+					body,
+					duplex: 'half',
+				} as RequestInit),
+				routes,
+				undefined,
+			);
+
+			expect(response?.status).toBe(413);
+			expect(await response?.json()).toEqual({ error: 'Payload Too Large' });
+			expect(handler).not.toHaveBeenCalled();
+			expect(pulls).toBeLessThanOrEqual(1);
+		});
+
+		it('answers HTTP 413 once a chunked body passes the limit, and stops reading it', async () => {
+			const incomingRequest = new NodeRequestFixture();
+			incomingRequest.headers = { 'content-type': 'application/json', 'transfer-encoding': 'chunked' };
+			const request = new NodeHttpRequestBridge().createWebRequest(
+				incomingRequest as unknown as IncomingMessage,
+				'http://localhost',
+			);
+			const { handler, routes } = postRoute();
+			const responsePromise = createPipeline(16).tryHandle(request, routes, undefined);
+
+			incomingRequest.write('{"title":"');
+			incomingRequest.write('x'.repeat(32));
+			const response = await responsePromise;
+
+			expect(response?.status).toBe(413);
+			expect(handler).not.toHaveBeenCalled();
+			incomingRequest.end('"}');
+		});
+
+		it('reads a body of exactly the limit and one below it, and leaves the request readable', async () => {
+			const payload = JSON.stringify({ title: 'abc' });
+			const limit = Buffer.byteLength(payload);
+			const { routes } = postRoute(
+				vi.fn<ApiHandler['handler']>(({ body, request }) =>
+					request.text().then((text) => Response.json({ body, text })),
+				),
+			);
+
+			const atLimit = await createPipeline(limit).tryHandle(jsonPost('abc'), routes, undefined);
+			const below = await createPipeline(limit - 1).tryHandle(jsonPost('abc'), routes, undefined);
+
+			expect(await atLimit?.json()).toEqual({ body: { title: 'abc' }, text: payload });
+			expect(below?.status).toBe(413);
+		});
+
+		it('limits form and text bodies the same way, and Infinity sets no limit', async () => {
+			const form = new Request('http://localhost/api/posts', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body: `title=${'x'.repeat(64)}`,
+			});
+			const { routes } = postRoute();
+
+			expect((await createPipeline(16).tryHandle(form, routes, undefined))?.status).toBe(413);
+			const unlimited = await createPipeline(Number.POSITIVE_INFINITY).tryHandle(
+				jsonPost('x'.repeat(4096)),
+				routes,
+				undefined,
+			);
+			expect(unlimited?.status).toBe(200);
+		});
+
+		it('applies a default limit of 10 MiB', async () => {
+			const { routes } = postRoute();
+
+			const response = await createPipeline().tryHandle(
+				jsonPost('x', { 'Content-Length': String(10 * 1024 * 1024 + 1) }),
+				routes,
+				undefined,
+			);
+
+			expect(response?.status).toBe(413);
+		});
+
+		it('lets middleware answer before the body is read', async () => {
+			let pulls = 0;
+			const body = new ReadableStream<Uint8Array>({
+				pull(controller) {
+					pulls += 1;
+					controller.enqueue(new TextEncoder().encode('title=x'));
+				},
+			});
+			const deny = createMiddleware(() => new Response('denied', { status: 401 }));
+			const { handler, routes } = postRoute(undefined, [deny]);
+			const request = new Request('http://localhost/api/posts', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body,
+				duplex: 'half',
+			} as RequestInit);
+
+			const response = await createPipeline().tryHandle(request, routes, undefined);
+
+			expect(response?.status).toBe(401);
+			expect(handler).not.toHaveBeenCalled();
+			expect(request.bodyUsed).toBe(false);
+			expect(pulls).toBeLessThanOrEqual(1);
+		});
+
+		it('still validates params and query before middleware and the body after it', async () => {
+			const order: string[] = [];
+			const track = createMiddleware(async (_context, next) => {
+				order.push('middleware');
+				return next();
+			});
+			const routes = compileApiRoutes([
+				{
+					path: '/api/posts/:id',
+					method: 'POST',
+					schema: { body: bodySchema, params: z.object({ id: z.string().regex(/^\d+$/) }) },
+					middleware: [track] as never,
+					handler: () => {
+						order.push('handler');
+						return new Response('ok');
+					},
+				},
+			]);
+			const post = (id: string, title: unknown) =>
+				new Request(`http://localhost/api/posts/${id}`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ title }),
+				});
+
+			expect((await createPipeline().tryHandle(post('x', 'a'), routes, undefined))?.status).toBe(400);
+			expect(order).toEqual([]);
+			expect((await createPipeline().tryHandle(post('1', 5), routes, undefined))?.status).toBe(400);
+			expect(order).toEqual(['middleware']);
+			expect((await createPipeline().tryHandle(post('1', 'a'), routes, undefined))?.status).toBe(200);
+			expect(order).toEqual(['middleware', 'middleware', 'handler']);
+		});
 	});
 
 	describe('form bodies', () => {

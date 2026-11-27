@@ -34,6 +34,11 @@ export const GENERATED_BASE_PATHS = {
 	cache: 'cache',
 } as const;
 
+/**
+ * The largest request body, in bytes, that a route's `schema.body` reads before answering HTTP 413.
+ */
+export const DEFAULT_MAX_REQUEST_BODY_SIZE = 10 * 1024 * 1024;
+
 export const DEFAULT_ECOPAGES_PORT = 3000;
 
 export const DEFAULT_ECOPAGES_HOSTNAME = 'localhost';

@@ -71,6 +71,7 @@ export class ServerRequestPipeline {
 	protected readonly apiRequestPipeline = new ApiRequestPipeline<Request, unknown>({
 		getRenderContext: () => this.getRenderContext(),
 		getCacheService: () => this.getCacheService(),
+		getMaxRequestBodySize: () => this.appConfig.maxRequestBodySize,
 	});
 	private sharedPageCacheService: PageCacheService | null | undefined;
 	/** The one endpoint loader, shared by requests and the build. Production imports the emitted module. */

@@ -93,6 +93,20 @@ describe('finalizeEcoPagesConfig headers', () => {
 	});
 });
 
+describe('finalizeEcoPagesConfig maxRequestBodySize', () => {
+	test('keeps a size in bytes or Infinity and leaves it unset by default', async () => {
+		expect((await finalize({ maxRequestBodySize: 1024 })).maxRequestBodySize).toBe(1024);
+		expect((await finalize({ maxRequestBodySize: Number.POSITIVE_INFINITY })).maxRequestBodySize).toBe(
+			Number.POSITIVE_INFINITY,
+		);
+		expect((await finalize({})).maxRequestBodySize).toBeUndefined();
+	});
+
+	test.each([0, -1, Number.NaN])('rejects %s', async (size) => {
+		await expect(finalize({ maxRequestBodySize: size })).rejects.toThrow('Invalid "maxRequestBodySize" option');
+	});
+});
+
 describe('finalizeEcoPagesConfig trustProxy', () => {
 	test('keeps the option and leaves it unset by default', async () => {
 		expect((await finalize({ trustProxy: true })).trustProxy).toBe(true);

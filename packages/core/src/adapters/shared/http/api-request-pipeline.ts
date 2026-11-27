@@ -9,6 +9,7 @@ import {
 	type SegmentPattern,
 	type ParsedSegmentPath,
 } from '../../../router/server/segment-path-matcher.ts';
+import { DEFAULT_MAX_REQUEST_BODY_SIZE } from '../../../constants.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { isNodeClientAbortError } from '../../node/http-request-bridge.ts';
 import { validateRequest } from '../../../validation/validate-request.ts';
@@ -28,17 +29,55 @@ type ParsedRequestBody = { value: unknown } | { response: Response };
 
 type BodyParser = (request: Request) => Promise<unknown>;
 
+/**
+ * Thrown into the body stream of a schema body that grows past the limit, so the parser that reads it rejects.
+ */
+class BodyTooLargeError extends Error {
+	constructor() {
+		super('The request body is larger than the limit.');
+	}
+}
+
+const isBodyTooLarge = (error: unknown): boolean =>
+	error instanceof BodyTooLargeError || (error instanceof Error && error.cause instanceof BodyTooLargeError);
+
+/**
+ * A copy of the request whose body fails with {@link BodyTooLargeError} once it passes `limit` bytes.
+ *
+ * @remarks
+ * It reads a clone of the body, so the handler can still read the original request. A request without a body is
+ * returned as it is.
+ */
+function limitBody(request: Request, limit: number): Request {
+	if (request.body === null || limit === Number.POSITIVE_INFINITY) return request;
+	let received = 0;
+	const counter = new TransformStream<Uint8Array, Uint8Array>({
+		transform(chunk, controller) {
+			received += chunk.byteLength;
+			if (received > limit) throw new BodyTooLargeError();
+			controller.enqueue(chunk);
+		},
+	});
+	return new Request(request.url, {
+		method: request.method,
+		headers: request.headers,
+		body: request.clone().body!.pipeThrough(counter),
+		duplex: 'half',
+	} as RequestInit);
+}
+
 const parseTextBody = async (request: Request): Promise<string | undefined> => {
-	const text = await request.clone().text();
+	if (request.body === null) return undefined;
+	const text = await request.text();
 	return text.length === 0 ? undefined : text;
 };
 
 const parseFormBody: BodyParser = async (request) =>
-	request.body === null ? {} : groupRepeatedKeys(await request.clone().formData());
+	request.body === null ? {} : groupRepeatedKeys(await request.formData());
 
 /**
  * The content types a body schema reads, each with the parser that turns the request into the value to
- * validate. Parsers read a clone, so the handler can still read the request.
+ * validate. A parser receives a request it may consume, so the handler can still read the original.
  */
 const bodyParsers: ReadonlyMap<string, BodyParser> = new Map([
 	['text/plain', parseTextBody],
@@ -88,15 +127,22 @@ export function compileApiRoutes<TRequest extends Request = Request, TServer = u
 export type ApiRequestPipelineOptions = {
 	getRenderContext: () => RenderContext;
 	getCacheService: () => CacheInvalidator | null;
+	/**
+	 * The most bytes a `schema.body` reads, or `undefined` for {@link DEFAULT_MAX_REQUEST_BODY_SIZE}. A bigger body
+	 * answers HTTP 413 and `Infinity` sets no limit.
+	 */
+	getMaxRequestBodySize?: () => number | undefined;
 };
 
 export class ApiRequestPipeline<TRequest extends Request = Request, TServer = unknown> {
 	private readonly getRenderContext: () => RenderContext;
 	private readonly getCacheService: () => CacheInvalidator | null;
+	private readonly getMaxRequestBodySize: () => number | undefined;
 
 	constructor(options: ApiRequestPipelineOptions) {
 		this.getRenderContext = options.getRenderContext;
 		this.getCacheService = options.getCacheService;
+		this.getMaxRequestBodySize = options.getMaxRequestBodySize ?? (() => undefined);
 	}
 
 	match(
@@ -237,16 +283,9 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		const queryParams: PageQuery = parseSearchParams(url.searchParams);
 		const headers = Object.fromEntries(context.request.headers);
 
-		let body: unknown;
-		if (schema.body) {
-			const parsedBody = await this.parseSchemaBody(context.request, context.response);
-			if ('response' in parsedBody) return parsedBody.response;
-			body = parsedBody.value;
-		}
-
 		const validationResult = await validateRequest(
-			{ body, query: queryParams, headers, params: context.params },
-			schema,
+			{ query: queryParams, headers, params: context.params },
+			{ query: schema.query, headers: schema.headers, params: schema.params },
 		);
 
 		if (!validationResult.success) {
@@ -257,26 +296,67 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		}
 
 		const validated = validationResult.data!;
-		if (validated.body !== undefined) context.body = validated.body;
 		if (validated.query !== undefined) context.query = validated.query as PageQuery;
 		if (validated.headers !== undefined) context.headers = validated.headers;
 		if (validated.params !== undefined) context.params = validated.params as PageParams;
 		return undefined;
 	}
 
+	/**
+	 * Parses and validates the body against `schema.body`, when the route declares one.
+	 *
+	 * @remarks
+	 * It runs after the route's middleware, so a middleware that refuses the request answers before any of the
+	 * body is read.
+	 */
+	private async applyBodySchema(
+		context: ApiHandlerContext<TRequest, TServer>,
+		schema: ApiHandler<string, TRequest, TServer>['schema'],
+	): Promise<Response | undefined> {
+		if (!schema?.body) return undefined;
+
+		const parsedBody = await this.parseSchemaBody(context.request, context.response);
+		if ('response' in parsedBody) return parsedBody.response;
+
+		const validationResult = await validateRequest({ body: parsedBody.value }, { body: schema.body });
+		if (!validationResult.success) {
+			return context.response.status(400).json({
+				error: 'Validation failed',
+				issues: validationResult.errors,
+			});
+		}
+
+		const { body } = validationResult.data!;
+		if (body !== undefined) context.body = body;
+		return undefined;
+	}
+
+	private async rejectBodyTooLarge(
+		request: TRequest,
+		responseBuilder: ApiResponseBuilderContract,
+	): Promise<ParsedRequestBody> {
+		await request.body?.cancel();
+		return { response: responseBuilder.status(413).json({ error: 'Payload Too Large' }) };
+	}
+
 	private async parseSchemaBody(
 		request: TRequest,
 		responseBuilder: ApiResponseBuilderContract,
 	): Promise<ParsedRequestBody> {
+		const limit = this.getMaxRequestBodySize() ?? DEFAULT_MAX_REQUEST_BODY_SIZE;
+		const declaredLength = Number(request.headers.get('content-length'));
+		if (declaredLength > limit) return this.rejectBodyTooLarge(request, responseBuilder);
+
 		const contentType = request.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase() || '';
 		if (!contentType) return this.parseUntypedSchemaBody(request, responseBuilder);
 		const parseBody = bodyParsers.get(contentType);
 		if (!parseBody) return this.rejectUnsupportedMediaType(request, responseBuilder);
 
 		try {
-			return { value: await parseBody(request) };
+			return { value: await parseBody(limitBody(request, limit)) };
 		} catch (error) {
 			if (isNodeClientAbortError(error)) throw error;
+			if (isBodyTooLarge(error)) return this.rejectBodyTooLarge(request, responseBuilder);
 			return { response: responseBuilder.status(400).json({ error: 'Invalid request body' }) };
 		}
 	}
@@ -329,6 +409,9 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 			routeConfig.middleware,
 			`route ${routeConfig.method} ${routeConfig.path}`,
 		);
-		return runMiddlewareChain(middleware, context, async () => await routeConfig.handler(context));
+		return runMiddlewareChain(middleware, context, async () => {
+			const bodyResponse = await this.applyBodySchema(context, routeConfig.schema);
+			return bodyResponse ?? (await routeConfig.handler(context));
+		});
 	}
 }

@@ -125,6 +125,18 @@ export type EcoPagesUserConfig = {
 	devPrewarmPaths?: string[];
 
 	/**
+	 * The most bytes of request body a route's `schema.body` reads before it answers HTTP 413.
+	 *
+	 * @remarks
+	 * The limit is checked against `Content-Length` first and counted while the body streams, so an oversized body
+	 * is refused without being buffered. It covers JSON, text, urlencoded and multipart bodies read for a
+	 * `schema.body`; a handler that reads `request` itself is not limited. Use `Infinity` for no limit.
+	 *
+	 * @default 10485760 (10 MiB)
+	 */
+	maxRequestBodySize?: number;
+
+	/**
 	 * Whether the request URL takes its host and protocol from `X-Forwarded-Host` and `X-Forwarded-Proto`.
 	 *
 	 * @remarks

@@ -169,6 +169,8 @@ Repeated query keys (`?draft=true&draft=false`) reach the schema as arrays, so `
 
 When a route declares `schema.body`, core parses `application/json`, `text/plain`, `application/x-www-form-urlencoded` and `multipart/form-data` bodies and validates the parsed value. Malformed JSON or a malformed multipart body returns HTTP 400. A request with no body and no `Content-Type`, or an empty body with a JSON or text type, passes `undefined` to the body schema: required schemas return HTTP 400, while optional schemas such as `z.object({ title: z.string() }).optional()` accept it. Other content types and nonempty bodies without a `Content-Type` return HTTP 415.
 
+A body larger than `maxRequestBodySize` (10 MiB by default, set in `defineConfig`; see [Configuration](/docs/getting-started/configuration#request-body-size)) answers HTTP 413. The limit is checked against `Content-Length` first and counted while the body streams, so an oversized body is refused without being buffered. The body is read after the route's `middleware`, so a middleware that answers 401 or 403 stops the request before any of it is read; a middleware sees `body` unset, while `params`, `query` and `headers` are validated before it. A handler that reads `request` itself is not limited.
+
 ### Validating an HTML form post
 
 A plain `<form method="post">` sends `application/x-www-form-urlencoded`, or `multipart/form-data` with `enctype="multipart/form-data"`. Core turns either into a plain object before validation, so one `schema.body` serves a JSON client and a form that works without JavaScript:

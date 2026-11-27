@@ -1,6 +1,6 @@
 import type { JsxRenderable } from '@ecopages/jsx';
 import { Breadcrumbs } from '@/components/breadcrumbs';
-import { Pager } from '@/components/pager/pager';
+import { ListingPagination } from '@/components/listing-pagination/listing-pagination';
 import { ProductFilters } from '@/components/product-filters/product-filters';
 import { ProductGrid } from '@/components/product-grid/product-grid';
 import type { SubcategoryPageProps } from '@/lib/storefront/subcategory-page.server';
@@ -39,7 +39,7 @@ export function SubcategoryListing({ detail, results, filters }: SubcategoryPage
 				</aside>
 				<div>
 					<ProductGrid products={results.items} eagerCount={8} label={subcategory.name} />
-					<Pager
+					<ListingPagination
 						page={results.page}
 						pageCount={results.pageCount}
 						href={(page) => subcategoryUrl(collection, category, subcategory, page)}

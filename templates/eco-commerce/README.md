@@ -35,7 +35,7 @@ Open [http://localhost:3000](http://localhost:3000). The first request creates t
 | Route                                              | Rendered                                                                                                                                               |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `/`, `/collections/<c>`, `/collections/<c>/<cat>`  | At build (static). The home page links every subcategory of every collection.                                                                          |
-| `/collections/<c>/<cat>/<sub>`                     | At build: the first 24 products, filters, and a pager.                                                                                                 |
+| `/collections/<c>/<cat>/<sub>`                     | At build: the first 24 products, filters, and page links.                                                                                              |
 | `/collections/<c>/<cat>/<sub>/page/<n>`            | Later listing pages: the first ones at build, the rest on first request, then cached for an hour.                                                      |
 | `/products/<slug>`                                 | The first products of each subcategory at build, the rest on first request, then cached for an hour (`cache: ({ params }) => ({ revalidate, tags })`). |
 | `/search?q=&in=&material=&finish=&min=&max=&sort=` | Per request: search, filters and sort, all in the URL.                                                                                                 |
@@ -62,6 +62,12 @@ Endpoints live in `src/pages/**/*.api.ts`: `/api/products`, `/api/products/<slug
 ### Filters and sort
 
 Subcategory and search pages share one GET form, `src/components/product-filters/`: material and finish checkboxes, a price range, and a sort. Without JavaScript the form submits to `/search`, so every filtered view is a plain URL a visitor can bookmark or share. With JavaScript, a change applies the filters at once through a client navigation.
+
+Listings use `RuiPagination` with `getHref` (`src/components/listing-pagination/`), so each page is an `<a href>` that works without JavaScript, the browser router prefetches and crawlers follow.
+
+### Search
+
+The header search is a `GET /search` form. Its typeahead (`RuiCombobox` and `<search-box>`) loads on the first pointer or focus on the search, not with the page; the combobox keeps what the visitor typed before it loads and opens by itself when the suggestions arrive.
 
 ## Backends
 

@@ -71,10 +71,47 @@ test.describe('eco-commerce template', () => {
 
 	test('a subcategory listing pages through its products with links', async ({ page }) => {
 		await page.goto(SUBCATEGORY);
-		await page.getByRole('navigation', { name: 'Pages' }).getByRole('link', { name: '2' }).click();
+		await page.getByRole('navigation', { name: 'Pages' }).getByRole('link', { name: 'Go to page 2' }).click();
 
 		await expect(page).toHaveURL(`${SUBCATEGORY}/page/2`);
-		await expect(page.getByText('page 2 of 2')).toBeVisible();
+		await expect(page.locator('.page-header').getByText('page 2 of 2')).toBeVisible();
+		await expect(page.getByRole('navigation', { name: 'Pages' }).locator('[aria-current="page"]')).toHaveText('2');
+	});
+
+	test('the search combobox script loads on first interaction, and what was typed meanwhile survives', async ({
+		page,
+	}) => {
+		const requested: string[] = [];
+		page.on('request', (request) => requested.push(new URL(request.url()).pathname));
+		await page.goto('/');
+		await page.waitForFunction(() => customElements.get('cart-link'));
+		const searchScripts = await page.evaluate(() => {
+			const map = JSON.parse(
+				document.querySelector('script[type="ecopages/global-injector-map"]')?.textContent ?? '{}',
+			) as Record<string, { 'on:interaction'?: { scripts: string[] } }>;
+			return Object.values(map).flatMap((trigger) => trigger['on:interaction']?.scripts ?? []);
+		});
+		expect(searchScripts.length).toBeGreaterThan(0);
+		expect(requested.filter((path) => searchScripts.includes(path))).toEqual([]);
+
+		let releaseScripts = () => {};
+		const held = new Promise<void>((resolve) => (releaseScripts = resolve));
+		for (const script of searchScripts) {
+			await page.route(`**${script}`, async (route) => {
+				await held;
+				await route.continue();
+			});
+		}
+		const search = page.getByRole('combobox', { name: 'Search products' });
+		await search.click();
+		await expect.poll(() => requested.filter((path) => searchScripts.includes(path)).length).toBeGreaterThan(0);
+		await search.pressSequentially('chair');
+		expect(await page.evaluate(() => !!customElements.get('search-box'))).toBe(false);
+		releaseScripts();
+		await page.waitForFunction(() => customElements.get('rui-combobox') && customElements.get('search-box'));
+
+		await expect(search).toHaveValue('chair');
+		await expect(page.getByRole('option').first()).toBeVisible();
 	});
 
 	test('typing "chair" lists matching products, and Enter opens the search page', async ({ page }) => {
@@ -281,6 +318,30 @@ test.describe('eco-commerce template without JavaScript', () => {
 		await expect(page.getByRole('link', { name: title })).toBeVisible();
 		await expect(page.getByText(`${finish} ·`)).toBeVisible();
 		await expect(page.getByLabel(`Quantity of ${title}`)).toHaveValue('1');
+	});
+
+	test('a second finish chosen on the product page is the one posted', async ({ page }) => {
+		await openFirstProduct(page);
+		const second = page.locator('add-to-cart .rui-radio').nth(1);
+		const finish = ((await second.textContent()) ?? '').trim();
+		await expect(page.locator('add-to-cart input[type="radio"]').first()).toBeChecked();
+		await second.click();
+
+		await page.getByRole('button', { name: 'Add to cart' }).click();
+
+		await expect(page).toHaveURL(/\/order$/);
+		await expect(page.getByText(`${finish} ·`)).toBeVisible();
+	});
+
+	test('a listing page links to its neighbours, with the current page marked', async ({ page }) => {
+		await page.goto(SUBCATEGORY);
+		const pages = page.getByRole('navigation', { name: 'Pages' });
+		await expect(pages.locator('[aria-current="page"]')).toHaveText('1');
+		await pages.getByRole('link', { name: 'Go to page 2' }).click();
+
+		await expect(page).toHaveURL(`${SUBCATEGORY}/page/2`);
+		await expect(pages.locator('[aria-current="page"]')).toHaveText('2');
+		await expect(pages.getByRole('link', { name: 'Go to previous page' })).toHaveAttribute('href', SUBCATEGORY);
 	});
 
 	test('the search form and the filter form are plain GET forms', async ({ page }) => {

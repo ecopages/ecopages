@@ -771,7 +771,7 @@ describe('DevTransformVendorRegistry', () => {
 	});
 
 	it('serves and imports a package whose path holds a quote, a space and a non-ASCII character', async () => {
-		const rootDir = path.join(createTempRoot('dev-transform-vendor-odd-path'), 'O\'Neil "cafe\u0301" #1 100%');
+		const rootDir = path.join(createTempRoot('dev-transform-vendor-odd-path'), "O'Neil cafe\u0301 #1 100%");
 		fs.mkdirSync(rootDir, { recursive: true });
 		fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ name: 'app', type: 'module' }));
 		writePackage(

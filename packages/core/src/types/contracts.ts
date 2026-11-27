@@ -261,9 +261,10 @@ export interface DefaultHmrContext {
  */
 export type ClientBridgeEvent = {
 	/**
-	 * Event type: 'reload' triggers full refresh, 'update' for JS modules, 'css-update' for stylesheets, 'layout-update' for layout changes
+	 * Event type: 'reload' triggers full refresh, 'update' for JS modules, 'css-update' for stylesheets, 'layout-update' for layout changes,
+	 * 'vendor-change' for vendor files a rebuild changed or dropped, which only a page that loaded one of them reloads for
 	 */
-	type: 'reload' | 'error' | 'update' | 'css-update' | 'layout-update';
+	type: 'reload' | 'error' | 'update' | 'css-update' | 'layout-update' | 'vendor-change';
 	/**
 	 * Path to the changed file
 	 */
@@ -276,6 +277,10 @@ export type ClientBridgeEvent = {
 	 * Timestamp for cache busting
 	 */
 	timestamp?: number;
+	/**
+	 * The vendor URLs a `vendor-change` event is about.
+	 */
+	urls?: string[];
 };
 
 export interface HmrAction {

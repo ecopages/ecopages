@@ -81,6 +81,7 @@ test('createBuildRequestIdentity distinguishes every BuildOptions field', () => 
 		splitting: [true, false],
 		preserveModules: [true, false],
 		preserveModulesRoot: ['/in', '/other'],
+		preserveModuleSignatures: [false, true],
 		root: ['/in', '/other'],
 		externalPackages: [true, false],
 		reportPackagesOutsideRoot: [true, false],

@@ -63,6 +63,23 @@ it('keeps an HMR error visible when it follows an update in the same batch', asy
 	delete (window as Window & { __ECO_PAGES__?: unknown }).__ECO_PAGES__;
 });
 
+it('keeps a shown build error, and does not reload, when a vendor change names files this page never loaded', async () => {
+	vi.spyOn(console, 'error').mockImplementation(() => undefined);
+	vi.spyOn(console, 'log').mockImplementation(() => undefined);
+	vi.stubGlobal('WebSocket', FakeSocket);
+	await import('./hmr-runtime.ts');
+	const socket = FakeSocket.instances[0]!;
+	socket.receive({ type: 'error', message: 'syntax error in vendor-page.ts' });
+	await vi.waitFor(() => expect(document.getElementById(BUILD_ERROR_OVERLAY_ID)).not.toBeNull());
+
+	socket.receive({ type: 'vendor-change', urls: ['/assets/vendors/mf-never-loaded-by-this-page.js'] });
+	await new Promise((resolve) => setTimeout(resolve, 100));
+
+	expect(document.getElementById(BUILD_ERROR_OVERLAY_ID)?.textContent).toContain('syntax error in vendor-page.ts');
+	socket.receive({ type: 'css-update', path: '/assets/missing.css' });
+	await vi.waitFor(() => expect(document.getElementById(BUILD_ERROR_OVERLAY_ID)).toBeNull());
+});
+
 it('refreshes only the stylesheet link at the href a css-update names', async () => {
 	vi.spyOn(console, 'log').mockImplementation(() => undefined);
 	vi.stubGlobal('WebSocket', FakeSocket);

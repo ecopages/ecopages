@@ -86,7 +86,7 @@ The event names and `BuildErrorDetail` come from core's build error contract. Th
 | --- | --- | --- |
 | `build-errors` | rendered by the shell | Lists the distinct messages from `ecopages:build-error`, sets an error badge with the count and opens itself. The clear event empties the list and closes the panel. |
 | `navigation` | `eco-dev-toolbar-navigation` | Shows the route, the Integration from the manifest, HMR status and the telemetry history, with a button to clear it. |
-| `deps` | `eco-dev-toolbar-deps` | Lists entry, chunk, vendor and dev-transform URLs from the manifest. It sends a `HEAD` request per URL for the size, flags large vendor files, and refreshes (debounced by 250 ms) after navigations. |
+| `deps` | `eco-dev-toolbar-deps` | Lists entry, chunk, vendor and dev-transform URLs from the manifest. It sends a `HEAD` request per URL for the size, except for a vendor URL: the dev server serves each module of a package as its own file, so the app fetches the entry and the files it imports (up to 300) and sums them. It flags large vendor files and refreshes (debounced by 250 ms) after navigations. |
 | `islands` | `eco-dev-toolbar-islands` | Lists the island hosts on the page and highlights the one you pick. |
 | `a11y` | `eco-dev-toolbar-a11y` | Runs axe-core (with built-in fallback checks) over the page, excluding the toolbar, groups the issues and sets a badge. |
 | `settings` | `eco-dev-toolbar-settings` | Writes placement and stealth through `applyPreferences`. |

@@ -27,8 +27,8 @@ export type DevTransformServerOptions = {
 	onModuleDependencies?: (modulePath: string, dependencies: string[]) => void;
 	/** Called with the error message when a module fails to transpile, before the 500 response is returned. */
 	onTransformError?: (message: string) => void;
-	/** Called when a vendor graph rebuild changes vendor files a browser already loaded, so connected pages can reload. */
-	onVendorGraphChange?: () => void;
+	/** Called with the URLs of the vendor files a rebuild changed or dropped after a browser loaded them. */
+	onVendorGraphChange?: (changedUrls: readonly string[]) => void;
 };
 
 /**

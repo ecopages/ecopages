@@ -131,6 +131,8 @@ export interface BuildOptions {
 	/** Emits one output module per source module so separate server emits can share module identity. */
 	preserveModules?: boolean;
 	preserveModulesRoot?: string;
+	/** With `preserveModules`, keeps every export of every module, so a file does not depend on which entries exist. */
+	preserveModuleSignatures?: boolean;
 	root?: string;
 	externalPackages?: boolean;
 	/**

@@ -165,6 +165,7 @@ describe('RouteModuleBuildCache', () => {
 			splitting: [true, false],
 			preserveModules: [true, false],
 			preserveModulesRoot: ['/app', '/other'],
+			preserveModuleSignatures: [false, true],
 			root: ['/app', '/other'],
 			externalPackages: [true, false],
 			reportPackagesOutsideRoot: [true, false],

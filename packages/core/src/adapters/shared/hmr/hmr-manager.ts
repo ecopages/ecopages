@@ -117,7 +117,7 @@ export class HmrManager implements IHmrManager {
 				]);
 			},
 			onTransformError: (message) => this.broadcast({ type: 'error', message }),
-			onVendorGraphChange: () => this.broadcast({ type: 'reload' }),
+			onVendorGraphChange: (urls) => this.broadcast({ type: 'vendor-change', urls: [...urls] }),
 		});
 		this.ensureRuntimeWorkDir();
 		this.initializeStrategies();
@@ -578,7 +578,7 @@ function coalesceBatchEvents(events: ClientBridgeEvent[]): ClientBridgeEvent[] {
 function deduplicateEvents(events: ClientBridgeEvent[]): ClientBridgeEvent[] {
 	const uniqueEvents = new Map<string, ClientBridgeEvent>();
 	for (const event of events) {
-		const key = JSON.stringify([event.type, event.path, event.message]);
+		const key = JSON.stringify([event.type, event.path, event.message, event.urls]);
 		const existing = uniqueEvents.get(key);
 		if (existing) {
 			uniqueEvents.set(key, {

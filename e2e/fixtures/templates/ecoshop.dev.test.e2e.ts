@@ -115,16 +115,9 @@ test.describe('ecoshop WebMCP tools', () => {
 		});
 	});
 
-	/**
-	 * @remarks
-	 * The first visit loads the product page in full: the dev server reloads open pages when a page first imports a
-	 * package it has not bundled yet, which would otherwise break the client navigation under test.
-	 */
 	test('after an agent adds to the cart, the cart page a client navigation opens shows the line', async ({
 		page,
 	}) => {
-		await page.goto('/products/field-shirt');
-		await expect.poll(() => toolNames(page)).toContain('add_to_cart');
 		await page.goto('/cart');
 		await expect(page.locator('.cart-line')).toHaveCount(0);
 		await page.evaluate(() => Object.assign(window, { __samePage: true }));

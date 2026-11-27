@@ -3,6 +3,9 @@ import { readDevManifestFromDocument } from '../../api/dev-manifest.ts';
 
 const LARGE_VENDOR_BYTES = 100_000;
 
+/** Most files followed from one vendor entry, so a package with a huge module tree does not flood the dev server. */
+const MAX_VENDOR_GRAPH_FILES = 300;
+
 export type AssetInsight = {
 	label: string;
 	srcUrl: string;
@@ -77,6 +80,37 @@ function manifestAssets(manifest: EcoDevManifest | undefined): AssetInsight[] {
  *
  * @remarks Fetches `Content-Length` via parallel `HEAD` requests. Large vendor bundles receive a warning heuristic.
  */
+/**
+ * The size of a vendor entry and the files it imports, in bytes.
+ *
+ * @remarks
+ * The dev server serves each module of a package as its own file, so the entry is a small file that imports the
+ * rest and its own size says nothing about the weight of the package. The files are read with `GET` to find their
+ * relative imports, up to {@link MAX_VENDOR_GRAPH_FILES}; `null` when the entry cannot be read.
+ */
+async function fetchVendorGraphBytes(entryUrl: string): Promise<number | null> {
+	const seen = new Set<string>();
+	const pending = [new URL(entryUrl, document.baseURI).href];
+	let bytes = 0;
+	while (pending.length > 0 && seen.size < MAX_VENDOR_GRAPH_FILES) {
+		const url = pending.pop()!;
+		if (seen.has(url)) continue;
+		seen.add(url);
+		try {
+			const response = await fetch(url, { cache: 'no-store' });
+			if (!response.ok) return seen.size === 1 ? null : bytes;
+			const code = await response.text();
+			bytes += new TextEncoder().encode(code).length;
+			for (const match of code.matchAll(/(?:from|import)\s*\(?\s*["'](\.\.?\/[^"']+)["']/gu)) {
+				pending.push(new URL(match[1]!, url).href);
+			}
+		} catch {
+			return seen.size === 1 ? null : bytes;
+		}
+	}
+	return bytes;
+}
+
 export async function loadDepsInsights(doc: Document): Promise<DepsInsightsSnapshot> {
 	const manifest = readDevManifestFromDocument(doc);
 	const insights = manifestAssets(manifest);
@@ -86,7 +120,10 @@ export async function loadDepsInsights(doc: Document): Promise<DepsInsightsSnaps
 
 	await Promise.all(
 		uniqueInsights.map(async (insight) => {
-			insight.bytes = await fetchAssetBytes(insight.srcUrl);
+			insight.bytes =
+				insight.category === 'vendor'
+					? await fetchVendorGraphBytes(insight.srcUrl)
+					: await fetchAssetBytes(insight.srcUrl);
 			if (insight.category === 'vendor' && insight.bytes !== null && insight.bytes >= LARGE_VENDOR_BYTES) {
 				insight.warning = 'Large vendor loaded eagerly — consider lazy loading';
 			}

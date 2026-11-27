@@ -6,8 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
 import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
-import { contentHash } from '../../utils/content-hash.ts';
-import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
+import { DevTransformVendorRegistry, getVendorEntryUrl } from './dev-transform-vendor-registry.ts';
+import { readVendorGraph } from './vendor-test-helpers.ts';
 import { appLogger } from '../../global/app-logger.ts';
 
 const tempRoots: string[] = [];
@@ -26,29 +26,6 @@ afterEach(() => {
 		fs.rmSync(root, { recursive: true, force: true });
 	}
 });
-
-/** Relative imports of a served vendor file, resolved to the URLs the browser would request. */
-function relativeVendorImports(url: string, code: string): string[] {
-	const specifiers = [...code.matchAll(/(?:from|import)\s*\(?\s*["'](\.\.?\/[^"']+)["']/g)].map((match) => match[1]);
-	return specifiers.map((specifier) => path.join(path.dirname(url), specifier));
-}
-
-/** Every vendor file the browser loads for `urls`, by URL. */
-async function readVendorGraph(registry: DevTransformVendorRegistry, urls: string[]): Promise<Map<string, string>> {
-	const files = new Map<string, string>();
-	const pending = [...urls];
-	while (pending.length > 0) {
-		const url = pending.pop();
-		if (!url || files.has(url)) continue;
-		const response = await registry.tryHandleVendorRequest(url);
-		assert.ok(response, `no vendor response for ${url}`);
-		expect(response.status).toBe(200);
-		const code = await response.text();
-		files.set(url, code);
-		pending.push(...relativeVendorImports(url, code));
-	}
-	return files;
-}
 
 /**
  * Writes the vendor files that `urls` load to a directory and imports each URL there.
@@ -127,7 +104,7 @@ describe('DevTransformVendorRegistry', () => {
 		});
 
 		const url = await registry.resolveVendorUrl('@ecopages/core');
-		expect(url).toMatch(/^\/assets\/vendors\/ecopages-core\.[a-f0-9]+\.js$/);
+		expect(url).toMatch(/^\/assets\/vendors\/bf-.+\.js$/);
 		expect(fs.existsSync(path.join(config.absolutePaths.distDir, url.slice('/'.length)))).toBe(false);
 
 		const response = await registry.tryHandleVendorRequest(url);
@@ -394,9 +371,7 @@ describe('DevTransformVendorRegistry', () => {
 		const newUrl = await restarted.resolveVendorUrl(fixture.importName);
 
 		expect(newUrl).toBe(oldUrl);
-		const response = await restarted.tryHandleVendorRequest(newUrl);
-		assert.ok(response);
-		expect(await response.text()).toContain('release-1.0.1');
+		expect([...(await readVendorGraph(restarted, [newUrl])).values()].join('\n')).toContain('release-1.0.1');
 	});
 
 	it('rebuilds when a transitive dependency changes between dev processes', async () => {
@@ -469,11 +444,8 @@ describe('DevTransformVendorRegistry', () => {
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const createRegistry = () => new DevTransformVendorRegistry({ appConfig: config });
-		const readServed = async (registry: DevTransformVendorRegistry, url: string) => {
-			const response = await registry.tryHandleVendorRequest(url);
-			assert.ok(response);
-			return response.text();
-		};
+		const readServed = async (registry: DevTransformVendorRegistry, url: string) =>
+			[...(await readVendorGraph(registry, [url])).values()].join('\n');
 
 		writeButton('button-v1');
 		const running = createRegistry();
@@ -489,7 +461,7 @@ describe('DevTransformVendorRegistry', () => {
 		writeButton('button-v3');
 		const restarted = createRegistry();
 		const restartedUrl = await restarted.resolveVendorUrl('@acme/ui');
-		expect(restartedUrl).toMatch(/^\/assets\/vendors\/acme-ui\.[a-f0-9]+\.js$/);
+		expect(restartedUrl).toMatch(/^\/assets\/vendors\/mf-.+\.js$/);
 		expect(restartedUrl).toBe(oldUrl);
 		const restartedCode = await readServed(restarted, restartedUrl);
 		expect(restartedCode).toContain('button-v3');
@@ -695,7 +667,7 @@ describe('DevTransformVendorRegistry', () => {
 		expect(importer?.answer).toBe(42);
 	});
 
-	it('reports a change to a file an earlier build served and the build after it kept', async () => {
+	it('keeps every file a browser loaded as it was when a later package shares a dependency with it', async () => {
 		const { rootDir, modules } = createAppRoot('dev-transform-vendor-served-carry');
 		writePackage(
 			path.join(modules, 'shared-dep'),
@@ -720,13 +692,177 @@ describe('DevTransformVendorRegistry', () => {
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const onVendorGraphChange = vi.fn();
 		const registry = new DevTransformVendorRegistry({ appConfig: config, onVendorGraphChange });
-		await readVendorGraph(registry, [await registry.resolveVendorUrl('lib-a')]);
+		const libA = await registry.resolveVendorUrl('lib-a');
+		const served = await readVendorGraph(registry, [libA]);
 		await registry.resolveVendorUrl('lib-b');
-		expect(onVendorGraphChange).not.toHaveBeenCalled();
 
 		await registry.resolveVendorUrl('lib-c');
 
-		expect(onVendorGraphChange).toHaveBeenCalledTimes(1);
+		expect(await readVendorGraph(registry, [libA])).toEqual(served);
+		expect(onVendorGraphChange).not.toHaveBeenCalled();
+	});
+
+	it('keeps the files of a package that has internal modules as they were when a package in another folder is added', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-folders');
+		writePackage(
+			path.join(modules, 'inner-lib'),
+			'inner-lib',
+			{ type: 'module', exports: './index.js' },
+			{
+				'index.js': "import { helper } from './helper.js';\nexport const name = 'inner-lib' + helper;\n",
+				'helper.js': "export const helper = '-helper';\n",
+			},
+		);
+		writePackage(
+			path.join(modules, 'sibling-lib'),
+			'sibling-lib',
+			{ type: 'module', exports: './index.js' },
+			{ 'index.js': "export const name = 'sibling-lib';\n" },
+		);
+		const linked = path.join(path.dirname(rootDir), `${path.basename(rootDir)}-linked-lib`);
+		writePackage(
+			linked,
+			'linked-lib',
+			{ type: 'module', exports: './index.js' },
+			{ 'index.js': "export const name = 'linked-lib';\n" },
+		);
+		fs.symlinkSync(linked, path.join(modules, 'linked-lib'), 'dir');
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const onVendorGraphChange = vi.fn();
+		const registry = new DevTransformVendorRegistry({ appConfig: config, onVendorGraphChange });
+		const innerUrl = await registry.resolveVendorUrl('inner-lib');
+		const served = await readVendorGraph(registry, [innerUrl]);
+		expect(served.size).toBeGreaterThan(1);
+
+		await registry.resolveVendorUrl('sibling-lib');
+		await registry.resolveVendorUrl('linked-lib');
+
+		expect(await readVendorGraph(registry, [innerUrl])).toEqual(served);
+		expect(onVendorGraphChange).not.toHaveBeenCalled();
+	});
+
+	it('keeps the files that import a module as they were when that module becomes an entry', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-promoted');
+		writePackage(
+			path.join(modules, 'outer-lib'),
+			'outer-lib',
+			{ type: 'module', exports: { '.': './index.js', './dep': './dep.js' } },
+			{
+				'index.js': "import { dep } from './dep.js';\nexport const outer = 'outer' + dep;\n",
+				'dep.js': "export const dep = '-dep';\nexport default 'dep-default';\n",
+			},
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const onVendorGraphChange = vi.fn();
+		const registry = new DevTransformVendorRegistry({ appConfig: config, onVendorGraphChange });
+		const outerUrl = await registry.resolveVendorUrl('outer-lib');
+		const served = await readVendorGraph(registry, [outerUrl]);
+
+		const depUrl = await registry.resolveVendorUrl('outer-lib/dep');
+
+		expect(await readVendorGraph(registry, [outerUrl])).toEqual(served);
+		expect(onVendorGraphChange).not.toHaveBeenCalled();
+		const [outer, dep] = (await importVendorGraph(registry, [outerUrl, depUrl])) as [
+			{ outer: string },
+			{ dep: string; default: string },
+		];
+		expect(outer.outer).toBe('outer-dep');
+		expect(dep.default).toBe('dep-default');
+	});
+
+	it('serves and imports a package whose path holds a quote, a space and a non-ASCII character', async () => {
+		const rootDir = path.join(createTempRoot('dev-transform-vendor-odd-path'), 'O\'Neil "cafe\u0301" #1 100%');
+		fs.mkdirSync(rootDir, { recursive: true });
+		fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ name: 'app', type: 'module' }));
+		writePackage(
+			path.join(rootDir, 'node_modules', 'odd-lib'),
+			'odd-lib',
+			{ type: 'module', exports: './index.js' },
+			{
+				'index.js': "import { inner } from './inner.js';\nexport const odd = 'odd-' + inner;\n",
+				'inner.js': "export const inner = 'value';\n",
+			},
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const url = await registry.resolveVendorUrl('odd-lib');
+
+		const files = await readVendorGraph(registry, [url]);
+
+		for (const file of files.keys()) expect(file).toMatch(/^\/assets\/vendors\/[A-Za-z0-9._@=,+~-]+$/u);
+		const [lib] = (await importVendorGraph(registry, [url])) as [{ odd: string }];
+		expect(lib.odd).toBe('odd-value');
+	});
+
+	it('gives modules whose paths differ only by a separator or an extension their own files', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-name-collisions');
+		writePackage(
+			path.join(modules, 'twins-lib'),
+			'twins-lib',
+			{
+				type: 'module',
+				exports: {
+					'.': './index.js',
+					'./dashed': './a-b.js',
+					'./nested': './a/b.js',
+					'./module': './index.mjs',
+				},
+			},
+			{
+				'index.js': "export const name = 'index-js';\n",
+				'index.mjs': "export const name = 'index-mjs';\n",
+				'a-b.js': "export const name = 'a-b';\n",
+			},
+		);
+		fs.mkdirSync(path.join(modules, 'twins-lib', 'a'));
+		fs.writeFileSync(path.join(modules, 'twins-lib', 'a', 'b.js'), "export const name = 'a/b';\n");
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const urls = await Promise.all(
+			['twins-lib', 'twins-lib/dashed', 'twins-lib/nested', 'twins-lib/module'].map((specifier) =>
+				registry.resolveVendorUrl(specifier),
+			),
+		);
+
+		expect(new Set(urls).size).toBe(4);
+		const modulesByUrl = (await importVendorGraph(registry, urls)) as { name: string }[];
+		expect(modulesByUrl.map((module) => module.name)).toEqual(['index-js', 'a-b', 'a/b', 'index-mjs']);
+	});
+
+	it('does not run a CommonJS module that a package requires only when a function runs', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-lazy-require');
+		writePackage(
+			path.join(modules, 'lazy-lib'),
+			'lazy-lib',
+			{ main: 'index.cjs' },
+			{
+				'index.cjs':
+					"exports.load = () => require('./later.cjs');\nexports.loadAccented = () => require('./caf\u00e9.cjs');\nexports.loadDynamic = () => import('./dynamic.cjs');\nexports.optional = () => { try { return require('./missing-at-runtime.cjs'); } catch { return 'absent'; } };\n",
+				'later.cjs': "throw new Error('later.cjs ran on import');\n",
+				'caf\u00e9.cjs': "throw new Error('accented module ran on import');\n",
+				'dynamic.cjs': 'module.exports = { value: 42 };\n',
+				'missing-at-runtime.cjs': "throw new Error('optional module is not installed');\n",
+			},
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const url = await registry.resolveVendorUrl('lazy-lib');
+
+		const [lib] = (await importVendorGraph(registry, [url])) as [
+			{
+				default: {
+					optional: () => string;
+					load: () => unknown;
+					loadAccented: () => unknown;
+					loadDynamic: () => Promise<{ default: { value: number } }>;
+				};
+			},
+		];
+
+		expect(lib.default.optional()).toBe('absent');
+		expect(() => lib.default.load()).toThrow('later.cjs ran on import');
+		expect(() => lib.default.loadAccented()).toThrow('accented module ran on import');
+		expect((await lib.default.loadDynamic()).default.value).toBe(42);
 	});
 
 	it('loads a package that two packages import as one module', async () => {
@@ -758,7 +894,7 @@ describe('DevTransformVendorRegistry', () => {
 		expect(pluginB.registry).toBe(sharedCore.registry);
 	});
 
-	it('reports a vendor graph change only when a browser loaded output that the rebuild changed', async () => {
+	it('does not report a vendor graph change when a package that shares code with a loaded one is added', async () => {
 		const { rootDir, modules } = createAppRoot('dev-transform-vendor-graph-change');
 		writePackage(
 			path.join(modules, 'shared-core'),
@@ -774,23 +910,54 @@ describe('DevTransformVendorRegistry', () => {
 				{ 'index.js': `export { marker } from 'shared-core';\nexport const name = '${name}';\n` },
 			);
 		}
-		writePackage(
-			path.join(modules, 'standalone'),
-			'standalone',
-			{ type: 'module', module: 'index.js' },
-			{ 'index.js': 'export const standalone = true;\n' },
-		);
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const onVendorGraphChange = vi.fn();
 		const registry = new DevTransformVendorRegistry({ appConfig: config, onVendorGraphChange });
 
 		const pluginA = await registry.resolveVendorUrl('plugin-a');
-		await registry.resolveVendorUrl('standalone');
-		expect(onVendorGraphChange).not.toHaveBeenCalled();
+		const served = await readVendorGraph(registry, [pluginA]);
+		const pluginB = await registry.resolveVendorUrl('plugin-b');
 
-		await readVendorGraph(registry, [pluginA]);
-		await registry.resolveVendorUrl('plugin-b');
+		expect(await readVendorGraph(registry, [pluginA])).toEqual(served);
+		expect(onVendorGraphChange).not.toHaveBeenCalled();
+		const [a, b] = (await importVendorGraph(registry, [pluginA, pluginB])) as { marker: string }[];
+		expect(a?.marker).toBe(b?.marker);
+	});
+
+	it('reports the files of a loaded package that changed on disk, so only pages that loaded them reload', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-graph-edit');
+		writePackage(
+			path.join(modules, 'edited-lib'),
+			'edited-lib',
+			{ type: 'module', module: 'index.js' },
+			{
+				'index.js': "export { label } from './label.js';\n",
+				'label.js': "export const label = 'label-v1';\n",
+			},
+		);
+		writePackage(
+			path.join(modules, 'steady-lib'),
+			'steady-lib',
+			{ type: 'module', module: 'index.js' },
+			{ 'index.js': "export const steady = 'steady';\n" },
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const onVendorGraphChange = vi.fn();
+		const registry = new DevTransformVendorRegistry({ appConfig: config, onVendorGraphChange });
+		const editedUrl = await registry.resolveVendorUrl('edited-lib');
+		const steadyUrl = await registry.resolveVendorUrl('steady-lib');
+		const served = await readVendorGraph(registry, [editedUrl, steadyUrl]);
+		fs.writeFileSync(path.join(modules, 'edited-lib', 'label.js'), "export const label = 'label-v2';\n");
+
+		registry.invalidateAll();
+		await registry.resolveVendorUrl('edited-lib');
+
 		expect(onVendorGraphChange).toHaveBeenCalledTimes(1);
+		const [changedUrls] = onVendorGraphChange.mock.calls[0] as [string[]];
+		const changedFiles = [...served.entries()].filter(([, code]) => code.includes('label-v1')).map(([url]) => url);
+		expect(changedFiles).toHaveLength(1);
+		expect(changedUrls).toEqual(changedFiles);
+		expect(changedUrls).not.toContain(steadyUrl);
 	});
 
 	it('does not report a vendor graph change when the output a browser loaded stays the same', async () => {
@@ -841,7 +1008,7 @@ describe('DevTransformVendorRegistry', () => {
 		const badEntry = resolveBarePackageBrowserEntry(rootDir, 'bad-lib');
 		assert.ok(badEntry);
 		const badResponse = await registry.tryHandleVendorRequest(
-			`/assets/vendors/bad-lib.${contentHash(badEntry.path, 8)}.js`,
+			getVendorEntryUrl(rootDir, 'module-first', badEntry.path),
 		);
 		expect(badResponse?.status).toBe(500);
 		expect(await badResponse?.text()).toContain('Vendor prebundle failed for bad-lib');

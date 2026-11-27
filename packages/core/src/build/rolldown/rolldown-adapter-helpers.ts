@@ -37,6 +37,8 @@ import { isServerOnlyModuleSpecifier } from '../../utils/file-roles.ts';
 import { isNodeBuiltinSpecifier, nodeBuiltinSpecifiers } from '../../utils/node-builtin.ts';
 import { createFileRoleGrammarPlugin } from './file-role-grammar-plugin.ts';
 import { createSsrScriptEntriesPlugin } from './ssr-script-entries-plugin.ts';
+import { getPreservedModuleFileName } from './preserved-module-file-name.ts';
+import { createPreservedModuleSignaturesPlugin } from './preserved-module-signatures-plugin.ts';
 import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
 import { createStylesheetModulePlugin } from './stylesheet-module-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -589,6 +591,9 @@ async function buildRolldownInputPlugins(
 		...appPlugins,
 		...(options.environment === 'browser' && options.workerEntries !== false ? [createWorkerEntriesPlugin()] : []),
 		...(options.ssrScriptEntries === true ? [createSsrScriptEntriesPlugin()] : []),
+		...(options.preserveModules && options.preserveModuleSignatures
+			? [createPreservedModuleSignaturesPlugin(Object.values(entrypoints))]
+			: []),
 	];
 }
 
@@ -674,9 +679,17 @@ function flattenPreservedModuleName(sourceName: string): string {
  * next to the others, so a module's `import.meta` points at the folder that holds its `serverFiles`, and installed-package
  * externals relative to the output directory resolve from every module. Deep package-manager store paths are shortened
  * with a stable digest to stay within common filesystem filename limits without colliding on a shared prefix.
+ *
+ * @param pathNamesRoot - When given, a module that has a file path is named by `getPreservedModuleFileName` from
+ * its path relative to this folder, so no two modules share a name and a name never depends on the other modules.
  */
-function flattenPreservedModuleFileNames(pattern: string): (chunk: PreRenderedChunk) => string {
-	return (chunk) => pattern.replaceAll('[name]', () => flattenPreservedModuleName(chunk.name));
+function flattenPreservedModuleFileNames(pattern: string, pathNamesRoot?: string): (chunk: PreRenderedChunk) => string {
+	return (chunk) =>
+		pattern.replaceAll('[name]', () =>
+			pathNamesRoot !== undefined && chunk.facadeModuleId && !chunk.facadeModuleId.startsWith('\0')
+				? getPreservedModuleFileName(pathNamesRoot, path.fromNative(chunk.facadeModuleId))
+				: flattenPreservedModuleName(chunk.name),
+		);
 }
 
 /**
@@ -715,7 +728,12 @@ function buildRolldownOutputOptions(options: BuildOptions, outdir: string): Outp
 		dir: outdir,
 		format: mapRolldownFormat(options.format),
 		minify: !!options.minify,
-		entryFileNames: options.preserveModules ? flattenPreservedModuleFileNames(entryFileNames) : entryFileNames,
+		entryFileNames: options.preserveModules
+			? flattenPreservedModuleFileNames(
+					entryFileNames,
+					options.preserveModuleSignatures ? options.preserveModulesRoot : undefined,
+				)
+			: entryFileNames,
 		chunkFileNames: '[name]-[hash].js',
 		assetFileNames: '[name]-[hash][extname]',
 		...(options.preserveModules

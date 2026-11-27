@@ -14,6 +14,7 @@ import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { formatBuildLog } from '../../build/build-log.ts';
+import { getPreservedModuleFileName } from '../../build/rolldown/preserved-module-file-name.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { parseModuleSource } from '../../cache/module-parse-cache.ts';
 import { escapeRegExp } from '../../utils/regex-escaping.ts';
@@ -27,7 +28,16 @@ const VENDOR_GRAPH_QUIET_PERIOD_MS = 50;
 const VENDOR_GRAPH_RETRY_BACKOFF_MS = 2_000;
 const VENDOR_ENTRIES_FILE = 'dev-vendor-entries.json';
 
-type VendorGraphKey = 'browser-first' | 'module-first';
+export type VendorGraphKey = 'browser-first' | 'module-first';
+
+/**
+ * The prefix of every file of a graph.
+ *
+ * @remarks
+ * A module that both graphs reach is built once by each, under the conditions of its graph, so the two files can
+ * differ. The prefix gives each graph its own files, which a lookup by URL would otherwise mix up.
+ */
+const VENDOR_GRAPH_FILE_PREFIX: Record<VendorGraphKey, string> = { 'browser-first': 'bf', 'module-first': 'mf' };
 
 /** A bare specifier and the directory an importer resolved it from. */
 type VendorEntrySource = {
@@ -49,7 +59,7 @@ type VendorGraphBuild = {
 	/** The registry generation the build started in; a build of an older generation is only a fallback. */
 	generation: number;
 	entryPaths: ReadonlySet<string>;
-	/** Output contents keyed by served URL: entries and shared chunks. */
+	/** Output contents keyed by served URL: one file per module, entries included. */
 	outputs: ReadonlyMap<string, string>;
 	/** Entry paths whose module is CommonJS, so their output has only a default export. */
 	commonJsEntryPaths: ReadonlySet<string>;
@@ -81,7 +91,7 @@ type RunningVendorGraphBuild = {
  * @remarks
  * `@ecopages/core` resolves browser-first so its browser entry wins over its Node entry, while other packages
  * resolve module-first, as they always have. Rolldown takes one condition list per build, so each list gets its
- * own graph. Inside one graph a module has exactly one chunk. A module-first package's `@ecopages/core` imports
+ * own graph. Inside one graph a module has exactly one file. A module-first package's `@ecopages/core` imports
  * point at core's browser-first entries, so core loads once; any other package that both graphs reach loads once
  * per graph.
  */
@@ -132,20 +142,19 @@ function exactly(value: string): RegExp {
  *
  * @remarks
  * A browser that loaded a vendor file keeps its module, so a later build of the graph must not change a file it
- * already served; when it does, the page reloads. Two things would change one as packages arrive.
+ * already served; when it does, the pages that loaded it reload. Every module is its own file with all of its
+ * exports, which keeps a file from depending on which entries exist. Two things outside the modules would still
+ * change a file as packages arrive.
  *
- * Rolldown puts the helpers its CommonJS interop needs in one runtime module. It merges that module into the one
- * chunk that needs it, and splits it into a `rolldown-runtime-*` chunk once a second chunk needs it, so the first
- * ES module that needs a helper moves the helpers out of every CommonJS package's chunk and changes that chunk and
- * its entry. The runtime pin re-exports the module from an entry of its own, so the runtime is always a chunk of
- * its own, with every helper kept, from the first build; its name and content no longer depend on the packages
- * that use it.
+ * Rolldown puts the helpers its CommonJS interop needs in one runtime module, and writes only the helpers some
+ * module uses. The first ES module that needs a helper would add it to the file, and change every file that
+ * imports the runtime. The runtime pin re-exports the module from an entry of its own, so its file holds every
+ * helper from the first build and its content no longer depends on the packages that use it.
  *
  * A CommonJS entry exports its module's `require` function only once another entry imports it, so a package that
  * imports `react/jsx-runtime` adds an export to that entry. The pin re-exports the namespace of every entry whose
  * file has no `import` or `export` statement, so each `require` export is there from the first build. It leaves ES
- * module entries alone: importing one would move its code into a shared chunk behind the entry. Nothing requests
- * the output of either pin.
+ * module entries alone, which already export everything. Nothing requests the output of either pin.
  */
 function createVendorPinPlugin(entries: readonly VendorEntry[]): EcoBuildPlugin {
 	const contents = entries
@@ -180,21 +189,23 @@ export type DevTransformVendorRegistryOptions = {
 	 * build changes or drops.
 	 *
 	 * @remarks
-	 * A page that keeps the old chunks and loads new ones could hold two copies of one module, so the caller
-	 * reloads connected pages.
+	 * A page that keeps the old files and loads new ones could hold two copies of one module, so the caller
+	 * tells connected pages which URLs changed, and a page that loaded one of them reloads. It receives the URLs
+	 * that the previous build served to a browser and this build changes or drops.
 	 */
-	onVendorGraphChange?: () => void;
+	onVendorGraphChange?: (changedUrls: readonly string[]) => void;
 };
 
 /**
- * Prebundles bare npm imports into process-local `/assets/vendors/*` files, one code-split Rolldown build per
- * vendor graph.
+ * Prebundles bare npm imports into process-local `/assets/vendors/*` files, one Rolldown build per vendor graph.
  *
  * @remarks
- * Every known dependency entry is an entry of one build, so a file shared by two entries of a package, a package
- * shared by two packages, and a CommonJS module required by two packages each become one shared chunk with one
- * URL. Entry URLs are `<label>.<hash of the entry path>.js` and stay the same across rebuilds, so app modules
- * that embed them stay valid; chunks are content-hashed and imported relatively from the same directory.
+ * Every known dependency entry is an entry of one build that keeps each module as its own file with every
+ * export of it, so a module that two entries reach is one file with one URL, and a file's code does not depend on
+ * which entries exist. A new entry therefore adds files and leaves the ones a browser already loaded unchanged.
+ * A file is named after its module's path relative to the filesystem root, with a prefix for its graph: an entry's
+ * URL is the URL of its module's file, so it stays the same across rebuilds, whether the module is an entry or only
+ * imported, and the app modules that embed it stay valid. Files import each other relatively from one directory.
  *
  * A new entry rebuilds its graph after a short quiet period, which collects the bare imports of one page load
  * into one build. The known entries are written to the app's `workDir` after each build and seed the next dev
@@ -207,7 +218,7 @@ export class DevTransformVendorRegistry {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly browserBundleService: BrowserBundleService;
 	private readonly resolveVendorBundlePlugins?: () => Promise<readonly EcoBuildPlugin[]>;
-	private readonly onVendorGraphChange?: () => void;
+	private readonly onVendorGraphChange?: (changedUrls: readonly string[]) => void;
 	private readonly graphs = new Map<VendorGraphKey, VendorGraph>();
 	private readonly entriesByUrl = new Map<string, { graph: VendorGraph; entry: VendorEntry }>();
 	private generation = 0;
@@ -268,8 +279,8 @@ export class DevTransformVendorRegistry {
 	/**
 	 * @remarks
 	 * A request for a known entry whose graph is still building, or was invalidated, waits for a build that
-	 * contains it. A chunk is only requested by a file that a finished build served, and a rebuild that changes a
-	 * served file reports a graph change, so a chunk request does not wait. Responses carry `no-cache` and a
+	 * contains it. A module file is only requested by a file that a finished build served, and a rebuild that changes a
+	 * served file reports a graph change, so a module file request does not wait. Responses carry `no-cache` and a
 	 * content `ETag`, so browsers revalidate each load and get `304` while `ifNoneMatch` still matches the
 	 * in-memory output.
 	 */
@@ -302,7 +313,7 @@ export class DevTransformVendorRegistry {
 	 * @remarks
 	 * Generated modules such as hydration bootstraps import their packages one request after another. Knowing
 	 * them up front puts them all in the first build of their graph, so a later build does not move a module a
-	 * browser already loaded into a new shared chunk and reload the page. A specifier that does not resolve is
+	 * browser already loaded and reload the page. A specifier that does not resolve is
 	 * skipped.
 	 */
 	addKnownEntries({ resolveFrom, specifiers }: DevTransformVendorEntries): void {
@@ -379,7 +390,7 @@ export class DevTransformVendorRegistry {
 		const entry: VendorEntry = {
 			specifier,
 			entryPath,
-			url: `/${RESOLVED_ASSETS_VENDORS_DIR}/${sanitizeSpecifierForFileName(specifier)}.${contentHash(entryPath, 8)}.js`,
+			url: getVendorEntryUrl(this.appConfig.rootDir, graph.key, entryPath),
 			sources: [{ specifier, resolveDir }],
 		};
 		graph.entries.set(entryPath, entry);
@@ -517,13 +528,13 @@ export class DevTransformVendorRegistry {
 			this.persistEntries();
 			return;
 		}
-		let changed = false;
+		const changedUrls: string[] = [];
 		for (const url of previous.servedUrls) {
 			if (previous.outputs.get(url) === build.outputs.get(url)) build.servedUrls.add(url);
-			else changed = true;
+			else changedUrls.push(url);
 		}
-		if (changed) {
-			this.onVendorGraphChange?.();
+		if (changedUrls.length > 0) {
+			this.onVendorGraphChange?.(changedUrls);
 		}
 		this.persistEntries();
 	}
@@ -652,8 +663,7 @@ export class DevTransformVendorRegistry {
 	 *
 	 * @remarks
 	 * A package such as a router imports core's browser modules. Bundled into the module-first graph, they would
-	 * be a second copy next to the browser-first one that Pages import, and would move between that graph's chunks
-	 * as other packages that import them arrive. The import becomes the entry's stable URL instead, which a browser
+	 * be a second copy next to the browser-first one that Pages import. The import becomes the entry's stable URL instead, which a browser
 	 * request then builds like any other entry.
 	 */
 	private createBrowserFirstImportsPlugin(): EcoBuildPlugin {
@@ -679,17 +689,24 @@ export class DevTransformVendorRegistry {
 		return this.browserBundleService.bundle({
 			lane: 'build',
 			entrypoints: {
-				...Object.fromEntries(entries.map((entry) => [path.basename(entry.url, '.js'), entry.entryPath])),
+				...Object.fromEntries(
+					entries.map((entry) => [
+						getVendorModuleName(this.appConfig.rootDir, entry.entryPath),
+						entry.entryPath,
+					]),
+				),
 				[PIN_ENTRY_NAME]: PIN_SPECIFIER,
 				[RUNTIME_PIN_ENTRY_NAME]: RUNTIME_PIN_SPECIFIER,
 			},
 			outdir: this.resolveOutdir(),
-			naming: '[name]',
+			naming: `${VENDOR_GRAPH_FILE_PREFIX[graph.key]}-[name]`,
 			writeToDisk: false,
 			minify: false,
 			externalPackages: false,
 			treeshaking: true,
-			splitting: true,
+			preserveModules: true,
+			preserveModuleSignatures: true,
+			preserveModulesRoot: path.parse(this.appConfig.rootDir).root,
 			conditions: [...graph.conditions],
 			excludeAppBuildPlugins: resolveAppBuildPlugins(this.appConfig, 'browser').map((plugin) => plugin.name),
 			plugins: [createVendorPinPlugin(entries), ...graphPlugins, ...vendorPlugins],
@@ -698,7 +715,7 @@ export class DevTransformVendorRegistry {
 
 	/**
 	 * @remarks
-	 * Every output lands in one directory, so the relative imports between entries and chunks resolve under
+	 * Every output lands in one directory, so the relative imports between module files resolve under
 	 * `/assets/vendors/` in the browser as they are.
 	 */
 	private collectOutputs(result: Extract<BuildResult, { success: true }>): Map<string, string> {
@@ -734,9 +751,9 @@ export class DevTransformVendorRegistry {
 
 	/**
 	 * @remarks
-	 * After {@link DevTransformVendorRegistry.invalidateAll} an entry URL waits for the rebuild, but a chunk or an
+	 * After {@link DevTransformVendorRegistry.invalidateAll} an entry URL waits for the rebuild, but a module file or an
 	 * entry URL that is no longer known is still served from the previous build until the rebuild commits, so an
-	 * open page can load its lazy chunks; a rebuild that changes a served file then reloads the page.
+	 * open page can load its lazy imports; a rebuild that changes a served file then reloads the page.
 	 */
 	private findBuiltOutput(url: string): VendorOutputLookup {
 		const known = this.entriesByUrl.get(url);
@@ -954,14 +971,29 @@ function createVendorResponse(url: string, content: string, ifNoneMatch?: string
 	});
 }
 
+/**
+ * The name of the file of the module at `modulePath`, without the graph prefix and `.js`.
+ *
+ * @remarks
+ * The build sets `preserveModulesRoot` to the filesystem root of the app and names each file after its module's
+ * path from there, so a file's name does not depend on which entries exist; Rolldown would otherwise name it after
+ * its path relative to the common folder of the entries, and adding an entry in another folder would rename every
+ * file. An entry is named like its module is when it is not an entry, so a module that becomes an entry later keeps
+ * its file, and the files that import it keep their imports.
+ */
+function getVendorModuleName(rootDir: string, modulePath: string): string {
+	return getPreservedModuleFileName(path.parse(rootDir).root, modulePath);
+}
+
+/** The URL of the file of a vendor entry. */
+export function getVendorEntryUrl(rootDir: string, graphKey: VendorGraphKey, entryPath: string): string {
+	return `/${RESOLVED_ASSETS_VENDORS_DIR}/${VENDOR_GRAPH_FILE_PREFIX[graphKey]}-${getVendorModuleName(rootDir, entryPath)}.js`;
+}
+
 function resolveVendorContentType(url: string): string {
 	if (url.endsWith('.css')) return 'text/css';
 	if (url.endsWith('.map')) return 'application/json';
 	return 'application/javascript';
-}
-
-function sanitizeSpecifierForFileName(specifier: string): string {
-	return specifier.replaceAll(/^@/gu, '').replaceAll(/[/:@]/gu, '-');
 }
 
 /**

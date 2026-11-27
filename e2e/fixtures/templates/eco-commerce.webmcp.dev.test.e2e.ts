@@ -1,6 +1,5 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from '../../app-fixture.ts';
-import { warmUpStorefront } from './eco-commerce.warm-up.ts';
 
 const SUBCATEGORY = '/collections/living/seating/lounge-chairs';
 
@@ -54,11 +53,6 @@ async function openProduct(page: Page): Promise<void> {
 	await page.locator('.product-card').first().click();
 	await expect(page.locator('add-to-cart')).toBeVisible();
 }
-
-test.beforeAll(async ({ browser, app }) => {
-	test.setTimeout(180_000);
-	await warmUpStorefront(browser, app.url);
-});
 
 test.describe('WebMCP tools', () => {
 	test.beforeEach(async ({ page }) => {

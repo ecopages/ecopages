@@ -6,10 +6,12 @@
 import { getEcoNavigationRuntime } from '../../router/client/navigation-coordinator.ts';
 import { applyModuleUpdate, resolveActiveModuleUrl } from './module-update.ts';
 import { resetBuildErrors, reportBuildError } from './build-error-presentation.ts';
+import { trackLoadedVendorUrls } from './loaded-vendor-urls.ts';
 
 interface HMRPayload {
-	type: 'reload' | 'error' | 'update' | 'css-update' | 'layout-update';
+	type: 'reload' | 'error' | 'update' | 'css-update' | 'layout-update' | 'vendor-change';
 	path?: string;
+	urls?: string[];
 	message?: string;
 	timestamp?: number;
 }
@@ -18,6 +20,7 @@ interface HMRPayload {
 	const WS_URL = 'ws://' + location.host + '/_hmr';
 	let socket: WebSocket;
 	let reconnectAttempts = 0;
+	const loadedVendorUrls = trackLoadedVendorUrls(window);
 
 	function connect() {
 		socket = new WebSocket(WS_URL);
@@ -50,9 +53,21 @@ interface HMRPayload {
 	 * @remarks
 	 * Any update clears a shown build error first. An update that fails to build re-shows it, because the
 	 * server broadcasts the error while it serves the update's module request.
+	 *
+	 * A `vendor-change` for files this page did not load is not an update for it, so it neither clears the error nor
+	 * reloads. The page settles an in-flight navigation before it asks what it loaded, because the files that
+	 * navigation is still loading have no resource timing entry until they finish.
 	 */
 	async function handleMessage(payload: HMRPayload) {
 		const navigationRuntime = getEcoNavigationRuntime(window);
+
+		if (payload.type === 'vendor-change') {
+			await waitForNavigationToSettle(navigationRuntime);
+			if (!loadedVendorUrls.hasLoadedAny(payload.urls ?? [])) return;
+			resetBuildErrors();
+			location.reload();
+			return;
+		}
 
 		if (payload.type !== 'error') {
 			resetBuildErrors();

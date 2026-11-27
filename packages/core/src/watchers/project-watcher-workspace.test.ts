@@ -4,6 +4,7 @@ import { path } from '@ecopages/file-system/path';
 import { afterEach, expect, test, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { DevTransformVendorRegistry } from '../dev/transform-server/dev-transform-vendor-registry.ts';
+import { readVendorGraph } from '../dev/transform-server/vendor-test-helpers.ts';
 import { ProjectWatcher } from './project-watcher.ts';
 import { resolveWorkspacePackageWatchRoots } from './workspace-package-watch-roots.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
@@ -25,6 +26,10 @@ function eventually(assertion: () => void): Promise<void> {
 
 const roots: string[] = [];
 const watchers: ProjectWatcher[] = [];
+
+async function readVendorCode(registry: DevTransformVendorRegistry, url: string): Promise<string> {
+	return [...(await readVendorGraph(registry, [url])).values()].join('\n');
+}
 
 /**
  * The hook's timeout is above the default because removing a temporary tree takes seconds while other processes
@@ -82,9 +87,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 		const registry = () => new DevTransformVendorRegistry({ appConfig: config });
 		const running = registry();
 		const oldUrl = await running.resolveVendorUrl('@acme/ui');
-		const oldResponse = await running.tryHandleVendorRequest(oldUrl);
-		const oldEtag = oldResponse?.headers.get('ETag');
-		const oldCode = (await oldResponse?.text()) ?? '';
+		const oldCode = await readVendorCode(running, oldUrl);
 		expect(oldCode).toContain('before-edit');
 		expect(oldCode).toContain('dependency-before');
 		const restart = vi.fn(async () => {});
@@ -113,9 +116,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 		const restarted = registry();
 		const newUrl = await restarted.resolveVendorUrl('@acme/ui');
 		expect(newUrl).toBe(oldUrl);
-		const newResponse = await restarted.tryHandleVendorRequest(newUrl, edited === 'dependency' ? oldEtag : null);
-		expect(newResponse?.status).toBe(200);
-		expect(await newResponse?.text()).toContain(
+		expect(await readVendorCode(restarted, newUrl)).toContain(
 			edited === 'package' ? 'after-edit' : edited === 'dependency' ? 'dependency-after' : 'before-edit',
 		);
 	},

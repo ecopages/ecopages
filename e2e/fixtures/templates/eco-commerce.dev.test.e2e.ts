@@ -1,6 +1,5 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from '../../app-fixture.ts';
-import { warmUpStorefront } from './eco-commerce.warm-up.ts';
 
 const SUBCATEGORY = '/collections/living/seating/lounge-chairs';
 
@@ -34,11 +33,6 @@ async function cartJson(
 ): Promise<{ itemCount: number; lines: Array<{ title: string; variantTitle: string; quantity: number }> }> {
 	return (await page.request.get('/api/cart')).json();
 }
-
-test.beforeAll(async ({ browser, app }) => {
-	test.setTimeout(180_000);
-	await warmUpStorefront(browser, app.url);
-});
 
 test.describe('eco-commerce template', () => {
 	test('a visitor browses from a collection down to a product, each page listing its children', async ({ page }) => {

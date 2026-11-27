@@ -1,0 +1,52 @@
+.catalog-tree {
+	@apply mb-10;
+	content-visibility: auto;
+	contain-intrinsic-size: auto 40rem;
+}
+
+.catalog-tree__collection {
+	@apply mb-3 text-2xl font-semibold tracking-tight;
+
+	a {
+		@apply no-underline;
+	}
+}
+
+.catalog-tree__category {
+	@apply mb-5;
+}
+
+.catalog-tree__category-name {
+	@apply mb-2 text-sm font-semibold uppercase tracking-wide text-on-surface-container;
+
+	a {
+		@apply no-underline;
+	}
+}
+
+.catalog-tree__tiles {
+	@apply m-0 grid list-none gap-2 p-0;
+	grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+}
+
+.catalog-tile {
+	@apply grid items-center gap-x-2 rounded-md border border-border p-1.5 text-sm no-underline;
+	grid-template-columns: 2.5rem 1fr;
+
+	img {
+		@apply row-span-2 h-10 w-10 rounded;
+	}
+
+	&:hover,
+	&:focus-visible {
+		@apply border-primary bg-surface-container-low;
+	}
+}
+
+.catalog-tile__name {
+	@apply truncate font-medium leading-tight;
+}
+
+.catalog-tile__count {
+	@apply text-xs text-on-surface-container;
+}

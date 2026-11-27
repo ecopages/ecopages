@@ -1,0 +1,16 @@
+# dependencies
+/node_modules
+
+# ecopages
+.eco
+dist
+
+# catalog database, created on first use
+.data
+
+# misc
+.DS_Store
+
+# local env files
+.env
+.env.local

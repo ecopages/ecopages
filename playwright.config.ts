@@ -259,6 +259,13 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		use: { ...chrome, baseURL: 'http://localhost:4643' },
 	},
 	{
+		name: 'template-eco-commerce-dev-e2e',
+		testMatch: 'e2e/fixtures/templates/eco-commerce*.dev.test.e2e.ts',
+		timeout: 60_000,
+		workers: 2,
+		use: { ...chrome, appOptions: { source: 'templates/eco-commerce' } },
+	},
+	{
 		name: 'react-router-preview-e2e',
 		testMatch: 'e2e/fixtures/react-router/persist-layouts.test.e2e.ts',
 		use: { ...chrome, baseURL: 'http://localhost:4004' },

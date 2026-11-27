@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, test, vi } from 'vitest';
+import { readTemplateManifest } from './template-manifest.ts';
 
 const templatesRoot = path.resolve(import.meta.dirname, '../templates');
 
@@ -12,6 +13,7 @@ const seoFiles = [
 	'react/src/includes/seo.tsx',
 	'react-shadcn/src/includes/seo.tsx',
 	'react-better-auth/src/includes/seo.tsx',
+	'eco-commerce/src/includes/seo.tsx',
 	'blog-jsx/src/includes/seo.tsx',
 	'blog-react/src/includes/seo.tsx',
 	'lit-jsx/src/includes/seo.kita.tsx',
@@ -38,6 +40,22 @@ const read = (relativePath: string) => readFileSync(path.join(templatesRoot, rel
 describe('official template contracts', () => {
 	afterEach(() => {
 		vi.unstubAllEnvs();
+	});
+
+	test('the getting-started skill reference names every official template id', () => {
+		const manifest = readTemplateManifest();
+		const reference = readFileSync(
+			path.resolve(import.meta.dirname, '../apps/docs/src/public/skill/reference/getting-started.md'),
+			'utf8',
+		);
+		const named = new Set(
+			[...reference.matchAll(/`([a-z0-9-]+)`|--template ([a-z0-9-]+)/gu)].map((match) => match[1] ?? match[2]),
+		);
+
+		assert.deepEqual(
+			manifest.templates.map((template) => template.id).filter((id) => !named.has(id)),
+			[],
+		);
 	});
 
 	test('counters serialize count as an attribute', () => {

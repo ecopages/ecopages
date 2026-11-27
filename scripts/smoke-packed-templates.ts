@@ -5,14 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { findPublishablePackageDirs, readJsonFile, writeJsonFile } from './package-utils.ts';
+import { findTemplate, readTemplateManifest, templateBuildOutputs } from './template-manifest.ts';
 
 type PackageJson = {
 	name: string;
 	[key: string]: unknown;
-};
-
-type TemplateManifest = {
-	templates: Array<{ id: string; source: string; packageDirectory: string }>;
 };
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
@@ -25,6 +22,7 @@ const defaultTemplateIds = [
 	'react-postcss',
 	'lit-jsx',
 	'electrobun',
+	'eco-commerce',
 	'ecoshop',
 ];
 const dependencyBlocks = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
@@ -104,9 +102,7 @@ function packPackages(tarballsDir: string): Map<string, string> {
  * sharp install scripts, and `minimumReleaseAge: 0` lets a template depend on a just-published release.
  */
 function createProject(templateId: string, projectDir: string, tarballs: Map<string, string>): void {
-	const manifest = readJsonFile<TemplateManifest>(path.join(repoRoot, 'packages/ecopages/templates.json'));
-	const template = manifest.templates.find((entry) => entry.id === templateId);
-	if (!template) throw new Error(`Unknown template "${templateId}".`);
+	const template = findTemplate(readTemplateManifest(), templateId);
 
 	const sourceDir = path.join(repoRoot, 'templates', template.source, template.packageDirectory);
 	cpSync(sourceDir, projectDir, {
@@ -213,13 +209,11 @@ interface ServeSmoke {
 }
 
 interface TemplateSmoke {
-	artifact: string;
 	build: [command: string, args: string[]];
 	serve?: ServeSmoke;
 }
 
 const defaultTemplateSmoke: TemplateSmoke = {
-	artifact: 'dist/client/index.html',
 	build: ['npx', ['--no-install', 'ecopages', 'build']],
 };
 
@@ -229,7 +223,6 @@ const templateSmokes: Record<string, TemplateSmoke> = {
 		serve: { mode: 'preview', host: 'localhost', runtimeArgs: [], withoutSource: false },
 	},
 	electrobun: {
-		artifact: 'dist/server/manifest.json',
 		build: ['pnpm', ['run', 'build']],
 		serve: { mode: 'start', host: '127.0.0.1', runtimeArgs: ['--runtime', 'bun'], withoutSource: true },
 	},
@@ -284,19 +277,20 @@ async function smokeTemplate(templateId: string, workDir: string, tarballs: Map<
 	const projectDir = path.join(workDir, 'projects', templateId);
 	mkdirSync(projectDir, { recursive: true });
 	const label = (name: string) => `${templateId}: ${name}`;
-	const { artifact, build, serve } = templateSmokes[templateId] ?? defaultTemplateSmoke;
+	const { build, serve } = templateSmokes[templateId] ?? defaultTemplateSmoke;
+	const outputs = templateBuildOutputs(findTemplate(readTemplateManifest(), templateId));
 
 	const steps: Array<[string, () => void | Promise<void>]> = [
 		['create project from tarballs', () => createProject(templateId, projectDir, tarballs)],
 		['pnpm install', () => void run('pnpm', ['install', '--no-frozen-lockfile'], projectDir)],
 		['every repository package comes from a tarball', () => assertInstalledFromTarballs(projectDir, tarballs)],
 		['ecopages build', () => void run(build[0], build[1], projectDir)],
-		[
-			`${artifact} exists`,
+		...outputs.map((output): [string, () => void] => [
+			`${output} exists`,
 			() => {
-				if (!existsSync(path.join(projectDir, artifact))) throw new Error(`${artifact} is missing`);
+				if (!existsSync(path.join(projectDir, output))) throw new Error(`${output} is missing`);
 			},
-		],
+		]),
 	];
 	if (serve) {
 		steps.push([

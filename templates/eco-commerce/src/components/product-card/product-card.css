@@ -1,0 +1,32 @@
+.product-card {
+	@apply flex h-full flex-col gap-1 rounded-lg p-2 text-sm no-underline;
+
+	&:hover,
+	&:focus-visible {
+		@apply bg-surface-container-low;
+	}
+}
+
+.product-card__media {
+	@apply relative mb-1 block;
+
+	img {
+		@apply aspect-square h-auto w-full rounded-md;
+	}
+}
+
+.product-card__badge {
+	@apply absolute left-2 top-2;
+}
+
+.product-card__title {
+	@apply font-medium leading-snug;
+}
+
+.product-card__price {
+	@apply flex items-baseline gap-2 tabular-nums text-on-surface-container;
+}
+
+.product-card__was {
+	@apply text-xs;
+}

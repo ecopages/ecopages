@@ -1,0 +1,24 @@
+.search-box {
+	@apply relative block w-full max-w-md;
+
+	form {
+		@apply m-0;
+	}
+}
+
+.search-box__combobox {
+	@apply block w-full;
+}
+
+.search-suggestions__option {
+	@apply grid items-center gap-3 text-sm;
+	grid-template-columns: 2.25rem 1fr auto;
+
+	img {
+		@apply rounded;
+	}
+}
+
+.search-suggestions__price {
+	@apply tabular-nums text-on-surface-container;
+}

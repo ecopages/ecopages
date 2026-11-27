@@ -1,0 +1,40 @@
+.cart-drawer .rui-dialog__surface {
+	@apply fixed inset-y-0 right-0 m-0 flex h-dvh w-full max-w-md flex-col gap-4 overflow-y-auto rounded-none p-5;
+}
+
+.cart-lines {
+	@apply m-0 flex list-none flex-col divide-y divide-border p-0;
+}
+
+.cart-lines__line {
+	@apply grid items-center gap-3 py-3;
+	grid-template-columns: 3.5rem 1fr auto;
+
+	img {
+		@apply rounded;
+	}
+
+	rui-number-field {
+		@apply col-start-2 w-24;
+	}
+}
+
+.cart-lines__product {
+	@apply flex flex-col text-sm;
+
+	span {
+		@apply text-xs text-on-surface-container;
+	}
+}
+
+.cart-lines__note {
+	@apply text-sm text-on-surface-container;
+}
+
+.cart-lines__total {
+	@apply mt-2 flex justify-between border-t border-border pt-3;
+}
+
+.cart-drawer__order {
+	@apply mt-auto;
+}

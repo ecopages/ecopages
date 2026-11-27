@@ -1,0 +1,27 @@
+.product {
+	@apply mb-12 grid gap-8 md:grid-cols-2;
+}
+
+.product__image {
+	@apply aspect-square h-auto w-full rounded-xl;
+}
+
+.product__details {
+	@apply flex flex-col gap-4;
+}
+
+.product__badge {
+	@apply self-start;
+}
+
+.product__name {
+	@apply m-0 text-3xl font-semibold tracking-tight;
+}
+
+.product__price {
+	@apply m-0 text-2xl tabular-nums;
+}
+
+.product__was {
+	@apply ml-2 text-base text-on-surface-container;
+}

@@ -6,6 +6,7 @@ import { isSameOriginRequest } from '@/lib/http/same-origin';
 import { siteOrigin } from '@/lib/site-origin';
 import { storePaths } from '@/lib/store-urls';
 import { cartCookieFor, readCartId } from './cart-cookie';
+import { shortageQuery } from './cart-messages';
 import type { CartTotals } from './cart-events';
 
 /**
@@ -87,7 +88,13 @@ export async function handleCartPost(request: Request, provider: CommerceProvide
 
 	const headers = new Headers({ 'Set-Cookie': cartCookieFor(cart.id, request), 'Cache-Control': 'no-store' });
 	if (json) return Response.json(totals(cart), { headers });
-	headers.set('Location', storePaths.cart);
+	const shortage = cart.messages?.find((message) => message.code === 'quantity_reduced');
+	headers.set(
+		'Location',
+		shortage?.variantId && shortage.wanted
+			? `${storePaths.cart}?${shortageQuery(shortage.variantId, shortage.wanted)}`
+			: storePaths.cart,
+	);
 	return new Response(null, { status: 303, headers });
 }
 

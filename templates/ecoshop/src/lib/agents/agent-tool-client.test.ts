@@ -84,6 +84,19 @@ describe('callAgentTool', () => {
 		expect(page.assign).not.toHaveBeenCalled();
 	});
 
+	it('still opens the page when the host does not show it', async () => {
+		vi.useFakeTimers();
+		const page = stubPage('/products/field-shirt', {
+			result: { content: [{ type: 'text', text: 'Opening' }], structuredContent: {} },
+			navigateTo: '/products/linen-overshirt?variant=m',
+		});
+
+		await callAgentTool('show_variant', {}, new AbortController().signal, { showsPage: () => false });
+		vi.runAllTimers();
+
+		expect(page.assign).toHaveBeenCalledWith('/products/linen-overshirt?variant=m');
+	});
+
 	it('opens the cart page again after a cart change', async () => {
 		vi.useFakeTimers();
 		const page = stubPage('/cart', {

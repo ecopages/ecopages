@@ -11,8 +11,8 @@ import { findStoreTool, runStoreTool } from './store-tools.server';
  * and provider as `/mcp`.
  *
  * @remarks
- * The browser does no validation of its own: `inputSchema` is advisory for an agent, so the input is checked here,
- * where it is authoritative. `?product=<handle>` names the product of the calling page: `get_product` and
+ * The host that registered the tool parses an agent's input too, but a request can skip the browser, so the input
+ * is checked here, where it is authoritative. `?product=<handle>` names the product of the calling page: `get_product` and
  * `show_variant` default to it, and `add_to_cart` requires it.
  */
 export async function handleAgentToolCall(

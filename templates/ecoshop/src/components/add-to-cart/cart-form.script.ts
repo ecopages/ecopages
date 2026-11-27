@@ -3,9 +3,9 @@ import { RadiantElement, bindTo, customElement, onEvent, prop, query, state } fr
 import '@ecopages/radiant-ui/radio-group';
 import { agentTool } from '@ecopages/radiant/decorators/agent-tool';
 import type { AgentToolExecuteOptions } from '@ecopages/radiant/helpers/register-agent-tool';
-import { toast } from '@ecopages/radiant-ui/toast';
-import { callAgentTool, describeCartTotals } from '../../lib/agents/agent-tool-client';
+import { callAgentTool } from '../../lib/agents/agent-tool-client';
 import type { StoreToolResult } from '../../lib/agents/agent-tool-types';
+import { announceCartChange } from '../../lib/agents/assistant-cart-change';
 import {
 	type ToolInput,
 	addToCartTool,
@@ -31,8 +31,8 @@ type CartFormProps = {
  * reached the server, so every failure is reported in place and the shopper decides whether to retry. The button and
  * the agent call the same `add`, which runs through `/api/agent-tools`: the server validates the input and checks
  * that the variant belongs to this product, and the method returns only after the header count and the toast show
- * the change. `selectVariant` is the one place a variant gets selected, whether the shopper's link or the agent asks
- * for it. Radiant registers the tools while the host is connected, so a client navigation that removes the form
+ * the change. `selectVariant` is the one place a link or the agent selects a variant in the picker; a shopper's own click
+ * selects it natively. Radiant registers the tools while the host is connected, so a client navigation that removes the form
  * unregisters them.
  */
 @customElement('cart-form')
@@ -79,7 +79,8 @@ export class CartForm extends RadiantElement {
 	 * @remarks
 	 * One addition at a time: a call while another is on its way is refused, so the shopper's click and an agent never
 	 * stack two requests. A refusal or a failure comes back as a tool result with `isError` and shows in the form's
-	 * status line; nothing is posted again.
+	 * status line; nothing is posted again. Radiant passes the agent's call `options`, which the shopper's click does
+	 * not, so the toast says who added.
 	 */
 	@agentTool(agentToolConfig(addToCartTool))
 	async add(input: ToolInput<typeof addToCartTool>, options?: AgentToolExecuteOptions): Promise<StoreToolResult> {
@@ -89,7 +90,8 @@ export class CartForm extends RadiantElement {
 		let result: StoreToolResult;
 		try {
 			result = await callAgentTool(addToCartTool.name, input, options?.signal, {
-				onCartChange: (totals) => this.announce(this.success, totals),
+				onCartChange: (totals, outcome) =>
+					this.announce(options ? 'Your assistant added this to your cart' : this.success, totals, outcome),
 			});
 		} catch {
 			this.pending = false;
@@ -97,7 +99,8 @@ export class CartForm extends RadiantElement {
 		}
 		this.pending = false;
 		if (result.isError) {
-			this.status = result.content[0]?.text.replace(/^Error: /u, '') ?? 'The cart could not be updated.';
+			const reason = result.structuredContent.error;
+			this.status = typeof reason === 'string' ? reason : 'The cart could not be updated.';
 		}
 		return result;
 	}
@@ -118,8 +121,7 @@ export class CartForm extends RadiantElement {
 		const target = new URL(href, location.href);
 		if (productHandleFromPath(target.pathname) !== productHandleFromPath(location.pathname)) return false;
 		const variant = target.searchParams.get('variant');
-		if (variant) this.selectVariant(variant);
-		return true;
+		return !variant || this.selectVariant(variant) || !this.variantPicker;
 	}
 
 	private refuse(message: string): StoreToolResult {
@@ -131,9 +133,9 @@ export class CartForm extends RadiantElement {
 		};
 	}
 
-	private announce(title: string, totals: CartTotals): void {
+	private announce(title: string, totals: CartTotals, result: StoreToolResult): void {
 		this.status = '';
-		toast.success(title, { description: describeCartTotals(totals) });
+		announceCartChange(title, totals, result);
 	}
 
 	@onEvent({ selector: 'form', type: 'submit' })

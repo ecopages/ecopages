@@ -94,6 +94,9 @@ export interface CartMessage {
 	type: 'error' | 'warning' | 'info';
 	code: string;
 	content: string;
+	/** For `quantity_reduced`: the variant whose line holds less than asked, and how many the change asked it to hold. */
+	variantId?: string;
+	wanted?: number;
 }
 
 export interface Cart {
@@ -157,8 +160,15 @@ export interface ListOptions {
 /**
  * How a product list is ordered. `best-selling` is the provider's own order, the one a shopper sees first.
  */
-export type ProductSort =
-	'best-selling' | 'price-ascending' | 'price-descending' | 'title-ascending' | 'title-descending';
+export const PRODUCT_SORTS = [
+	'best-selling',
+	'price-ascending',
+	'price-descending',
+	'title-ascending',
+	'title-descending',
+] as const;
+
+export type ProductSort = (typeof PRODUCT_SORTS)[number];
 
 /**
  * A product list read from the provider already ordered and cut: `sort` orders the whole catalog or collection,
@@ -178,6 +188,11 @@ export interface ProductListOptions extends ListOptions {
  */
 export interface CommerceProvider {
 	getStore(): Promise<StoreInfo>;
+	/**
+	 * The origin of the connected store, such as `https://my-store.myshopify.com`, where its UCP profile and endpoint
+	 * live, or `null` for a provider with no store behind it.
+	 */
+	ucpOrigin(): string | null;
 	listProducts(options?: ProductListOptions): Promise<ProductSummary[]>;
 	searchProducts(query: string, options?: ListOptions): Promise<ProductSummary[]>;
 	/**

@@ -27,7 +27,8 @@ import { storePaths } from '../../lib/store-urls';
  * It sits in the layout with `data-eco-persist`, so its tools (`get_cart`, `update_cart`, `cancel_cart` and
  * `proceed_to_checkout`) stay registered on every page. The cart page's forms are plain forms that post to
  * `/api/cart`, so no UI method stands behind these tools; they run on the server on the shopper's cart, and a change
- * updates the count, shows a toast and refreshes the cart page when it is open before the tool returns.
+ * updates the count and shows a toast before the tool returns. The cart page, when it is open, loads fresh right
+ * after the result is returned.
  */
 @customElement('cart-count')
 export class CartCount extends RadiantElement {

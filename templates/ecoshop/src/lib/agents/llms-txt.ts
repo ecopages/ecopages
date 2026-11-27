@@ -1,4 +1,4 @@
-import { toolsOn } from '@/lib/agents/store-tool-definitions';
+import { storeTools } from '@/lib/agents/store-tools.server';
 import { formatPriceRange } from '@/lib/commerce/money';
 import type { CommerceProvider } from '@/lib/commerce/types';
 import { resolveUrl, storePaths } from '@/lib/store-urls';
@@ -24,10 +24,11 @@ export async function buildLlmsTxt(provider: CommerceProvider, origin: string): 
 		[
 			'## Shop with an agent',
 			'',
-			`- [MCP server](${url(storePaths.mcp)}): Streamable HTTP endpoint with the tools ${toolsOn('mcp')
+			`- [MCP server](${url(storePaths.mcp)}): Streamable HTTP endpoint with the tools ${storeTools
+				.filter((tool) => tool.surfaces.includes('mcp'))
 				.map((tool) => tool.name)
 				.join(', ')}. Checkout happens on the checkout URL the cart returns.`,
-			"- WebMCP: in a browser that supports it, every page registers these tools with `document.modelContext`, plus show_variant, and add_to_cart on product pages, acting on the shopper's own cart.",
+			"- WebMCP: in a browser that supports it, every page registers these tools with `document.modelContext`, plus add_to_cart and show_variant on product pages, and get_ucp_profile on a connected Shopify store, acting on the shopper's own cart.",
 			`- [Search](${url(storePaths.search())}): add \`?q=\` with keywords for an HTML results page.`,
 		].join('\n'),
 		[

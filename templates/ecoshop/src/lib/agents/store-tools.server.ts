@@ -3,7 +3,7 @@ import { CommerceBackendError } from '@/lib/commerce/errors';
 import { formatMoney, formatPriceRange, toAgentPrice } from '@/lib/commerce/money';
 import type { Product, ProductSummary, ProductVariant } from '@/lib/commerce/types';
 import { resolveUrl, storePaths } from '@/lib/store-urls';
-import { readUcpProfile } from '@/lib/ucp/ucp.server';
+import { describeUcpProfile, readUcpProfile } from '@/lib/ucp/ucp.server';
 import {
 	addToCartTool,
 	askBusinessTool,
@@ -30,6 +30,7 @@ import {
 	fitToPageResult,
 	pageSummaryView,
 	pageVariantView,
+	PAGE_RESULT_CHARACTERS,
 	resultSize,
 	cartView,
 	currentCart,
@@ -58,36 +59,22 @@ const PRODUCTS_PER_PAGE = 30;
 
 /* What a page tool lists, so a result stays within `PAGE_RESULT_CHARACTERS`; `/mcp` has no such limit. */
 
-const PAGE_PRODUCTS_PER_PAGE = 4;
+const PAGE_PRODUCTS_PER_PAGE = 3;
 const PAGE_RELATED_LIMIT = 3;
 const PAGE_DESCRIPTION_CHARACTERS = 240;
-const PAGE_ANSWER_SECTIONS = 2;
-const PAGE_ANSWER_CHARACTERS = 280;
-const MAX_OPTION_COMBINATIONS = 50;
 
 /**
- * The store's collections as a tool lists them: with their descriptions over `/mcp`, and as many as fit on a page.
+ * How much of an answer `ask_business` gives a page, as policies and characters a paragraph, from most to least: the
+ * first that fits `PAGE_RESULT_CHARACTERS` is used, and the last when none does.
  */
-async function collectionsResult(provider: StoreToolContext['provider'], origin: string, surface: ToolSurface) {
-	const collections = await provider.listCollections({ limit: 100 });
-	const describeCollections = (shown: typeof collections) => {
-		const list = shown.map((entry) => ({
-			title: entry.title,
-			handle: entry.handle,
-			url: resolveUrl(origin, storePaths.collection(entry.handle)),
-			...(surface === 'page' ? {} : { description: entry.description }),
-		}));
-		return ok(
-			{ collections: list },
-			`The store has ${collections.length} collection(s): ${list.map((entry) => entry.title).join(', ')}${list.length < collections.length ? ', and more' : ''}.`,
-		);
-	};
-	const shown =
-		surface === 'page'
-			? fitToPageResult(collections, (list) => resultSize(describeCollections(list)))
-			: collections;
-	return describeCollections(shown);
-}
+const PAGE_ANSWER_SIZES: Array<{ policies: number; characters: number }> = [
+	{ policies: 2, characters: 280 },
+	{ policies: 2, characters: 160 },
+	{ policies: 1, characters: 280 },
+	{ policies: 1, characters: 140 },
+	{ policies: 1, characters: 70 },
+];
+const MAX_OPTION_COMBINATIONS = 50;
 
 /* The tools. */
 
@@ -137,7 +124,26 @@ export const storeTools: StoreTool[] = [
 	define(
 		browseStoreTool,
 		async ({ collection, navigate, sort_by: sortBy = 'best-selling', page = 1 }, { provider, origin, surface }) => {
-			if (!collection) return { result: await collectionsResult(provider, origin, surface) };
+			if (!collection) {
+				const collections = await provider.listCollections({ limit: 100 });
+				const describeCollections = (shown: typeof collections) => {
+					const list = shown.map((entry) => ({
+						title: entry.title,
+						handle: entry.handle,
+						url: resolveUrl(origin, storePaths.collection(entry.handle)),
+						...(surface === 'page' ? {} : { description: entry.description }),
+					}));
+					return ok(
+						{ collections: list },
+						`The store has ${collections.length} collection(s): ${list.map((entry) => entry.title).join(', ')}${list.length < collections.length ? ', and more' : ''}.`,
+					);
+				};
+				const shown =
+					surface === 'page'
+						? fitToPageResult(collections, (list) => resultSize(describeCollections(list)))
+						: collections;
+				return { result: describeCollections(shown) };
+			}
 
 			const pageSize = surface === 'page' ? PAGE_PRODUCTS_PER_PAGE : PRODUCTS_PER_PAGE;
 			const listing = { limit: pageSize + 1, offset: (page - 1) * pageSize, sort: sortBy };
@@ -387,10 +393,9 @@ export const storeTools: StoreTool[] = [
 			: { result: ok(structured, `Checkout for ${cart.totalQuantity} item(s): ${url}`) };
 	}),
 	define(askBusinessTool, async ({ ask }, { provider, origin, surface }) => {
-		const compact = surface === 'page';
 		const terms = searchTerms(ask.query);
 		const policies = await provider.listPolicies();
-		const sections = policies
+		const ranked = policies
 			.map((policy) => {
 				const paragraphs = policy.body
 					.split(/\n\s*\n/u)
@@ -400,38 +405,40 @@ export const storeTools: StoreTool[] = [
 				return { policy, paragraphs, score: paragraphs[0]?.score ?? 0 };
 			})
 			.filter((section) => section.score > 0)
-			.sort((a, b) => b.score - a.score)
-			.slice(0, compact ? PAGE_ANSWER_SECTIONS : 3);
+			.sort((a, b) => b.score - a.score);
 		const link = (policy: (typeof policies)[number]) => ({
 			type: policy.type,
 			url: resolveUrl(origin, storePaths.policy(policy.handle)),
 			title: policy.title,
 		});
-		const plain = sections.length
-			? sections
-					.map(({ policy, paragraphs }) =>
-						[
-							`${policy.title} (${resolveUrl(origin, storePaths.policy(policy.handle))}):`,
-							...paragraphs
-								.slice(0, compact ? 1 : 2)
-								.map((entry) =>
-									compact ? clipText(entry.paragraph, PAGE_ANSWER_CHARACTERS) : entry.paragraph,
-								),
-						].join('\n'),
-					)
-					.join('\n\n')
-			: 'The store has no published information about that. Its policies are linked below.';
-		return {
-			result: ok(
-				{
-					answer: { plain },
-					links: (sections.length ? sections.map((section) => section.policy) : policies)
-						.slice(0, compact ? PAGE_ANSWER_SECTIONS + 1 : undefined)
-						.map(link),
-				},
-				plain,
-			),
+		/**
+		 * The answer from the best `sectionCount` policies, each with `paragraphCount` paragraphs cut to `clip`
+		 * characters when a limit is given.
+		 */
+		const answer = (sectionCount: number, paragraphCount: number, clip?: number) => {
+			const sections = ranked.slice(0, sectionCount);
+			const plain = sections.length
+				? sections
+						.map(({ policy, paragraphs }) =>
+							[
+								`${policy.title} (${resolveUrl(origin, storePaths.policy(policy.handle))}):`,
+								...paragraphs
+									.slice(0, paragraphCount)
+									.map((entry) => (clip ? clipText(entry.paragraph, clip) : entry.paragraph)),
+							].join('\n'),
+						)
+						.join('\n\n')
+				: 'The store has no published information about that. Its policies are linked below.';
+			const linked = (sections.length ? sections.map((section) => section.policy) : policies).slice(
+				0,
+				clip ? sectionCount + 1 : undefined,
+			);
+			return ok({ answer: { plain }, links: linked.map(link) }, plain);
 		};
+		if (surface !== 'page') return { result: answer(3, 2) };
+		const attempts = PAGE_ANSWER_SIZES.map(({ policies: count, characters }) => answer(count, 1, characters));
+		const fitting = attempts.find((result) => resultSize(result) <= PAGE_RESULT_CHARACTERS);
+		return { result: fitting ?? answer(1, 1, PAGE_ANSWER_SIZES[PAGE_ANSWER_SIZES.length - 1]?.characters) };
 	}),
 	define(addToCartTool, async ({ item, quantity }, context) => {
 		if (!context.currentProductHandle)
@@ -449,12 +456,12 @@ export const storeTools: StoreTool[] = [
 		);
 		return isOutcome(added) ? added : cartOutcome(added, context);
 	}),
-	define(getUcpProfileTool, async (_input, { origin }) => {
+	define(getUcpProfileTool, async (_input, { origin, provider }) => {
 		try {
-			const profile = await readUcpProfile(origin);
+			const profile = await readUcpProfile(origin, { provider });
 			if (!profile)
 				return fail('This store runs on the demo catalog and has no UCP profile. Use the /mcp server.');
-			return { result: ok(profile, JSON.stringify(profile)) };
+			return { result: ok(profile, describeUcpProfile(profile)) };
 		} catch (error) {
 			if (error instanceof CommerceBackendError) return fail(error.message);
 			throw error;

@@ -22,7 +22,7 @@ export async function llmsTxtHandler(): Promise<Response> {
  * Serves `/.well-known/ucp`: the connected Shopify store's UCP profile, with its endpoint pointed at this site.
  */
 export async function ucpProfileHandler(): Promise<Response> {
-	return handleUcpProfile();
+	return handleUcpProfile({ provider: getCommerce() });
 }
 
 /**

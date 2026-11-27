@@ -1,4 +1,5 @@
 import { definePost } from '@ecopages/core';
+import { getCommerce } from '@/lib/commerce/provider.server';
 import { handleUcpMcp } from '@/lib/ucp/ucp.server';
 
 /**
@@ -8,5 +9,5 @@ import { handleUcpMcp } from '@/lib/ucp/ucp.server';
  * Only `POST` is exported, as the MCP endpoint of Streamable HTTP asks. On the demo catalog it answers 404.
  */
 export const POST = definePost({
-	handler: async ({ request }) => handleUcpMcp(request),
+	handler: async ({ request }) => handleUcpMcp(request, { provider: getCommerce() }),
 });

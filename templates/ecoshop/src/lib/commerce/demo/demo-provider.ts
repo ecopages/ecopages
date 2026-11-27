@@ -1,13 +1,15 @@
+import { describeLine, describeShortage } from '@/lib/cart/cart-messages';
 import { storePaths } from '@/lib/store-urls';
 import { CartInputError } from '../errors';
 import { fromCents, toCents } from '../money';
 import {
 	type Cart,
+	type CartMessage,
 	type CartLine,
 	type CartLineQuantity,
 	type Collection,
 	type CommerceProvider,
-	type ListOptions,
+	type ProductListOptions,
 	type Product,
 	type ProductSort,
 	type ProductSummary,
@@ -102,7 +104,7 @@ function toSummary(product: Product): ProductSummary {
 	};
 }
 
-function take<T>(items: T[], options?: ListOptions & { offset?: number }): T[] {
+function take<T>(items: T[], options?: ProductListOptions): T[] {
 	const offset = options?.offset ?? 0;
 	return options?.limit === undefined ? items.slice(offset) : items.slice(offset, offset + options.limit);
 }
@@ -134,6 +136,14 @@ function sortProducts(products: ProductSummary[], sort: ProductSort = 'best-sell
 export function createDemoProvider(): CommerceProvider {
 	const products = DEMO_PRODUCTS.map(toProduct);
 	const productsByHandle = new Map(products.map((product) => [product.handle, product]));
+	const stock = new Map(
+		DEMO_PRODUCTS.flatMap((seed, productIndex) =>
+			seed.variants.flatMap((seedVariant, position) => {
+				const variant = products[productIndex]?.variants[position];
+				return variant && seedVariant.stock !== undefined ? [[variant.id, seedVariant.stock] as const] : [];
+			}),
+		),
+	);
 	const variantIndex = new Map(
 		products.flatMap((product) => product.variants.map((variant) => [variant.id, { product, variant }] as const)),
 	);
@@ -205,12 +215,42 @@ export function createDemoProvider(): CommerceProvider {
 		};
 	}
 
+	/**
+	 * Takes a quantity down to the stock of its variant, as Shopify does, and says so in `messages`.
+	 *
+	 * @param previous What the cart held of the variant before an addition. An addition that adds nothing because the
+	 * cart already holds the stock is refused, as the Shopify provider refuses it.
+	 */
+	function capToStock(
+		{ product, variant }: { product: Product; variant: ProductVariant },
+		wanted: number,
+		previous: number | undefined,
+		messages: CartMessage[],
+	): number {
+		const held = Math.min(wanted, stock.get(variant.id) ?? wanted);
+		if (held === wanted) return held;
+		const content = describeShortage(
+			describeLine({ productTitle: product.title, variantTitle: variant.title }),
+			held,
+			wanted,
+		);
+		if (previous !== undefined && held <= previous) throw new CartInputError(content);
+		messages.push({ type: 'warning', code: 'quantity_reduced', content, variantId: variant.id, wanted });
+		return held;
+	}
+
+	function knownVariant(variantId: string) {
+		const entry = variantIndex.get(variantId);
+		if (!entry) throw new CartInputError(`Unknown variant: ${variantId}`);
+		return entry;
+	}
+
 	function applyLines(cartId: string | undefined, lines: CartLineQuantity[], mode: 'add' | 'set'): Cart {
 		const contents = (cartId && decodeCart(cartId)) || new Map<string, number>();
 		const listed = new Set<string>();
+		const messages: CartMessage[] = [];
 		for (const { variantId, quantity } of lines) {
-			const entry = variantIndex.get(variantId);
-			if (!entry) throw new CartInputError(`Unknown variant: ${variantId}`);
+			const entry = knownVariant(variantId);
 			if (mode === 'set' && listed.has(variantId)) {
 				throw new CartInputError(`${entry.product.title} (${entry.variant.title}) is listed twice.`);
 			}
@@ -222,14 +262,17 @@ export function createDemoProvider(): CommerceProvider {
 			if (next > 0 && !entry.variant.availableForSale) {
 				throw new CartInputError(`${entry.product.title} (${entry.variant.title}) is sold out.`);
 			}
-			if (next > 0) contents.set(variantId, next);
+			const held = capToStock(entry, next, mode === 'add' ? (contents.get(variantId) ?? 0) : undefined, messages);
+			if (held > 0) contents.set(variantId, held);
 			else contents.delete(variantId);
 		}
-		return toCart(contents);
+		const cart = toCart(contents);
+		return messages.length ? { ...cart, messages } : cart;
 	}
 
 	return {
 		getStore: async () => ({ name: DEMO_STORE.name, description: DEMO_STORE.description }),
+		ucpOrigin: () => null,
 		listProducts: async (options) => take(sortProducts(products.map(toSummary), options?.sort), options),
 		searchProducts: async (query, options) => {
 			const terms = query.toLowerCase().split(/\s+/u).filter(Boolean);

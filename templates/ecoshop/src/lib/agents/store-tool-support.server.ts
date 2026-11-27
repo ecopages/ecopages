@@ -10,14 +10,15 @@ import { CartInputError } from '@/lib/commerce/errors';
 import { type AgentPrice, formatMoney, formatPriceRange, toAgentPrice } from '@/lib/commerce/money';
 import {
 	type Cart,
+	type CartLine,
 	type CommerceProvider,
-	DEFAULT_VARIANT_TITLE,
 	type ProductSummary,
 	type ProductVariant,
 	type SelectedOption,
 } from '@/lib/commerce/types';
+import { describeLine } from '@/lib/cart/cart-messages';
 import { productHandleFromPath, resolveUrl, storePaths } from '@/lib/store-urls';
-import type { StoreToolResult } from './agent-tool-types';
+import type { CartViewMessage, StoreToolResult } from './agent-tool-types';
 import type { StoreToolSpec, ToolSurface } from './store-tool-definitions';
 
 export interface StoreToolContext {
@@ -153,8 +154,6 @@ export function variantView(variant: ProductVariant) {
 	};
 }
 
-export type CartMessage = { type: 'error' | 'warning' | 'info'; code?: string; content: string; path?: string };
-
 /**
  * The id a page shows an agent for the shopper's cart: a revision of its lines, not the cart id.
  *
@@ -169,31 +168,47 @@ function cartRevision(cart: Cart): string {
 	return `rev_${digest.slice(0, 22)}`;
 }
 
-export function cartView(cart: Cart | null, context: StoreToolContext, messages: CartMessage[] = []) {
-	const { origin } = context;
-	const all = [...(cart?.messages ?? []), ...messages];
+/**
+ * The cart as a tool result shows it. Over `/mcp` it has the Shopify shape; on a page it drops what an agent can rebuild
+ * (the currency, the totals list, each item's handle, URL, image and unit price) so a cart of a few lines stays within
+ * `PAGE_RESULT_CHARACTERS`. Every line stays, since `update_cart` removes a line it is not sent.
+ */
+export function cartView(cart: Cart | null, context: StoreToolContext, messages: CartViewMessage[] = []) {
+	const compact = context.surface === 'page';
+	const all = [...(cart?.messages ?? []).map(({ type, code, content }) => ({ type, code, content })), ...messages];
 	const subtotal: AgentPrice | null = cart ? toAgentPrice(cart.subtotal) : null;
 	return {
-		id: cart ? (context.surface === 'page' ? cartRevision(cart) : cart.id) : '',
+		id: cart ? (compact ? cartRevision(cart) : cart.id) : '',
 		item_count: cart?.totalQuantity ?? 0,
 		total_price: subtotal,
+		...(compact ? {} : cartTotals(cart, subtotal)),
+		line_items: (cart?.lines ?? []).map((line) => cartLineView(line, context)),
+		...(all.length ? { messages: all } : {}),
+	};
+}
+
+function cartTotals(cart: Cart | null, subtotal: AgentPrice | null) {
+	return {
 		currency: cart?.subtotal.currencyCode ?? '',
 		totals: subtotal ? [{ type: 'subtotal', amount: subtotal.amount }] : [],
-		line_items: (cart?.lines ?? []).map((line) => ({
-			id: line.id,
-			item: {
-				id: line.variantId,
-				title: line.productTitle,
-				variant_title: line.variantTitle,
-				handle: line.productHandle,
-				url: productUrl(origin, line.productHandle, line.variantId),
-				image: line.image ? resolveUrl(origin, line.image.url) : '',
-				unit_price: toAgentPrice(line.unitPrice),
-			},
-			quantity: line.quantity,
-			line_price: toAgentPrice(line.totalPrice),
-		})),
-		...(all.length ? { messages: all } : {}),
+	};
+}
+
+function cartLineView(line: CartLine, { origin, surface }: StoreToolContext) {
+	const details =
+		surface === 'page'
+			? {}
+			: {
+					handle: line.productHandle,
+					url: productUrl(origin, line.productHandle, line.variantId),
+					image: line.image ? resolveUrl(origin, line.image.url) : '',
+					unit_price: toAgentPrice(line.unitPrice),
+				};
+	return {
+		id: line.id,
+		item: { id: line.variantId, title: line.productTitle, variant_title: line.variantTitle, ...details },
+		quantity: line.quantity,
+		line_price: toAgentPrice(line.totalPrice),
 	};
 }
 
@@ -213,10 +228,10 @@ export function fail(message: string, structured: Record<string, unknown> = { er
 
 export function describeCart(cart: ReturnType<typeof cartView>): string {
 	if (!cart.item_count) return 'The cart is empty.';
-	const lines = cart.line_items.map((line) => {
-		const variant = line.item.variant_title && line.item.variant_title !== DEFAULT_VARIANT_TITLE;
-		return `${line.quantity} x ${line.item.title}${variant ? ` (${line.item.variant_title})` : ''}`;
-	});
+	const lines = cart.line_items.map(
+		(line) =>
+			`${line.quantity} x ${describeLine({ productTitle: line.item.title, variantTitle: line.item.variant_title })}`,
+	);
 	return `The cart holds ${cart.item_count} item(s): ${lines.join(', ')}. Subtotal ${cart.total_price?.display}.`;
 }
 

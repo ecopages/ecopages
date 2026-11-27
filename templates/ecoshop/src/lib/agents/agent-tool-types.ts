@@ -10,6 +10,16 @@ export interface StoreToolResult {
 }
 
 /**
+ * A message of a cart view, as the agent tools return it in `structuredContent.messages`.
+ */
+export interface CartViewMessage {
+	type: 'error' | 'warning' | 'info';
+	code?: string;
+	content: string;
+	path?: string;
+}
+
+/**
  * What `/api/agent-tools/<name>` answers a page: the tool result for the agent, the cart totals for the header
  * count when the cart changed, and a page to open after the result is returned.
  */

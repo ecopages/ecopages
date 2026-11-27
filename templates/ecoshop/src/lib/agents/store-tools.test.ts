@@ -313,8 +313,7 @@ describe('store tools: a cart change the provider only partly made', () => {
 	it('shows the agent the cart as it now is, with the provider message', async () => {
 		const cartId = await cartWith([{ id: fieldShirtM, quantity: 1 }]);
 		const before = (await call('get_cart', {}, page(cartId))).structured as CartResult;
-		const current = await provider.getCart(cartId);
-		if (!current) throw new Error('The cart exists.');
+		const current = await provider.setCartQuantities(cartId, [{ variantId: tote, quantity: 1 }]);
 		const partly: CommerceProvider = {
 			...provider,
 			setCartQuantities: async () => ({
@@ -337,11 +336,45 @@ describe('store tools: a cart change the provider only partly made', () => {
 		);
 
 		expect(outcome.result.isError).toBeUndefined();
-		expect((outcome.structured as CartResult).line_items.map((line) => line.item.id)).toEqual([fieldShirtM]);
+		expect((outcome.structured as CartResult).line_items.map((line) => line.item.id)).toEqual([fieldShirtM, tote]);
 		expect((outcome.structured as CartResult).messages).toEqual([
 			expect.objectContaining({ type: 'error', code: 'change_incomplete' }),
 		]);
 		expect(outcome.result.content[0]?.text).toContain('the rest of the change was refused');
+	});
+});
+
+describe('store tools: a quantity the store capped', () => {
+	it('shows the agent the line at the stock, with a warning that says so', async () => {
+		const cartId = await cartWith([{ id: tote, quantity: 2 }]);
+		const before = (await call('get_cart', {}, page(cartId))).structured as CartResult;
+		const line = before.line_items[0];
+
+		const outcome = await call(
+			'update_cart',
+			{ id: before.id, cart: { line_items: [{ id: line?.id, item: { id: tote }, quantity: 5 }] } },
+			page(cartId),
+		);
+
+		const view = outcome.structured as CartResult;
+		expect(view.line_items).toEqual([expect.objectContaining({ quantity: 3 })]);
+		expect(view.messages).toEqual([
+			{
+				type: 'warning',
+				code: 'quantity_reduced',
+				content: expect.stringContaining('only 3 in stock'),
+			},
+		]);
+		expect(outcome.result.content[0]?.text).toContain('only 3 in stock');
+	});
+
+	it('tells the agent how many of an addition went in on a product page', async () => {
+		const outcome = await call('add_to_cart', { item: { id: tote }, quantity: 5 }, page(undefined, 'canvas-tote'));
+
+		expect((outcome.structured as CartResult).item_count).toBe(3);
+		expect((outcome.structured as CartResult).messages).toEqual([
+			expect.objectContaining({ type: 'warning', code: 'quantity_reduced' }),
+		]);
 	});
 });
 
@@ -599,11 +632,12 @@ describe('store tools: result size on a page', () => {
 
 	it('pages the products in full, a few at a time, and says whether more follow', async () => {
 		const listed: string[] = [];
-		for (let number = 1; ; number += 1) {
+		for (let number = 1; number <= 20; number += 1) {
 			const { structured } = await call('browse_store', { collection: 'all', page: number }, page());
 			listed.push(...(structured.products as Array<{ handle: string }>).map((product) => product.handle));
 			if (!structured.has_more) break;
 		}
+		expect(listed.length).toBeLessThan(80);
 		const overMcp = await call('browse_store', { collection: 'all' }, mcp);
 
 		expect(listed).toEqual(
@@ -650,5 +684,148 @@ describe('store tools: result size on a page', () => {
 				}),
 			]),
 		);
+	});
+});
+
+describe('store tools: results trimmed to fit a page', () => {
+	const baseProduct = async () => {
+		const product = await provider.getProduct('field-shirt');
+		if (!product) throw new Error('The demo catalog has the Field Shirt.');
+		return product;
+	};
+
+	it('drops the variants that do not fit and says how many, with a hint to narrow them', async () => {
+		const product = await baseProduct();
+		const crowded: CommerceProvider = {
+			...provider,
+			getProduct: async () => ({
+				...product,
+				description: 'A long description that goes on. '.repeat(40),
+				variants: Array.from({ length: 30 }, (_, index) => ({
+					...product.variants[0]!,
+					id: `gid://ecoshop/ProductVariant/field-shirt-${index}`,
+					title: `Size ${index}`,
+				})),
+			}),
+		};
+
+		const { result } = await runStoreTool(
+			'get_product',
+			{ catalog: { id: 'field-shirt' } },
+			{ ...page(), provider: crowded },
+		);
+
+		expect(resultSize(result)).toBeLessThanOrEqual(1500);
+		expect(result.structuredContent.variants_not_shown).toBeGreaterThan(0);
+		expect(result.structuredContent.hint).toMatch(/selected_options/u);
+		expect((result.structuredContent.description as string).length).toBeLessThanOrEqual(243);
+		expect(result.structuredContent.description).toMatch(/\.\.\.$/u);
+	});
+
+	it('keeps the whole description of a short one and every variant that fits', async () => {
+		const { structured } = await call('get_product', { catalog: { id: 'steel-bottle' } }, page());
+
+		expect(structured.description).not.toMatch(/\.\.\.$/u);
+		expect(structured).not.toHaveProperty('variants_not_shown');
+	});
+
+	it('lists as many collections as fit, and says there are more', async () => {
+		const crowded: CommerceProvider = {
+			...provider,
+			listCollections: async () =>
+				Array.from({ length: 40 }, (_, index) => ({
+					id: `gid://ecoshop/Collection/c${index}`,
+					handle: `collection-number-${index}`,
+					title: `Collection number ${index}`,
+					description: 'A collection.',
+				})),
+		};
+
+		const { result } = await runStoreTool('browse_store', {}, { ...page(), provider: crowded });
+
+		expect(resultSize(result)).toBeLessThanOrEqual(1500);
+		expect((result.structuredContent.collections as unknown[]).length).toBeLessThan(40);
+		expect(result.content[0]?.text).toMatch(/and more\.$/u);
+	});
+});
+
+describe('store tools: cart and answer results on a page', () => {
+	const lines = [
+		{ id: fieldShirtM, quantity: 2 },
+		{ id: tote, quantity: 1 },
+		{ id: 'gid://ecoshop/ProductVariant/steel-bottle-750-ml', quantity: 1 },
+		{ id: 'gid://ecoshop/ProductVariant/merino-beanie-charcoal', quantity: 3 },
+	];
+
+	it('keeps a cart of four lines within the recommended size, with every line', async () => {
+		const cartId = await cartWith(lines);
+
+		const { result, structured } = await call('get_cart', {}, page(cartId));
+
+		expect(resultSize(result)).toBeLessThanOrEqual(1500);
+		expect((structured as CartResult).line_items).toHaveLength(4);
+		expect((structured as CartResult).line_items[0]).not.toHaveProperty('item.image');
+	});
+
+	it('keeps the full cart shape over /mcp', async () => {
+		const created = await call(
+			'create_cart',
+			{ cart: { line_items: lines.map(({ id, quantity }) => ({ item: { id }, quantity })) } },
+			mcp,
+		);
+
+		const line = (created.structured as CartResult).line_items[0] as unknown as {
+			item: { handle: string; url: string; image: string; unit_price: unknown };
+		};
+		expect(line.item).toEqual(
+			expect.objectContaining({ handle: expect.any(String), url: expect.any(String), image: expect.any(String) }),
+		);
+		expect(created.structured).toHaveProperty('totals');
+		expect(created.structured).toHaveProperty('currency');
+	});
+
+	const crowdedPolicies = (): CommerceProvider => {
+		const long = Array.from(
+			{ length: 6 },
+			(_, index) => `Returns paragraph ${index}. ${'We take returns within thirty days. '.repeat(20)}`,
+		).join('\n\n');
+		return {
+			...provider,
+			listPolicies: async () =>
+				['refund_policy', 'shipping_policy', 'privacy_policy'].map((type, index) => ({
+					handle: `${type}-with-a-rather-long-handle-${index}`,
+					type: type as 'refund_policy',
+					title: `A policy about returns and refunds number ${index}`,
+					body: long,
+				})),
+		};
+	};
+
+	it('cuts the answer to a long question to what fits', async () => {
+		const crowded = crowdedPolicies();
+		const { result } = await runStoreTool(
+			'ask_business',
+			{ ask: { query: 'returns and refunds' } },
+			{ ...page(), provider: crowded },
+		);
+
+		const text = result.content[0]?.text ?? '';
+		expect(resultSize(result)).toBeLessThanOrEqual(1500);
+		expect(text.match(/\(https:/gu)).toHaveLength(1);
+		expect(text).toContain('Returns paragraph 0.');
+		expect(text.length).toBeGreaterThan(250);
+	});
+
+	it('gives the full answer over /mcp', async () => {
+		const { structured } = await call(
+			'ask_business',
+			{ ask: { query: 'returns and refunds' } },
+			{ ...mcp, provider: crowdedPolicies() },
+		);
+
+		const plain = (structured.answer as { plain: string }).plain;
+		expect(plain.match(/\(https?:/gu)).toHaveLength(3);
+		expect(plain).toContain('Returns paragraph 1.');
+		expect(plain.length).toBeGreaterThan(2500);
 	});
 });

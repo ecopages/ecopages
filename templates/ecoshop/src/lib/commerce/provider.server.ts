@@ -1,5 +1,6 @@
 import { createDemoProvider } from './demo/demo-provider';
 import { createShopifyProvider } from './shopify/shopify-provider.server';
+import { normalizeStoreDomain } from './shopify/store-domain';
 import type { CommerceProvider } from './types';
 
 /**
@@ -23,7 +24,7 @@ export type CommerceConfig =
  * place of a real store.
  */
 export function resolveCommerceConfig(env: CommerceEnv): CommerceConfig {
-	const storeDomain = env.SHOPIFY_STORE_DOMAIN?.trim();
+	const storeDomain = normalizeStoreDomain(env.SHOPIFY_STORE_DOMAIN ?? '');
 	const accessToken = env.SHOPIFY_STOREFRONT_ACCESS_TOKEN?.trim();
 	if (!storeDomain && !accessToken) return { kind: 'demo' };
 	if (!storeDomain || !accessToken) {

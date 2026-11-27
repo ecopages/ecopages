@@ -16,6 +16,22 @@ describe('commerce provider selection', () => {
 		expect(usesDemoCatalog({})).toBe(true);
 	});
 
+	it('writes the store domain without a protocol or trailing slash, whatever the variable holds', () => {
+		const config = resolveCommerceConfig({
+			SHOPIFY_STORE_DOMAIN: ' https://north-pier.myshopify.com/ ',
+			SHOPIFY_STOREFRONT_ACCESS_TOKEN: 'token',
+		});
+
+		expect(config).toMatchObject({ kind: 'shopify', storeDomain: 'north-pier.myshopify.com' });
+		expect(
+			createCommerceProvider({
+				SHOPIFY_STORE_DOMAIN: 'https://north-pier.myshopify.com/',
+				SHOPIFY_STOREFRONT_ACCESS_TOKEN: 'token',
+			}).ucpOrigin(),
+		).toBe('https://north-pier.myshopify.com');
+		expect(createCommerceProvider({}).ucpOrigin()).toBeNull();
+	});
+
 	it('uses Shopify when the store domain and token are set', () => {
 		const env = { SHOPIFY_STORE_DOMAIN: 'north-pier.myshopify.com', SHOPIFY_STOREFRONT_ACCESS_TOKEN: 'token' };
 		const config = resolveCommerceConfig(env);

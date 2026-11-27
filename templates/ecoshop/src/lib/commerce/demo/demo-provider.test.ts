@@ -66,6 +66,35 @@ describe('demo provider catalog', () => {
 	});
 });
 
+describe('demo provider stock', () => {
+	const tote = 'gid://ecoshop/ProductVariant/canvas-tote';
+
+	it('holds a line at the stock and says so, as Shopify does', async () => {
+		const cart = await provider.addToCart(undefined, [{ variantId: tote, quantity: 5 }]);
+
+		expect(cart.lines[0]?.quantity).toBe(3);
+		expect(cart.messages).toEqual([
+			{
+				type: 'warning',
+				code: 'quantity_reduced',
+				content: 'Canvas Tote: only 3 in stock, so the cart holds 3 instead of 5.',
+				variantId: tote,
+				wanted: 5,
+			},
+		]);
+	});
+
+	it('counts what the cart holds, and refuses an addition that adds nothing', async () => {
+		const full = await provider.setCartQuantities(undefined, [{ variantId: tote, quantity: 3 }]);
+
+		await expect(provider.addToCart(full.id, [{ variantId: tote, quantity: 1 }])).rejects.toThrow(
+			/only 3 in stock/u,
+		);
+		const lowered = await provider.setCartQuantities(full.id, [{ variantId: tote, quantity: 2 }]);
+		expect(lowered.messages).toBeUndefined();
+	});
+});
+
 describe('demo provider cart', () => {
 	it('creates a cart that a later lookup returns', async () => {
 		const cart = await provider.setCartQuantities(undefined, [{ variantId: fieldShirtM, quantity: 2 }]);

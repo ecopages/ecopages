@@ -60,6 +60,18 @@ describe('cart endpoint without JavaScript', () => {
 		expect((await cartFrom(response))?.lines[0]).toMatchObject({ variantId: fieldShirtM, quantity: 2 });
 	});
 
+	it('redirects to the cart with the shortage when the store held fewer than the form asked for', async () => {
+		const response = await handleCartPost(
+			formPost({ intent: 'add', variantId: canvasTote, quantity: '5' }),
+			provider,
+		);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.get('location')).toBe(
+			`/cart?notice=short&line=${encodeURIComponent(canvasTote)}&wanted=5`,
+		);
+	});
+
 	it('leaves Secure off the cookie on plain http, so it works on localhost', async () => {
 		const response = await handleCartPost(
 			formPost({ intent: 'add', variantId: fieldShirtM }, {}, 'http://localhost:3000/api/cart'),

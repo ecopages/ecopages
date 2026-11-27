@@ -16,6 +16,11 @@ import {
 	searchCatalogTool,
 } from '../../lib/agents/store-tool-definitions';
 
+type StoreAgentToolsProps = {
+	/** Whether the store is a connected Shopify store, which has a UCP profile for `get_ucp_profile` to read. */
+	ucp?: boolean;
+};
+
 /**
  * Offers the storefront's catalog and store tools (the Shopify storefront set: search, browse, product, store
  * questions and the first cart) to an agent through WebMCP while it is on the page.
@@ -27,11 +32,6 @@ import {
  * `<cart-count>`. Where the browser has no `document.modelContext` Radiant registers nothing, so there is no request
  * and no log. Tools run on the server through `/api/agent-tools`, which validates the input again.
  */
-type StoreAgentToolsProps = {
-	/** Whether the store is a connected Shopify store, which has a UCP profile for `get_ucp_profile` to read. */
-	ucp?: boolean;
-};
-
 @customElement('store-agent-tools')
 export class StoreAgentTools extends RadiantElement {
 	@prop({ type: Boolean, defaultValue: false })

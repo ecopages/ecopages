@@ -1,4 +1,5 @@
 import { CommerceBackendError } from '../errors';
+import { normalizeStoreDomain } from './store-domain';
 
 export interface StorefrontClientOptions {
 	/** The store's domain, such as `my-store.myshopify.com`. A protocol or trailing slash is ignored. */
@@ -25,7 +26,7 @@ type GraphQLResponse<T> = { data?: T; errors?: Array<{ message: string }> };
  * Mutation `userErrors` are data, and the provider reads them.
  */
 export function createStorefrontClient(options: StorefrontClientOptions): StorefrontClient {
-	const domain = options.storeDomain.replace(/^https?:\/\//u, '').replace(/\/+$/u, '');
+	const domain = normalizeStoreDomain(options.storeDomain);
 	const endpoint = `https://${domain}/api/${options.apiVersion}/graphql.json`;
 	const send = options.fetch ?? fetch;
 

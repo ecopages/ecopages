@@ -1,5 +1,5 @@
 import { CommerceBackendError } from '@/lib/commerce/errors';
-import { type CommerceEnv, resolveCommerceConfig } from '@/lib/commerce/provider.server';
+import type { CommerceProvider } from '@/lib/commerce/types';
 import { isSameOriginRequest } from '@/lib/http/same-origin';
 import { siteOrigin } from '@/lib/site-origin';
 import { storePaths } from '@/lib/store-urls';
@@ -20,19 +20,29 @@ const PROFILE_TIMEOUT_MS = 10_000;
 const PROXY_TIMEOUT_MS = 20_000;
 const MAX_REQUEST_BYTES = 256 * 1024;
 
+/**
+ * The MCP headers that carry a session and the protocol version between the client and the store.
+ */
+const FORWARDED_HEADERS = ['mcp-session-id', 'mcp-protocol-version'] as const;
+
 export interface UcpOptions {
-	/** The environment that names the store. Default: `process.env`. */
-	env?: CommerceEnv;
+	/** The provider that says whether a store is connected, and where. */
+	provider: CommerceProvider;
 	/** Replaces the global `fetch`, for tests. */
 	fetch?: typeof fetch;
+	/** Replaces the clock the profile cache reads, for tests. */
+	now?: () => number;
 }
 
+const PROFILE_CACHE_MS = 5 * 60 * 1000;
+
+const profileCache = new Map<string, { at: number; profile: Record<string, unknown> }>();
+
 /**
- * The domain of the connected Shopify store, such as `my-store.myshopify.com`, or `undefined` on the demo catalog.
+ * Forgets the cached profiles, for tests.
  */
-export function ucpStoreDomain(env: CommerceEnv = process.env): string | undefined {
-	const config = resolveCommerceConfig(env);
-	return config.kind === 'shopify' ? config.storeDomain.replace(/^https?:\/\//u, '').replace(/\/+$/u, '') : undefined;
+export function clearUcpProfileCache(): void {
+	profileCache.clear();
 }
 
 /**
@@ -41,23 +51,29 @@ export function ucpStoreDomain(env: CommerceEnv = process.env): string | undefin
  * @remarks
  * Shopify's profile names the store's own endpoint. A client that read it would call Shopify and skip this
  * storefront, so every URL in the profile whose path is `/api/ucp/mcp` is replaced with this site's. The rest of the
- * profile is the store's, unchanged. Throws a `CommerceBackendError` when the store does not answer with a profile.
+ * profile is the store's, unchanged. The profile is kept for five minutes, as long as `/.well-known/ucp` tells a
+ * client to keep it, so the page tool and the route do not ask Shopify on every call; a failure is not kept. Throws a
+ * `CommerceBackendError` when the store does not answer with a profile.
  */
 export async function readUcpProfile(
 	origin: string,
-	{ env = process.env, fetch: send = fetch }: UcpOptions = {},
+	{ provider, fetch: send = fetch, now = Date.now }: UcpOptions,
 ): Promise<Record<string, unknown> | null> {
-	const domain = ucpStoreDomain(env);
-	if (!domain) return null;
+	const storeOrigin = provider.ucpOrigin();
+	if (!storeOrigin) return null;
+
+	const key = `${storeOrigin} ${origin}`;
+	const cached = profileCache.get(key);
+	if (cached && now() - cached.at < PROFILE_CACHE_MS) return cached.profile;
 
 	let response: Response;
 	try {
-		response = await send(`https://${domain}${storePaths.ucpProfile}`, {
+		response = await send(`${storeOrigin}${storePaths.ucpProfile}`, {
 			headers: { Accept: 'application/json' },
 			signal: AbortSignal.timeout(PROFILE_TIMEOUT_MS),
 		});
 	} catch (error) {
-		throw new CommerceBackendError(`The UCP profile request to ${domain} failed`, { cause: error });
+		throw new CommerceBackendError(`The UCP profile request to ${storeOrigin} failed`, { cause: error });
 	}
 	if (!response.ok) throw new CommerceBackendError(`The store's UCP profile answered ${response.status}`);
 
@@ -65,7 +81,30 @@ export async function readUcpProfile(
 	if (typeof profile !== 'object' || profile === null || Array.isArray(profile)) {
 		throw new CommerceBackendError('The store answered with a UCP profile that is not a JSON object');
 	}
-	return pointEndpointsHere(profile, `${origin.replace(/\/+$/u, '')}${storePaths.ucpMcp}`) as Record<string, unknown>;
+	const pointed = pointEndpointsHere(profile, `${origin.replace(/\/+$/u, '')}${storePaths.ucpMcp}`) as Record<
+		string,
+		unknown
+	>;
+	profileCache.set(key, { at: now(), profile: pointed });
+	return pointed;
+}
+
+/**
+ * A line that says what a profile offers, for the text of a tool result whose data is the profile itself.
+ */
+export function describeUcpProfile(profile: Record<string, unknown>): string {
+	const ucp = profile.ucp;
+	const capabilities =
+		typeof ucp === 'object' &&
+		ucp !== null &&
+		'capabilities' in ucp &&
+		typeof ucp.capabilities === 'object' &&
+		ucp.capabilities
+			? Object.keys(ucp.capabilities)
+			: [];
+	return capabilities.length
+		? `The store's UCP profile lists ${capabilities.length} capabilities: ${capabilities.join(', ')}.`
+		: "The store's UCP profile.";
 }
 
 function pointEndpointsHere(value: unknown, endpoint: string): unknown {
@@ -88,6 +127,33 @@ function isUcpEndpoint(value: string): boolean {
 	}
 }
 
+/**
+ * Reads a request body, or `null` as soon as it holds more than `limit` bytes, so a client cannot make the server
+ * buffer more by streaming without a `Content-Length`.
+ */
+async function readBounded(request: Request, limit: number): Promise<Uint8Array<ArrayBuffer> | null> {
+	if (Number(request.headers.get('content-length')) > limit) return null;
+	const reader = request.body?.getReader();
+	if (!reader) return new Uint8Array();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
+		total += chunk.value.byteLength;
+		if (total > limit) {
+			await reader.cancel();
+			return null;
+		}
+		chunks.push(chunk.value);
+	}
+	const body = new Uint8Array(total);
+	let offset = 0;
+	for (const chunk of chunks) {
+		body.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return body;
+}
+
 function notConnected(): Response {
 	return Response.json(
 		{
@@ -100,7 +166,7 @@ function notConnected(): Response {
 /**
  * Serves `/.well-known/ucp`: the connected store's UCP profile.
  */
-export async function handleUcpProfile(options: UcpOptions & { origin?: string } = {}): Promise<Response> {
+export async function handleUcpProfile(options: UcpOptions & { origin?: string }): Promise<Response> {
 	try {
 		const profile = await readUcpProfile(options.origin ?? siteOrigin, options);
 		if (!profile) return notConnected();
@@ -120,39 +186,42 @@ export async function handleUcpProfile(options: UcpOptions & { origin?: string }
  * fixed to the connected store, a foreign `Origin` is refused as on the other endpoints, and a body over 256 kB is
  * refused.
  */
-export async function handleUcpMcp(
-	request: Request,
-	{ env = process.env, fetch: send = fetch }: UcpOptions = {},
-): Promise<Response> {
-	const domain = ucpStoreDomain(env);
-	if (!domain) return notConnected();
+export async function handleUcpMcp(request: Request, { provider, fetch: send = fetch }: UcpOptions): Promise<Response> {
+	const storeOrigin = provider.ucpOrigin();
+	if (!storeOrigin) return notConnected();
 	if (!isSameOriginRequest(request, siteOrigin)) {
 		return Response.json({ error: 'Origin not allowed' }, { status: 403 });
 	}
 
-	const body = await request.text();
-	if (body.length > MAX_REQUEST_BYTES) return Response.json({ error: 'Request too large' }, { status: 413 });
+	const body = await readBounded(request, MAX_REQUEST_BYTES);
+	if (!body) return Response.json({ error: 'Request too large' }, { status: 413 });
 
-	let upstream: Response;
+	const headers = new Headers({
+		'Content-Type': 'application/json',
+		Accept: request.headers.get('accept') ?? 'application/json',
+	});
+	for (const name of FORWARDED_HEADERS) {
+		const value = request.headers.get(name);
+		if (value) headers.set(name, value);
+	}
+
 	try {
-		upstream = await send(`https://${domain}${storePaths.ucpMcp}`, {
+		const upstream = await send(`${storeOrigin}${storePaths.ucpMcp}`, {
 			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				Accept: request.headers.get('accept') ?? 'application/json',
-			},
+			headers,
 			body,
 			signal: AbortSignal.timeout(PROXY_TIMEOUT_MS),
 		});
+		const answer = new Headers({
+			'Content-Type': upstream.headers.get('content-type') ?? 'application/json',
+			'Cache-Control': 'no-store',
+		});
+		for (const name of FORWARDED_HEADERS) {
+			const value = upstream.headers.get(name);
+			if (value) answer.set(name, value);
+		}
+		return new Response(await upstream.text(), { status: upstream.status, headers: answer });
 	} catch {
 		return Response.json({ error: 'The store did not answer the UCP request' }, { status: 502 });
 	}
-
-	return new Response(await upstream.text(), {
-		status: upstream.status,
-		headers: {
-			'Content-Type': upstream.headers.get('content-type') ?? 'application/json',
-			'Cache-Control': 'no-store',
-		},
-	});
 }

@@ -1,6 +1,6 @@
 import type { AgentToolConfig, AgentToolHost } from '@ecopages/radiant/helpers/create-agent-tool';
 import * as z from 'zod/mini';
-import { MAX_LINE_QUANTITY } from '@/lib/commerce/types';
+import { MAX_LINE_QUANTITY, PRODUCT_SORTS } from '@/lib/commerce/types';
 import { modelContextPresent } from './model-context';
 
 /**
@@ -59,6 +59,11 @@ function defineSpec<Input extends z.ZodMiniObject>(spec: StoreToolSpec<Input>): 
 }
 
 const MAX_LINE_ITEMS = 100;
+
+/**
+ * The last page `browse_store` reads: a provider that pages by cursor reads every product before the page.
+ */
+const MAX_PAGE = 100;
 
 /* Schemas shared by several tools. */
 
@@ -126,12 +131,8 @@ export const browseStoreTool = defineSpec({
 		navigate: z.optional(
 			z.boolean().check(z.describe('Open the collection page in the browser. Needs a collection handle.')),
 		),
-		sort_by: z.optional(
-			z
-				.enum(['best-selling', 'price-ascending', 'price-descending', 'title-ascending', 'title-descending'])
-				.check(z.describe('Sort order; best-selling by default.')),
-		),
-		page: z.optional(z.int().check(z.minimum(1), z.describe('Page number, from 1.'))),
+		sort_by: z.optional(z.enum(PRODUCT_SORTS).check(z.describe('Sort order; best-selling by default.'))),
+		page: z.optional(z.int().check(z.minimum(1), z.maximum(MAX_PAGE), z.describe('Page number, from 1.'))),
 	}),
 	annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
 	surfaces: ['page', 'mcp'],
@@ -319,31 +320,6 @@ export const getUcpProfileTool = defineSpec({
 });
 
 /**
- * Every tool, in the order a store lists them.
- */
-export const storeToolSpecs: StoreToolSpec[] = [
-	searchCatalogTool,
-	browseStoreTool,
-	getProductTool,
-	showVariantTool,
-	getCartTool,
-	createCartTool,
-	updateCartTool,
-	cancelCartTool,
-	proceedToCheckoutTool,
-	askBusinessTool,
-	addToCartTool,
-	getUcpProfileTool,
-];
-
-/**
- * The tools a surface offers.
- */
-export function toolsOn(surface: ToolSurface): StoreToolSpec[] {
-	return storeToolSpecs.filter((tool) => tool.surfaces.includes(surface));
-}
-
-/**
  * The tool's input schema as JSON Schema, which is what an agent reads.
  */
 export function inputJsonSchema(tool: StoreToolSpec): Record<string, unknown> {
@@ -377,10 +353,11 @@ export function readToolInput<Input extends z.ZodMiniObject>(
  * method supplies. Pass it to `@agentTool`.
  *
  * @remarks
- * `parse` validates the agent's input in the browser, before the method runs and before a request is made; the
- * server checks it again, since a client can skip the browser. `getEnabled` follows {@link modelContextPresent}, so
+ * Radiant runs `parse` on an agent's input in the browser, before the method runs and before a request is made; the
+ * server checks it again, since a client can skip the browser. The UI calls the method with values of its own. `getEnabled` follows {@link modelContextPresent}, so
  * the tool registers when `document.modelContext` appears after the host connected. `inputSchema` is built once, when the first host
- * reads it, and is a few kilobytes of JSON Schema for all the tools of a page.
+ * reads it, which is when Radiant constructs the first host, whether or not the browser has WebMCP: it spreads the
+ * config then. It is a few kilobytes of JSON Schema for all the tools of a page.
  */
 export function agentToolConfig<Input extends z.ZodMiniObject>(
 	tool: StoreToolSpec<Input>,

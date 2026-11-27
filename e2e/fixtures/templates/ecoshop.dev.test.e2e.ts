@@ -58,6 +58,7 @@ const execute = (page: Page, name: string, input: unknown) =>
 	) as Promise<ToolResult>;
 
 const fieldShirtM = 'gid://ecoshop/ProductVariant/field-shirt-m';
+const fieldShirtL = 'gid://ecoshop/ProductVariant/field-shirt-l';
 
 test.describe('ecoshop WebMCP tools', () => {
 	test.beforeEach(async ({ page }) => {
@@ -131,7 +132,7 @@ test.describe('ecoshop WebMCP tools', () => {
 		await expect.poll(() => toolNames(page)).toContain('add_to_cart');
 
 		await execute(page, 'add_to_cart', { item: { id: fieldShirtM }, quantity: 2 });
-		await expect(page.getByText('Added to your cart', { exact: true })).toBeVisible();
+		await expect(page.getByText('Your assistant added this to your cart', { exact: true })).toBeVisible();
 
 		await page.locator('.cart-link').click();
 		await expect(page).toHaveURL(/\/cart$/u);
@@ -228,6 +229,36 @@ test.describe('ecoshop WebMCP tools', () => {
 		expect(warnings).toEqual([]);
 	});
 
+	test('a shopper who adds more than the store holds is told how many went in, in the toast', async ({ page }) => {
+		await page.goto('/products/canvas-tote');
+		await page.locator('cart-form input[name="quantity"]').fill('5');
+
+		await page.getByRole('button', { name: 'Add to cart' }).click();
+
+		await expect(page.getByText('only 3 in stock, so the cart holds 3 instead of 5.')).toBeVisible();
+		await expect(page.locator('cart-count [data-ref="value"]')).toHaveText('3');
+	});
+
+	test('an agent that asks for more than the store holds gets the line at the stock and a warning', async ({
+		page,
+	}) => {
+		await page.goto('/products/canvas-tote');
+		await expect.poll(() => toolNames(page)).toContain('add_to_cart');
+
+		const result = await execute(page, 'add_to_cart', {
+			item: { id: 'gid://ecoshop/ProductVariant/canvas-tote' },
+			quantity: 5,
+		});
+
+		expect(result.structuredContent).toMatchObject({
+			item_count: 3,
+			messages: [
+				{ type: 'warning', code: 'quantity_reduced', content: expect.stringContaining('only 3 in stock') },
+			],
+		});
+		await expect(page.getByText('only 3 in stock, so the cart holds 3 instead of 5.')).toBeVisible();
+	});
+
 	test('the server checks the input again for a call that skips the browser', async ({ page }) => {
 		await page.goto('/products/field-shirt');
 
@@ -241,7 +272,9 @@ test.describe('ecoshop WebMCP tools', () => {
 		expect(result.content[0]?.text).toMatch(/quantity/u);
 	});
 
-	test('the add button and the agent run the same add: same toast, same header count', async ({ page }) => {
+	test('the add button and the agent run the same add: the same header count, each toast says who added', async ({
+		page,
+	}) => {
 		await page.goto('/products/field-shirt');
 		await expect.poll(() => toolNames(page)).toContain('add_to_cart');
 
@@ -253,7 +286,40 @@ test.describe('ecoshop WebMCP tools', () => {
 		await execute(page, 'add_to_cart', { item: { id: fieldShirtM }, quantity: 2 });
 
 		await expect(page.locator('cart-count [data-ref="value"]')).toHaveText('3');
-		await expect(page.getByText('Added to your cart', { exact: true })).toHaveCount(2);
+		await expect(page.getByText('Your assistant added this to your cart', { exact: true })).toBeVisible();
+	});
+
+	test('the variant the shopper picked is the one the button adds', async ({ page }) => {
+		await page.goto('/products/field-shirt');
+		await expect.poll(() => toolNames(page)).toContain('add_to_cart');
+
+		await page.getByText('L', { exact: true }).click();
+		await page.getByRole('button', { name: 'Add to cart' }).click();
+		await expect(page.locator('cart-count [data-ref="value"]')).toHaveText('1');
+
+		const cart = await execute(page, 'get_cart', {});
+		expect(cart.structuredContent).toMatchObject({
+			line_items: [expect.objectContaining({ item: expect.objectContaining({ id: fieldShirtL }) })],
+		});
+	});
+
+	test('a second addition while one is on its way is refused, and only the first is added', async ({ page }) => {
+		await page.goto('/products/field-shirt');
+		await expect.poll(() => toolNames(page)).toContain('add_to_cart');
+
+		const results = await page.evaluate(async (variant) => {
+			const agent = (
+				window as unknown as { __agent: { execute(name: string, input: unknown): Promise<unknown> } }
+			).__agent;
+			return Promise.all([
+				agent.execute('add_to_cart', { item: { id: variant }, quantity: 1 }),
+				agent.execute('add_to_cart', { item: { id: variant }, quantity: 1 }),
+			]) as Promise<ToolResult[]>;
+		}, fieldShirtM);
+
+		expect(results.filter((result) => result.isError)).toHaveLength(1);
+		expect(results.find((result) => result.isError)?.content[0]?.text).toMatch(/still on its way/u);
+		await expect(page.locator('cart-count [data-ref="value"]')).toHaveText('1');
 	});
 
 	test('an add the store refuses shows in the form and comes back as a tool error', async ({ page }) => {
@@ -324,9 +390,8 @@ test.describe('ecoshop WebMCP tools', () => {
 			const onPage = registered.find((entry) => entry.name === tool.name);
 			expect(onPage, tool.name).toBeDefined();
 			expect(onPage?.description).toBe(tool.description);
-			expect(Object.keys((onPage?.inputSchema as { properties: object }).properties)).toEqual(
-				Object.keys(tool.inputSchema.properties),
-			);
+			const schema = onPage?.inputSchema as { properties: object } | undefined;
+			expect(Object.keys(schema?.properties ?? {})).toEqual(Object.keys(tool.inputSchema.properties));
 		}
 	});
 });
@@ -344,7 +409,11 @@ test('without WebMCP, no tool is registered and nothing is logged', async ({ pag
 
 	await page.goto('/products/field-shirt');
 	await page.waitForFunction(() =>
-		Boolean(customElements.get('store-agent-tools') && customElements.get('cart-form')),
+		Boolean(
+			customElements.get('store-agent-tools') &&
+			customElements.get('cart-form') &&
+			customElements.get('cart-count'),
+		),
 	);
 
 	expect(await page.evaluate(() => 'modelContext' in document)).toBe(false);
@@ -390,5 +459,19 @@ test('the cart works without JavaScript', async ({ browser, baseURL }) => {
 	await expect(page).toHaveURL(/\/cart$/u);
 	await expect(page.locator('.cart-line')).toHaveCount(1);
 	await expect(page.locator('.cart-line__variant')).toHaveText('750 ml');
+	await context.close();
+});
+
+test('the cart page says a line is short of what a form without JavaScript asked for', async ({ browser, baseURL }) => {
+	const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+	const page = await context.newPage();
+
+	await page.goto('/products/canvas-tote');
+	await page.locator('cart-form input[name="quantity"]').fill('5');
+	await page.getByRole('button', { name: 'Add to cart' }).click();
+
+	await expect(page).toHaveURL(/\/cart\?notice=short/u);
+	await expect(page.getByText('Canvas Tote: only 3 in stock, so the cart holds 3 instead of 5.')).toBeVisible();
+	await expect(page.locator('.cart-line input[type="number"]')).toHaveValue('3');
 	await context.close();
 });

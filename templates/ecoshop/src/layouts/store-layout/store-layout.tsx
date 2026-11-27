@@ -7,7 +7,7 @@ import { CartLink } from '@/components/cart-count/cart-count';
 import { Logo } from '@/components/logo/logo';
 import { SearchForm } from '@/components/search-form';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { usesDemoCatalog } from '@/lib/commerce/provider.server';
+import { getCommerce, usesDemoCatalog } from '@/lib/commerce/provider.server';
 import { POLICY_HANDLES, storePaths } from '@/lib/store-urls';
 import './store-layout.css';
 
@@ -75,7 +75,7 @@ export const StoreLayout = eco.layout<JsxRenderable, LayoutProps<JsxRenderable>>
 				</div>
 			</footer>
 			<RuiToaster position="bottom-end" />
-			<StoreAgentToolsHost ucp={!usesDemoCatalog()} />
+			<StoreAgentToolsHost ucp={getCommerce().ucpOrigin() !== null} />
 		</body>
 	),
 });

@@ -34,5 +34,4 @@ export const modelContextPresent = fromExternalStore<boolean>({
 		};
 	},
 	getSnapshot: hasModelContext,
-	getServerSnapshot: () => false,
 });

@@ -23,6 +23,7 @@ import type {
 	PageParams,
 	PageQuery,
 	RenderContext,
+	RequestValidationIssue,
 } from '../../../types/contracts.ts';
 
 /**
@@ -135,7 +136,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 
 		try {
 			context = this.createContext(request, params, serverInstance);
-			const schemaResponse = await this.applyRequestSchema(context, routeConfig.schema);
+			const schemaResponse = await this.applyRequestSchema(context, routeConfig);
 			if (schemaResponse) {
 				return schemaResponse;
 			}
@@ -206,7 +207,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 
 	private async applyRequestSchema(
 		context: ApiHandlerContext<TRequest, TServer>,
-		schema: ApiHandler<string, TRequest, TServer>['schema'],
+		{ schema, onInvalid }: ApiHandler<string, TRequest, TServer>,
 	): Promise<Response | undefined> {
 		if (!schema) {
 			return undefined;
@@ -221,7 +222,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 			{ query: schema.query, headers: schema.headers, params: schema.params },
 		);
 
-		if (!validationResult.success) return this.validationFailed(context, validationResult.errors);
+		if (!validationResult.success) return this.validationFailed(context, validationResult.errors!, onInvalid);
 
 		const validated = validationResult.data!;
 		if (validated.query !== undefined) context.query = validated.query as PageQuery;
@@ -230,7 +231,12 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		return undefined;
 	}
 
-	private validationFailed(context: ApiHandlerContext<TRequest, TServer>, issues: unknown): Response {
+	private async validationFailed(
+		context: ApiHandlerContext<TRequest, TServer>,
+		issues: RequestValidationIssue[],
+		onInvalid: ApiHandler<string, TRequest, TServer>['onInvalid'],
+	): Promise<Response> {
+		if (onInvalid) return await onInvalid(issues, context);
 		return context.response.status(400).json({ error: 'Validation failed', issues });
 	}
 
@@ -243,7 +249,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 	 */
 	private async applyBodySchema(
 		context: ApiHandlerContext<TRequest, TServer>,
-		schema: ApiHandler<string, TRequest, TServer>['schema'],
+		{ schema, onInvalid }: ApiHandler<string, TRequest, TServer>,
 	): Promise<Response | undefined> {
 		if (!schema?.body) return undefined;
 
@@ -256,7 +262,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		}
 
 		const validationResult = await validateRequest({ body: parsedBody.value }, { body: schema.body });
-		if (!validationResult.success) return this.validationFailed(context, validationResult.errors);
+		if (!validationResult.success) return this.validationFailed(context, validationResult.errors!, onInvalid);
 
 		const { body } = validationResult.data!;
 		if (body !== undefined) context.body = body;
@@ -272,7 +278,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 			`route ${routeConfig.method} ${routeConfig.path}`,
 		);
 		return runMiddlewareChain(middleware, context, async () => {
-			const bodyResponse = await this.applyBodySchema(context, routeConfig.schema);
+			const bodyResponse = await this.applyBodySchema(context, routeConfig);
 			return bodyResponse ?? (await routeConfig.handler(context));
 		});
 	}

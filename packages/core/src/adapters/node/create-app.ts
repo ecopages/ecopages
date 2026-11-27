@@ -156,7 +156,7 @@ export class EcopagesApp implements AsyncDisposable {
 
 	private method(method: ApiHandler['method']): RouteMethod<this, Request, unknown> {
 		return (path, handler, options) =>
-			this.addRouteHandler(path, method, handler, options?.middleware, options?.schema);
+			this.addRouteHandler(path, method, handler, options?.middleware, options?.schema, options?.onInvalid);
 	}
 
 	readonly get: RouteMethod<this, Request, unknown> = this.method('GET');
@@ -189,7 +189,14 @@ export class EcopagesApp implements AsyncDisposable {
 			handler.path !== '',
 			`The ${handler.method} handler has no path. Export it from an endpoint file (\`*.api.ts\`, \`.api.tsx\`, \`.api.js\` or \`.api.jsx\`) under the pages directory, or give it a \`path\` to register it with app.add().`,
 		);
-		return this.addRouteHandler(handler.path, handler.method, handler.handler, handler.middleware, handler.schema);
+		return this.addRouteHandler(
+			handler.path,
+			handler.method,
+			handler.handler,
+			handler.middleware,
+			handler.schema,
+			handler.onInvalid,
+		);
 	}
 
 	/**
@@ -203,6 +210,7 @@ export class EcopagesApp implements AsyncDisposable {
 		handler: (context: never) => Promise<Response> | Response,
 		middleware?: MiddlewareList,
 		schema?: ApiHandler['schema'],
+		onInvalid?: ApiHandler['onInvalid'],
 	): this {
 		invariant(
 			typeof path === 'string',
@@ -220,6 +228,7 @@ export class EcopagesApp implements AsyncDisposable {
 			handler: handler as ApiHandler<string, Request, unknown>['handler'],
 			middleware,
 			schema,
+			onInvalid,
 		});
 		return this;
 	}
@@ -257,6 +266,7 @@ export class EcopagesApp implements AsyncDisposable {
 					handler,
 					combinedMiddleware.length > 0 ? combinedMiddleware : undefined,
 					routeOptions?.schema,
+					routeOptions?.onInvalid,
 				);
 				return builder;
 			};
@@ -294,6 +304,7 @@ export class EcopagesApp implements AsyncDisposable {
 				route.handler,
 				combinedMiddleware.length > 0 ? combinedMiddleware : undefined,
 				route.schema,
+				route.onInvalid,
 			);
 		}
 

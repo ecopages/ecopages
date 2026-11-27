@@ -54,6 +54,8 @@ When a route declares `schema.body`, core parses `application/json`, `text/plain
 
 On the Ecopages server (Node or Bun), `new URL(request.url).origin` is the `Host` the visitor sent (the listen address when `Host` is missing or not a host), so a handler can build absolute links and compare `Origin` with it. `X-Forwarded-Host` and `X-Forwarded-Proto` count only with `trustProxy: true` in `defineConfig`, which is safe only behind a proxy you control that overwrites both. `app.fetch()` keeps the URL it is given.
 
+A request that fails `schema` answers HTTP 400 with `{ error: 'Validation failed', issues }`. Give the route `onInvalid(issues, ctx)` (in a define helper, an endpoint file export or the `app.get()` options) to answer it yourself, for example `response.redirect('/cart?notice=invalid', 303)` for an HTML form. `params`, `query` and `headers` are checked before middleware and the body after it, so for a body failure `onInvalid` sees the middleware locals and an unset `body`.
+
 Method helpers: `defineGet`, `definePost`, `definePut`, `defineDelete`, `definePatch`, `defineOptions`, `defineHead`, `defineQuery`. `defineQuery`, `app.query()` and `api.query` handle the HTTP QUERY method, whose request body carries the query; it is not the context's `query` field (the URL's search parameters). Handlers may set `Accept-Query` themselves.
 
 ## defineGroupHandler

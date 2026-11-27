@@ -1679,6 +1679,24 @@ export type ApiHandlerMethod = (typeof API_HANDLER_METHODS)[number];
  * });
  * ```
  */
+/**
+ * One failure of a request part against its schema: the message, and the path of the value inside that part.
+ */
+export type RequestValidationIssue = { message: string; path?: Array<string | number> };
+
+/**
+ * Answers a request that failed its route's `schema`, in place of the default HTTP 400 JSON.
+ *
+ * @remarks
+ * It receives every issue of the part that failed. The context is the route's base context: `params`, `query` and
+ * `headers` are validated before the route's middleware and the body after it, so a body failure comes with the
+ * locals middleware provided and an unset `body`.
+ */
+export type InvalidRequestHandler<TRequest extends Request = Request, TServer = any> = (
+	issues: RequestValidationIssue[],
+	context: ApiHandlerContext<TRequest, TServer>,
+) => Promise<Response> | Response;
+
 export interface ApiHandler<TPath extends string = string, TRequest extends Request = Request, TServer = any> {
 	/**
 	 * The URL pattern. `''` for a handler built without `path`, which an endpoint file exports;
@@ -1696,6 +1714,11 @@ export interface ApiHandler<TPath extends string = string, TRequest extends Requ
 		headers?: StandardSchema;
 		params?: StandardSchema;
 	};
+	/**
+	 * Answers a request that fails `schema`. Without it the route answers HTTP 400 with the issues as JSON, which
+	 * suits a JSON client; a route that serves an HTML form can redirect back with a message instead.
+	 */
+	onInvalid?: InvalidRequestHandler<TRequest, TServer>;
 }
 
 /**
@@ -1720,6 +1743,8 @@ export interface RouteOptions<
 > {
 	middleware?: TMiddleware;
 	schema?: TSchema;
+	/** Answers a request that fails `schema`, in place of the default HTTP 400 JSON. */
+	onInvalid?: InvalidRequestHandler;
 }
 
 /**

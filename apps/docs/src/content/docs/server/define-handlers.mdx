@@ -190,6 +190,21 @@ export const addToCart = definePost({
 
 Posting `slug=chair&quantity=2` gives the handler `{ slug: 'chair', quantity: 2 }`; leaving out `slug` answers HTTP 400 with an issue at path `slug`. A form value is always a string, so coerce numbers in the schema. A checkbox posts its `value` (`on` by default) when checked and nothing when not, so test for presence rather than using `z.coerce.boolean()`, which turns the string `"false"` into `true`. A repeated key (checkboxes sharing a `name`) becomes an array, a key posted once stays a single value, and a multipart file is a `File`. A form with no fields validates as `{}`. The handler can still read `request`, since the body is parsed from a copy.
 
+### Answering a request that fails its schema
+
+A request that fails `schema.params`, `query`, `headers` or `body` answers HTTP 400 with `{ error: 'Validation failed', issues }`, which suits a JSON client. A route that serves an HTML form can answer in its own way with `onInvalid(issues, context)`, which receives every issue of the part that failed (`{ message, path }`) and returns the response. It works on `app.get()` and the other route options, in a group, and on a define helper or an endpoint file export:
+
+```typescript
+export const addToCart = definePost({
+  path: '/cart/add',
+  schema: { body: z.object({ slug: z.string(), quantity: z.coerce.number().int().min(1) }) },
+  onInvalid: (issues, { response }) => response.redirect('/cart?notice=invalid', 303),
+  handler: ({ body, response }) => response.redirect(`/products/${body.slug}`, 303),
+});
+```
+
+`params`, `query` and `headers` are checked before the route's middleware and the body after it, so `onInvalid` runs for a body failure with the locals the middleware provided and `body` unset. Without the hook the answer is the default 400.
+
 ### With Middleware
 
 Attach route-specific middleware that provides typed locals:
@@ -480,6 +495,7 @@ interface ApiHandler<TPath, TRequest, TServer> {
   handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;
   middleware?: MiddlewareList;
   schema?: RouteSchema;
+  onInvalid?: (issues: RequestValidationIssue[], context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;
 }
 
 interface GroupHandler<TPrefix> {

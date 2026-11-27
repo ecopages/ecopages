@@ -163,6 +163,32 @@ describe('EcopagesApp route registration', () => {
 		});
 	});
 
+	it('forwards onInvalid from every way to register a route', async () => {
+		const handler = (_context: unknown) => new Response('ok');
+		const onInvalid = () => new Response('invalid');
+		let receivedHandlers: NodeServerAdapterParams['apiHandlers'];
+		const { app } = createTestApp(async (params) => {
+			receivedHandlers = params.apiHandlers;
+			return createServerAdapter();
+		});
+
+		app.post('/direct', handler, { onInvalid });
+		app.add({ path: '/prebuilt', method: 'POST', handler, onInvalid });
+		app.group('/v1', (routes) => routes.post('/items', handler, { onInvalid }));
+		app.group({ prefix: '/v2', routes: [{ path: 'items', method: 'POST', handler, onInvalid }] });
+		app.post('/plain', handler);
+
+		await app.fetch(new Request('http://localhost:3000/'));
+
+		expect(receivedHandlers?.slice(0, 4).map((route) => route.onInvalid)).toEqual([
+			onInvalid,
+			onInvalid,
+			onInvalid,
+			onInvalid,
+		]);
+		expect(receivedHandlers?.[4]?.onInvalid).toBeUndefined();
+	});
+
 	it('rejects a handler defined without a path', () => {
 		const { app } = createTestApp();
 

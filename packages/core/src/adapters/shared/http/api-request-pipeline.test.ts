@@ -721,6 +721,85 @@ describe('ApiRequestPipeline', () => {
 		});
 	});
 
+	describe('onInvalid', () => {
+		const formRoute = (onInvalid?: ApiHandler['onInvalid']) => {
+			const handler = vi.fn<ApiHandler['handler']>(() => new Response('stored'));
+			return {
+				handler,
+				routes: compileApiRoutes([
+					{
+						path: '/api/cart/:id',
+						method: 'POST',
+						schema: {
+							body: z.object({ slug: z.string() }),
+							params: z.object({ id: z.string().regex(/^\d+$/) }),
+						},
+						onInvalid,
+						handler,
+					},
+				]),
+			};
+		};
+		const post = (id: string, body: string) =>
+			new Request(`http://localhost/api/cart/${id}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body,
+			});
+
+		it('turns a body that fails the schema into the response of the hook', async () => {
+			const onInvalid = vi.fn<NonNullable<ApiHandler['onInvalid']>>(
+				() => new Response(null, { status: 303, headers: { Location: '/cart?notice=invalid' } }),
+			);
+			const { handler, routes } = formRoute(onInvalid);
+
+			const response = await createPipeline().tryHandle(post('1', 'quantity=2'), routes, undefined);
+
+			expect(response?.status).toBe(303);
+			expect(response?.headers.get('location')).toBe('/cart?notice=invalid');
+			expect(handler).not.toHaveBeenCalled();
+			const [issues, context] = onInvalid.mock.calls[0]!;
+			expect(issues.map((issue) => issue.path)).toContainEqual(['slug']);
+			expect(context.request.method).toBe('POST');
+		});
+
+		it('also answers a params failure through the hook, before middleware and the body', async () => {
+			const onInvalid = vi.fn<NonNullable<ApiHandler['onInvalid']>>(
+				() => new Response('invalid', { status: 422 }),
+			);
+			const { handler, routes } = formRoute(onInvalid);
+
+			const response = await createPipeline().tryHandle(post('x', 'slug=a'), routes, undefined);
+
+			expect(response?.status).toBe(422);
+			expect(onInvalid.mock.calls[0]![0].map((issue) => issue.path)).toContainEqual(['id']);
+			expect(handler).not.toHaveBeenCalled();
+		});
+
+		it('keeps the HTTP 400 answer without a hook', async () => {
+			const { handler, routes } = formRoute();
+
+			const response = await createPipeline().tryHandle(post('1', 'quantity=2'), routes, undefined);
+
+			expect(response?.status).toBe(400);
+			const payload = (await response?.json()) as { error: string; issues: Array<{ path?: string[] }> };
+			expect(payload.error).toBe('Validation failed');
+			expect(payload.issues.map((issue) => issue.path)).toContainEqual(['slug']);
+			expect(handler).not.toHaveBeenCalled();
+		});
+
+		it('does not call the hook for a body that passes', async () => {
+			const onInvalid = vi.fn<NonNullable<ApiHandler['onInvalid']>>(() => new Response('invalid'));
+			const { handler, routes } = formRoute(onInvalid);
+
+			const response = await createPipeline().tryHandle(post('1', 'slug=chair'), routes, undefined);
+
+			expect(response?.status).toBe(200);
+			expect(onInvalid).not.toHaveBeenCalled();
+			expect(handler).toHaveBeenCalledOnce();
+		});
+	});
+
 	describe('form bodies', () => {
 		const cartSchema = z.object({ slug: z.string(), quantity: z.string().regex(/^\d+$/) });
 		const cartRoutes = (handler: ApiHandler['handler'] = ({ body }) => Response.json(body)) =>

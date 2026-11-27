@@ -1,6 +1,4 @@
 import { createRouter } from '@ecopages/browser-router/client';
-import { clearNavigationHtmlCache } from '@ecopages/core/client';
-import { CART_CHANGE_EVENT } from '../../lib/cart/cart-events';
 import { NAVIGATE_EVENT, type NavigateDetail } from '../../lib/navigation';
 
 const router = createRouter({
@@ -16,13 +14,3 @@ window.addEventListener(NAVIGATE_EVENT, (event) => {
 	event.preventDefault();
 	void router.navigate(href, { replace });
 });
-
-/**
- * Drops the router's copies of every page when a script changes the cart, so the next visit fetches it. The cart
- * page can be cached under several URLs, such as `/cart?notice=...`, and a back navigation reuses any of them.
- *
- * @remarks
- * The router keeps each page it fetched for the rest of the session and does not read the page's
- * `Cache-Control: no-store`.
- */
-window.addEventListener(CART_CHANGE_EVENT, () => clearNavigationHtmlCache());

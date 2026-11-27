@@ -139,14 +139,16 @@ export const storeTools: StoreTool[] = [
 		async ({ collection, navigate, sort_by: sortBy = 'best-selling', page = 1 }, { provider, origin, surface }) => {
 			if (!collection) return { result: await collectionsResult(provider, origin, surface) };
 
+			const pageSize = surface === 'page' ? PAGE_PRODUCTS_PER_PAGE : PRODUCTS_PER_PAGE;
+			const listing = { limit: pageSize + 1, offset: (page - 1) * pageSize, sort: sortBy };
 			const found =
 				collection === 'all'
 					? {
 							title: 'All products',
-							products: await provider.listProducts({ limit: 250 }),
+							products: await provider.listProducts(listing),
 							path: '/',
 						}
-					: await provider.getCollection(collection, { limit: 250 }).then((entry) =>
+					: await provider.getCollection(collection, listing).then((entry) =>
 							entry
 								? {
 										title: entry.collection.title,
@@ -160,14 +162,8 @@ export const storeTools: StoreTool[] = [
 					`No collection with handle "${collection}". Call browse_store without a collection to list them.`,
 				);
 
-			const sorted = [...found.products];
-			const price = (product: ProductSummary) => Number(product.priceRange.min.amount);
-			if (sortBy === 'price-ascending') sorted.sort((a, b) => price(a) - price(b));
-			if (sortBy === 'price-descending') sorted.sort((a, b) => price(b) - price(a));
-			if (sortBy === 'title-ascending') sorted.sort((a, b) => a.title.localeCompare(b.title));
-			if (sortBy === 'title-descending') sorted.sort((a, b) => b.title.localeCompare(a.title));
-			const pageSize = surface === 'page' ? PAGE_PRODUCTS_PER_PAGE : PRODUCTS_PER_PAGE;
-			const products = sorted.slice((page - 1) * pageSize, page * pageSize);
+			const products = found.products.slice(0, pageSize);
+			const hasMore = found.products.length > pageSize;
 			const url = resolveUrl(origin, found.path);
 			const navigated = Boolean(navigate) && surface === 'page';
 			return {
@@ -181,13 +177,8 @@ export const storeTools: StoreTool[] = [
 						sort_by: sortBy,
 						navigated,
 						url,
-						...(surface === 'page'
-							? {
-									page_size: pageSize,
-									total_products: sorted.length,
-									has_more: page * pageSize < sorted.length,
-								}
-							: {}),
+						page_size: pageSize,
+						has_more: hasMore,
 					},
 					`${found.title}: ${products.length} product(s) on page ${page}.${navigated ? ` Opening ${url}.` : ''}`,
 				),

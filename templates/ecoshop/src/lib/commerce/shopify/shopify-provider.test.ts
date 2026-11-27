@@ -110,7 +110,7 @@ describe('Shopify provider catalog', () => {
 
 		const results = await provider.searchProducts('shirt', { limit: 5 });
 
-		expect(calls[0]?.variables).toEqual({ first: 5, query: 'shirt', sortKey: 'RELEVANCE' });
+		expect(calls[0]?.variables).toMatchObject({ first: 5, query: 'shirt', sortKey: 'RELEVANCE' });
 		expect(results.map((product) => product.handle)).toEqual(['oxford-shirt', 'deck-shirt']);
 		expect(results[0]?.featuredImage).toBeNull();
 	});
@@ -127,6 +127,82 @@ describe('Shopify provider catalog', () => {
 			description: 'Layers for weather.',
 		});
 		expect(page?.products.map((product) => product.handle)).toEqual(['harbor-jacket']);
+	});
+
+	describe('sorted and paged product lists', () => {
+		const node = (index: number) => ({
+			...searchFixture.data.products.nodes[0]!,
+			id: `gid://shopify/Product/${index}`,
+			handle: `product-${index}`,
+		});
+		const connection = (from: number, count: number, total: number) => ({
+			nodes: Array.from({ length: count }, (_, index) => node(from + index)),
+			pageInfo: { hasNextPage: from + count <= total, endCursor: `cursor-${from + count - 1}` },
+		});
+
+		it('asks Shopify for the order and follows the cursors to the page, in 250 product requests', async () => {
+			const { provider, calls } = providerWith([
+				{ data: { products: connection(1, 250, 300) } },
+				{ data: { products: connection(251, 50, 300) } },
+			]);
+
+			const products = await provider.listProducts({ limit: 30, offset: 270, sort: 'price-ascending' });
+
+			expect(calls.map((call) => call.variables)).toEqual([
+				{ first: 250, after: null, sortKey: 'PRICE', reverse: false },
+				{ first: 50, after: 'cursor-250', sortKey: 'PRICE', reverse: false },
+			]);
+			expect(products.map((product) => product.handle)).toEqual(
+				Array.from({ length: 30 }, (_, index) => `product-${271 + index}`),
+			);
+		});
+
+		it('reverses the order for a descending sort and stops when the list ends', async () => {
+			const { provider, calls } = providerWith([
+				{ data: { products: { ...connection(1, 3, 3), pageInfo: { hasNextPage: false, endCursor: null } } } },
+			]);
+
+			const products = await provider.listProducts({ limit: 10, sort: 'title-descending' });
+
+			expect(calls).toHaveLength(1);
+			expect(calls[0]?.variables).toEqual({ first: 10, after: null, sortKey: 'TITLE', reverse: true });
+			expect(products).toHaveLength(3);
+		});
+
+		it('pages the products of a collection the same way, in the order of Shopify', async () => {
+			const collection = (from: number, count: number) => ({
+				data: {
+					collection: {
+						id: 'gid://shopify/Collection/1',
+						handle: 'all-things',
+						title: 'All things',
+						description: '',
+						products: connection(from, count, 300),
+					},
+				},
+			});
+			const { provider, calls } = providerWith([collection(1, 250), collection(251, 50)]);
+
+			const page = await provider.getCollection('all-things', {
+				limit: 30,
+				offset: 270,
+				sort: 'price-descending',
+			});
+
+			expect(calls.map((call) => call.variables)).toEqual([
+				{ handle: 'all-things', first: 250, after: null, sortKey: 'PRICE', reverse: true },
+				{ handle: 'all-things', first: 50, after: 'cursor-250', sortKey: 'PRICE', reverse: true },
+			]);
+			expect(page?.collection.handle).toBe('all-things');
+			expect(page?.products).toHaveLength(30);
+			expect(page?.products[0]?.handle).toBe('product-271');
+		});
+
+		it('resolves a collection that does not exist to null', async () => {
+			const { provider } = providerWith([{ data: { collection: null } }]);
+
+			expect(await provider.getCollection('missing', { limit: 5, sort: 'title-ascending' })).toBeNull();
+		});
 	});
 
 	it('fails loudly on GraphQL errors and HTTP failures', async () => {

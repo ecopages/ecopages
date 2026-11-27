@@ -22,6 +22,21 @@ describe('demo provider catalog', () => {
 		expect(await provider.listProducts({ limit: 2 })).toHaveLength(2);
 	});
 
+	it('sorts the whole catalog before it cuts the page', async () => {
+		const all = await provider.listProducts({ sort: 'price-ascending' });
+		const page = await provider.listProducts({ sort: 'price-ascending', offset: 2, limit: 3 });
+		const prices = all.map((product) => Number(product.priceRange.min.amount));
+
+		expect(prices).toEqual([...prices].sort((a, b) => a - b));
+		expect(page.map((product) => product.handle)).toEqual(all.slice(2, 5).map((product) => product.handle));
+		expect((await provider.listProducts({ sort: 'price-descending', limit: 1 }))[0]?.handle).toBe(
+			all.at(-1)?.handle,
+		);
+		expect((await provider.listProducts({ sort: 'title-ascending', limit: 1 }))[0]?.title).toBe(
+			[...all.map((product) => product.title)].sort((a, b) => a.localeCompare(b))[0],
+		);
+	});
+
 	it('returns a product with its variants and image', async () => {
 		const product = await provider.getProduct('field-shirt');
 
@@ -33,6 +48,14 @@ describe('demo provider catalog', () => {
 	it('resolves unknown handles to null', async () => {
 		expect(await provider.getProduct('missing')).toBeNull();
 		expect(await provider.getCollection('missing')).toBeNull();
+	});
+
+	it('sorts and pages the products of a collection', async () => {
+		const page = await provider.getCollection('home', { sort: 'price-descending', limit: 1, offset: 0 });
+		const rest = await provider.getCollection('home', { sort: 'price-descending', limit: 5, offset: 1 });
+
+		expect(page?.products.map((product) => product.handle)).toEqual(['steel-bottle']);
+		expect(rest?.products.map((product) => product.handle)).toEqual(['beeswax-wraps']);
 	});
 
 	it('returns a collection with its products in order', async () => {

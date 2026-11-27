@@ -500,6 +500,65 @@ describe('store tools: variant ids', () => {
 	});
 });
 
+describe('store tools: browse_store on a large catalog', () => {
+	const catalog = async () => {
+		const [base] = await provider.listProducts({ limit: 1 });
+		if (!base) throw new Error('The demo catalog has products.');
+		return Array.from({ length: 300 }, (_, index) => ({
+			...base,
+			id: `gid://ecoshop/Product/p${index + 1}`,
+			handle: `product-${index + 1}`,
+			title: `Product ${index + 1}`,
+			priceRange: {
+				min: { amount: String(index + 1), currencyCode: 'USD' },
+				max: { amount: String(index + 1), currencyCode: 'USD' },
+			},
+		}));
+	};
+
+	it('asks the provider for the order and the page, and lists the page the provider returned', async () => {
+		const products = await catalog();
+		const asked: unknown[] = [];
+		const large: CommerceProvider = {
+			...provider,
+			listProducts: async (options) => {
+				asked.push(options);
+				const sorted = [...products].sort(
+					(a, b) => Number(a.priceRange.min.amount) - Number(b.priceRange.min.amount),
+				);
+				return sorted.slice(options?.offset ?? 0, (options?.offset ?? 0) + (options?.limit ?? 24));
+			},
+		};
+
+		const { structured } = await call(
+			'browse_store',
+			{ collection: 'all', sort_by: 'price-ascending', page: 10 },
+			{ ...mcp, provider: large },
+		);
+
+		expect(asked).toEqual([{ limit: 31, offset: 270, sort: 'price-ascending' }]);
+		expect((structured.products as Array<{ handle: string }>).map((product) => product.handle)).toEqual(
+			Array.from({ length: 30 }, (_, index) => `product-${271 + index}`),
+		);
+		expect(structured.has_more).toBe(false);
+	});
+
+	it('says whether a page follows without reading the whole catalog', async () => {
+		const products = await catalog();
+		const large: CommerceProvider = {
+			...provider,
+			listProducts: async (options) =>
+				products.slice(options?.offset ?? 0, (options?.offset ?? 0) + (options?.limit ?? 24)),
+		};
+
+		const first = await call('browse_store', { collection: 'all', page: 1 }, { ...mcp, provider: large });
+		const last = await call('browse_store', { collection: 'all', page: 10 }, { ...mcp, provider: large });
+
+		expect(first.structured.has_more).toBe(true);
+		expect(last.structured.has_more).toBe(false);
+	});
+});
+
 describe('store tools: result size on a page', () => {
 	const handles = ['field-shirt', 'linen-overshirt', 'trail-tee', 'canvas-tote', 'steel-bottle', 'merino-beanie'];
 

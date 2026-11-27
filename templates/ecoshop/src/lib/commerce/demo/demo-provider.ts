@@ -9,6 +9,7 @@ import {
 	type CommerceProvider,
 	type ListOptions,
 	type Product,
+	type ProductSort,
 	type ProductSummary,
 	type ProductVariant,
 	DEFAULT_VARIANT_TITLE,
@@ -101,8 +102,25 @@ function toSummary(product: Product): ProductSummary {
 	};
 }
 
-function take<T>(items: T[], options?: ListOptions): T[] {
-	return options?.limit === undefined ? items : items.slice(0, options.limit);
+function take<T>(items: T[], options?: ListOptions & { offset?: number }): T[] {
+	const offset = options?.offset ?? 0;
+	return options?.limit === undefined ? items.slice(offset) : items.slice(offset, offset + options.limit);
+}
+
+/**
+ * Orders products as the Shopify provider asks Shopify to: the catalog order is the best-selling one, and a tie in
+ * price or title keeps that order.
+ */
+function sortProducts(products: ProductSummary[], sort: ProductSort = 'best-selling'): ProductSummary[] {
+	const price = (product: ProductSummary) => Number(product.priceRange.min.amount);
+	const orders: Record<ProductSort, (a: ProductSummary, b: ProductSummary) => number> = {
+		'best-selling': () => 0,
+		'price-ascending': (a, b) => price(a) - price(b),
+		'price-descending': (a, b) => price(b) - price(a),
+		'title-ascending': (a, b) => a.title.localeCompare(b.title),
+		'title-descending': (a, b) => b.title.localeCompare(a.title),
+	};
+	return [...products].sort(orders[sort]);
 }
 
 /**
@@ -212,7 +230,7 @@ export function createDemoProvider(): CommerceProvider {
 
 	return {
 		getStore: async () => ({ name: DEMO_STORE.name, description: DEMO_STORE.description }),
-		listProducts: async (options) => take(products.map(toSummary), options),
+		listProducts: async (options) => take(sortProducts(products.map(toSummary), options?.sort), options),
 		searchProducts: async (query, options) => {
 			const terms = query.toLowerCase().split(/\s+/u).filter(Boolean);
 			const matches = products.filter((product) => {
@@ -233,7 +251,7 @@ export function createDemoProvider(): CommerceProvider {
 				const product = productsByHandle.get(productHandle);
 				return product ? [toSummary(product)] : [];
 			});
-			return { collection, products: take(members, options) };
+			return { collection, products: take(sortProducts(members, options?.sort), options) };
 		},
 		getCart: async (cartId) => {
 			const contents = decodeCart(cartId);

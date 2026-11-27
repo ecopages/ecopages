@@ -195,10 +195,14 @@ export const SHOP_QUERY = /* GraphQL */ `
 `;
 
 export const PRODUCTS_QUERY = /* GraphQL */ `
-	query Products($first: Int!, $query: String, $sortKey: ProductSortKeys) {
-		products(first: $first, query: $query, sortKey: $sortKey) {
+	query Products($first: Int!, $after: String, $query: String, $sortKey: ProductSortKeys, $reverse: Boolean) {
+		products(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {
 			nodes {
 				...ProductSummaryFields
+			}
+			pageInfo {
+				hasNextPage
+				endCursor
 			}
 		}
 	}
@@ -279,15 +283,25 @@ export const COLLECTIONS_QUERY = /* GraphQL */ `
 `;
 
 export const COLLECTION_QUERY = /* GraphQL */ `
-	query Collection($handle: String!, $first: Int!) {
+	query Collection(
+		$handle: String!
+		$first: Int!
+		$after: String
+		$sortKey: ProductCollectionSortKeys
+		$reverse: Boolean
+	) {
 		collection(handle: $handle) {
 			id
 			handle
 			title
 			description
-			products(first: $first) {
+			products(first: $first, after: $after, sortKey: $sortKey, reverse: $reverse) {
 				nodes {
 					...ProductSummaryFields
+				}
+				pageInfo {
+					hasNextPage
+					endCursor
 				}
 			}
 		}

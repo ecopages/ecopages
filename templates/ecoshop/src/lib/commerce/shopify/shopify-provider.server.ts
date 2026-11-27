@@ -5,6 +5,8 @@ import {
 	type Collection,
 	type CommerceProvider,
 	MAX_LINE_QUANTITY,
+	type ProductListOptions,
+	type ProductSort,
 	type StorePolicyType,
 } from '../types';
 import {
@@ -38,6 +40,23 @@ import {
 import { createStorefrontClient, type StorefrontClientOptions } from './storefront-client.server';
 
 const DEFAULT_LIMIT = 24;
+
+/**
+ * The most nodes the Storefront API returns for one `first`.
+ */
+const PAGE_SIZE = 250;
+
+/**
+ * How Shopify orders a product list for each {@link ProductSort}. Products and collection products take the same
+ * key names, and `reverse` turns the order around.
+ */
+const SORT_KEYS: Record<ProductSort, { sortKey: string; reverse: boolean }> = {
+	'best-selling': { sortKey: 'BEST_SELLING', reverse: false },
+	'price-ascending': { sortKey: 'PRICE', reverse: false },
+	'price-descending': { sortKey: 'PRICE', reverse: true },
+	'title-ascending': { sortKey: 'TITLE', reverse: false },
+	'title-descending': { sortKey: 'TITLE', reverse: true },
+};
 
 type CartMutationResult = {
 	cart: ShopifyCart | null;
@@ -203,6 +222,33 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 			pageInfo = page.pageInfo;
 		}
 		return nodes;
+	}
+
+	/**
+	 * Reads a product list from `offset` for `limit` products by following the connection's cursors, at most
+	 * {@link PAGE_SIZE} to a request.
+	 *
+	 * @remarks
+	 * The Storefront API pages forward by cursor only, so the products before `offset` are read and dropped: a request
+	 * for the tenth page of 30 reads 300 products in two requests. The order is the provider's, so the list is the
+	 * catalog's, not a page of it sorted afterwards. A source that answers `null` ends the list empty.
+	 */
+	async function pageProducts(
+		list: ProductListOptions | undefined,
+		fetchPage: (first: number, after: string | null) => Promise<ShopifyConnection<ShopifyProductSummary> | null>,
+	): Promise<ShopifyProductSummary[]> {
+		const offset = list?.offset ?? 0;
+		const wanted = offset + (list?.limit ?? DEFAULT_LIMIT);
+		const nodes: ShopifyProductSummary[] = [];
+		let after: string | null = null;
+		while (nodes.length < wanted) {
+			const page = await fetchPage(Math.min(PAGE_SIZE, wanted - nodes.length), after);
+			if (!page) break;
+			nodes.push(...page.nodes);
+			if (!page.pageInfo.hasNextPage || !page.pageInfo.endCursor) break;
+			after = page.pageInfo.endCursor;
+		}
+		return nodes.slice(offset, wanted);
 	}
 
 	async function completeCart(cart: ShopifyCart): Promise<Cart> {
@@ -371,11 +417,16 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 			return { name: data.shop.name, description: data.shop.description ?? '' };
 		},
 		listProducts: async (list) => {
-			const data = await query<{ products: { nodes: ShopifyProductSummary[] } }>(PRODUCTS_QUERY, {
-				first: list?.limit ?? DEFAULT_LIMIT,
-				sortKey: 'BEST_SELLING',
+			const order = SORT_KEYS[list?.sort ?? 'best-selling'];
+			const nodes = await pageProducts(list, async (first, after) => {
+				const data = await query<{ products: ShopifyConnection<ShopifyProductSummary> }>(PRODUCTS_QUERY, {
+					first,
+					after,
+					...order,
+				});
+				return data.products;
 			});
-			return data.products.nodes.map(toProductSummary);
+			return nodes.map(toProductSummary);
 		},
 		searchProducts: async (text, list) => {
 			const data = await query<{ products: { nodes: ShopifyProductSummary[] } }>(PRODUCTS_QUERY, {
@@ -410,12 +461,18 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 			return data.collections.nodes;
 		},
 		getCollection: async (handle, list) => {
-			const data = await query<{
-				collection: (Collection & { products: { nodes: ShopifyProductSummary[] } }) | null;
-			}>(COLLECTION_QUERY, { handle, first: list?.limit ?? DEFAULT_LIMIT });
-			if (!data.collection) return null;
-			const { products, ...collection } = data.collection;
-			return { collection, products: products.nodes.map(toProductSummary) };
+			const order = SORT_KEYS[list?.sort ?? 'best-selling'];
+			let collection: Collection | undefined;
+			const nodes = await pageProducts(list, async (first, after) => {
+				const data = await query<{
+					collection: (Collection & { products: ShopifyConnection<ShopifyProductSummary> }) | null;
+				}>(COLLECTION_QUERY, { handle, first, after, ...order });
+				if (!data.collection) return null;
+				const { products, ...found } = data.collection;
+				collection = found;
+				return products;
+			});
+			return collection ? { collection, products: nodes.map(toProductSummary) } : null;
 		},
 		listPolicies: async () => {
 			const data = await query<{ shop: Record<string, ShopifyPolicy | null> }>(SHOP_POLICIES_QUERY);

@@ -155,6 +155,21 @@ export interface ListOptions {
 }
 
 /**
+ * How a product list is ordered. `best-selling` is the provider's own order, the one a shopper sees first.
+ */
+export type ProductSort =
+	'best-selling' | 'price-ascending' | 'price-descending' | 'title-ascending' | 'title-descending';
+
+/**
+ * A product list read from the provider already ordered and cut: `sort` orders the whole catalog or collection,
+ * and the result starts at `offset` and holds at most `limit` products.
+ */
+export interface ProductListOptions extends ListOptions {
+	sort?: ProductSort;
+	offset?: number;
+}
+
+/**
  * The one boundary between the storefront and a commerce backend.
  *
  * @remarks
@@ -163,7 +178,7 @@ export interface ListOptions {
  */
 export interface CommerceProvider {
 	getStore(): Promise<StoreInfo>;
-	listProducts(options?: ListOptions): Promise<ProductSummary[]>;
+	listProducts(options?: ProductListOptions): Promise<ProductSummary[]>;
 	searchProducts(query: string, options?: ListOptions): Promise<ProductSummary[]>;
 	/**
 	 * Reads a product by handle or by the provider's product GID.
@@ -171,7 +186,7 @@ export interface CommerceProvider {
 	getProduct(handleOrId: string): Promise<Product | null>;
 	listPolicies(): Promise<StorePolicy[]>;
 	listCollections(options?: ListOptions): Promise<Collection[]>;
-	getCollection(handle: string, options?: ListOptions): Promise<CollectionWithProducts | null>;
+	getCollection(handle: string, options?: ProductListOptions): Promise<CollectionWithProducts | null>;
 	getCart(cartId: string): Promise<Cart | null>;
 	/**
 	 * Adds quantities to the lines of a cart, creating the cart when `cartId` is missing or unknown.

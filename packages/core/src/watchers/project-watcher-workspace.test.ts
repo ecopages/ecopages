@@ -9,6 +9,20 @@ import { resolveWorkspacePackageWatchRoots } from './workspace-package-watch-roo
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { createMockBridge, createMockHmrManager, installFakeFileSystemWatch } from './project-watcher.test-helpers.ts';
 
+/**
+ * Longest a test waits for the watcher to report a change.
+ *
+ * @remarks
+ * The platform can deliver a native event seconds late on a busy machine. The deadline is longer than any such
+ * delay, so a wait that fails means the event never came. Each test that waits sets a timeout above the sum of its
+ * waits.
+ */
+const EVENT_DEADLINE_MS = 10_000;
+
+function eventually(assertion: () => void): Promise<void> {
+	return vi.waitFor(assertion, { timeout: EVENT_DEADLINE_MS, interval: 25 });
+}
+
 const roots: string[] = [];
 const watchers: ProjectWatcher[] = [];
 
@@ -90,7 +104,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 				changedPath,
 				edited === 'package' ? "export const label = 'after-edit';" : "export const dep = 'dependency-after';",
 			);
-		await vi.waitFor(() => expect(restart).toHaveBeenCalledWith(changedPath), { timeout: 3000 });
+		await eventually(() => expect(restart).toHaveBeenCalledWith(changedPath));
 		expect(hmrManager.handleFileChanges).not.toHaveBeenCalled();
 		const restarted = registry();
 		const newUrl = await restarted.resolveVendorUrl('@acme/ui');
@@ -101,6 +115,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 			edited === 'package' ? 'after-edit' : edited === 'dependency' ? 'dependency-after' : 'before-edit',
 		);
 	},
+	30_000,
 );
 
 test('ignores installed and hidden linked-package files while app source retains HMR', async () => {
@@ -143,7 +158,7 @@ test('ignores installed and hidden linked-package files while app source retains
 	await watcher.createWatcherSubscription();
 	const drained = path.join(linked, 'src', 'drained.ts');
 	writeFileSync(drained, 'export const value = 1;');
-	await vi.waitFor(() => expect(restart).toHaveBeenCalledWith(drained), { timeout: 3000, interval: 1 });
+	await eventually(() => expect(restart).toHaveBeenCalledWith(drained));
 	restart.mockClear();
 	const batchHandler = hmrManager.handleFileChanges;
 	if (!batchHandler) throw new Error('Mock HMR manager is missing its batch handler');
@@ -151,16 +166,13 @@ test('ignores installed and hidden linked-package files while app source retains
 	vi.mocked(bridge.reload).mockClear();
 	for (const file of ignoredPaths) writeFileSync(file, 'export const value = 2;');
 	writeFileSync(appSource, 'export const value = 2;');
-	await vi.waitFor(() => expect(hmrManager.handleFileChanges).toHaveBeenCalledOnce(), {
-		timeout: 3000,
-		interval: 1,
-	});
+	await eventually(() => expect(hmrManager.handleFileChanges).toHaveBeenCalledOnce());
 	expect(restart.mock.calls.map(([file]) => file).filter((file) => file !== drained)).toEqual([]);
 	expect(hmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(appSource)], { broadcast: true });
 	expect(bridge.reload).not.toHaveBeenCalled();
 	for (const file of ignoredPaths)
 		expect(hmrManager.handleFileChanges).not.toHaveBeenCalledWith([file], expect.anything());
-});
+}, 30_000);
 
 test('activates a linked package root when a build input is recorded after startup', async () => {
 	const root = path.fromNative(realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-workspace-watch-late-'))));

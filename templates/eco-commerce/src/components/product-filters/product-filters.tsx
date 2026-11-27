@@ -6,7 +6,7 @@ import { RuiCheckboxGroup, RuiCheckboxGroupControl } from '@ecopages/radiant-ui/
 import { RuiChip } from '@ecopages/radiant-ui/chip';
 import { RuiDisclosure } from '@ecopages/radiant-ui/disclosure';
 import { RuiInput } from '@ecopages/radiant-ui/input';
-import { RadioChoices } from '@/components/radio-choices';
+import { RuiRadioGroup } from '@ecopages/radiant-ui/radio-group';
 import { listingUrl, SORTS, type ListingFilters } from '@/lib/storefront/listing-query';
 import './product-filters.css';
 
@@ -93,7 +93,7 @@ export const ProductFilters = eco.component<ProductFiltersProps, JsxRenderable>(
 				{filters.in ? <input type="hidden" name="in" value={filters.in} /> : null}
 				<ActiveFilters filters={filters} />
 				<RuiDisclosure trigger="Sort" open class="product-filters__group">
-					<RadioChoices name="sort" label="Sort by" value={filters.sort} options={SORTS} />
+					<RuiRadioGroup name="sort" label="Sort by" value={filters.sort} options={SORTS} />
 				</RuiDisclosure>
 				<RuiDisclosure trigger="Price" open class="product-filters__group">
 					<div class="product-filters__price">

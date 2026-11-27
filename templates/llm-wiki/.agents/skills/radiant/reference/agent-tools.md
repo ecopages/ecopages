@@ -76,6 +76,22 @@ The config is the WebMCP tool dictionary passed through (`name`, `description`, 
 - `parse(input: unknown)` validates the agent's input before the method runs: it returns the typed value or throws to reject the call. Pass Zod's `schema.parse`, `(input) => v.parse(Schema, input)` for Valibot, ArkType's `schema.assert`, or hand-written code. `parse` fixes the input type, and the decorated method's parameter must accept it. Without it the input arrives unchecked. `inputSchema` is plain JSON Schema and advisory only; Radiant ships no schema library.
 - `getEnabled(host)` registers the tool only while it returns `true` (`@agentTool` and `createAgentTool`).
 - `name` may be a function of the host. `name` and `getEnabled` are read after the host's attributes have caught up and again when a signal they read changes, which registers the tool again. Annotate the host parameter (`(host: ShopCart) => ...`): the decorator config is written before TypeScript knows the class.
+- Everything but `name` and `getEnabled` is read each time the tool is registered, never at construction, and not at all where there is no `document.modelContext`. Give `inputSchema` or `outputSchema` a function and `parse` a getter (a function there is the parser itself) to defer building a schema until a tool registers. Each may return a promise, so the library that builds the schema is imported only where the tool registers:
+
+    ```ts
+    @agentTool({
+    	name: 'add_to_cart',
+    	description: 'Adds a product to the cart by its SKU.',
+    	annotations: { consequentialHint: false },
+    	inputSchema: () => import('./add-item').then((m) => m.addItemJsonSchema),
+    	get parse() {
+    		return import('./add-item').then((m) => m.parseAddItem);
+    	},
+    })
+    addItem(item: AddItem) {}
+    ```
+
+    The browser gets the tool once every promise has settled. A tool that is unregistered first, such as one whose element is removed meanwhile, is never registered, and a rejected promise is reported with `console.error` naming the tool. A config without a promise registers at once, and plain objects and a plain `parse` still work. The method's argument type comes from `parse`, which may be a promise of the parser.
 
 ## Rules
 

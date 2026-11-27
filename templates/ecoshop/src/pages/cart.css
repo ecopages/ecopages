@@ -36,8 +36,8 @@
 		@apply col-start-2 flex items-center gap-2 sm:col-start-auto;
 	}
 
-	.cart-line__form .rui-input {
-		@apply w-16 text-center;
+	rui-number-field.cart-line__quantity {
+		@apply w-28! shrink-0;
 	}
 
 	.cart-line__total {

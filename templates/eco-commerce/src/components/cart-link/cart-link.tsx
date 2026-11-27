@@ -7,8 +7,8 @@ import './cart-link.css';
  * Header link to the order page, with the cart count once the script reads it.
  *
  * @remarks
- * The link sets `data-eco-reload` because `/order` renders per request: the browser router keeps every page it
- * fetched in memory and would show an earlier copy of the cart on a client navigation.
+ * `/order` is a dynamic page, which the browser router never keeps, so a client navigation to it always shows the
+ * current cart and the link needs no `data-eco-reload`.
  */
 export const CartLink = eco.component<{}, JsxRenderable>({
 	dependencies: {
@@ -16,7 +16,7 @@ export const CartLink = eco.component<{}, JsxRenderable>({
 	},
 	render: () => (
 		<cart-link data-eco-persist="cart-link">
-			<a href="/order" class="cart-link" data-ref="link" data-eco-reload aria-label="Cart">
+			<a href="/order" class="cart-link" data-ref="link" aria-label="Cart">
 				<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
 					<path
 						d="M6 7h12l-1 13H7L6 7Zm3 0a3 3 0 0 1 6 0"

@@ -13,12 +13,15 @@ export type SearchBoxProps = {
  *
  * @remarks
  * The combobox input carries the native `name="q"`, so pressing Enter without JavaScript submits the form. The
- * scripts load with the page rather than on first focus: `rui-combobox` rewrites its input when it upgrades, which
- * would drop what a visitor typed while the script was loading.
+ * scripts load on the first pointer or focus on the search, not with the page. `rui-combobox` keeps the text typed
+ * before it upgrades, and `<search-box>` looks that text up once it connects.
  */
 export const SearchBox = eco.component<SearchBoxProps, JsxRenderable>({
 	dependencies: {
-		scripts: ['./search-suggestions.script.tsx', './search-box.script.ts'],
+		scripts: [
+			{ src: './search-suggestions.script.tsx', lazy: { 'on:interaction': 'pointerenter,focusin' } },
+			{ src: './search-box.script.ts', lazy: { 'on:interaction': 'pointerenter,focusin' } },
+		],
 	},
 	render: ({ query = '' }) => (
 		<search-box class="search-box">

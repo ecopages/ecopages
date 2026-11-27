@@ -10,8 +10,7 @@ export async function navigate(url: string): Promise<void> {
  * Renders the current page again from the server, skipping the router's page cache.
  *
  * @remarks
- * The order page renders per request, but the browser router keeps every page it fetched; after a cart change
- * the cached copy would show the old cart.
+ * The order page uses it after a cart change made by a tool, so the lines on screen are the ones the store holds.
  */
 export async function reloadCurrentPage(): Promise<void> {
 	const handled = await getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: true });

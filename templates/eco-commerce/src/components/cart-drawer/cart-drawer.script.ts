@@ -51,6 +51,19 @@ export class CartDrawerElement extends RadiantElement {
 		this.open = false;
 	}
 
+	/**
+	 * Closes the drawer when a link inside it is followed in this tab.
+	 *
+	 * @remarks
+	 * The drawer is `data-eco-persist`, so a client navigation keeps it, open, on the next page. A modified or
+	 * non-primary click opens elsewhere and leaves this tab as it is.
+	 */
+	@onEvent({ selector: 'a[href]', type: 'click' })
+	onLinkClick(event: MouseEvent): void {
+		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+		this.open = false;
+	}
+
 	@onEvent({ window: true, type: CART_CHANGE_EVENT })
 	onCartChange(event: CustomEvent<CartChangeDetail>): void {
 		if ('cart' in event.detail) this.cart = event.detail.cart;

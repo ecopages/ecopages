@@ -1,6 +1,6 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
-import { Pager } from '@/components/pager/pager';
+import { ListingPagination } from '@/components/listing-pagination/listing-pagination';
 import { ProductFilters } from '@/components/product-filters/product-filters';
 import { ProductGrid } from '@/components/product-grid/product-grid';
 import { BaseLayout } from '@/layouts/base-layout/base-layout';
@@ -54,7 +54,7 @@ export default eco.page<SearchPageProps, JsxRenderable>({
 				</aside>
 				<div>
 					<ProductGrid products={props.results.items} eagerCount={8} label="Search results" />
-					<Pager
+					<ListingPagination
 						page={props.results.page}
 						pageCount={props.results.pageCount}
 						href={(page) => listingUrl({ ...props.filters, page })}

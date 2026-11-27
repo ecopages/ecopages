@@ -1,52 +1,41 @@
-import type { AgentToolConfig, AgentToolHost } from '@ecopages/radiant/helpers/create-agent-tool';
 import * as z from 'zod/mini';
 import { MAX_LINE_QUANTITY, PRODUCT_SORTS } from '@/lib/commerce/types';
-import { modelContextPresent } from './model-context';
+import {
+	addToCartInfo,
+	askBusinessInfo,
+	browseStoreInfo,
+	cancelCartInfo,
+	createCartInfo,
+	getCartInfo,
+	getProductInfo,
+	getUcpProfileInfo,
+	proceedToCheckoutInfo,
+	searchCatalogInfo,
+	showVariantInfo,
+	updateCartInfo,
+	type StoreToolInfo,
+} from './store-tool-info';
 
 /**
- * The store's tool definitions: each tool's name, description, input schema and annotations, in one module.
+ * The store's tool definitions: each tool's {@link StoreToolInfo} from `store-tool-info.ts` with its input schema.
  *
  * @remarks
- * The `/mcp` server, the `/api/agent-tools` Endpoint and the Radiant hosts that register the page tools with WebMCP
- * all read these, so the three cannot disagree about what a tool is called or what it takes. The module carries no
- * server code and no `run`, so the browser bundles it: the host that owns a tool decorates its method with
- * {@link agentToolConfig} of the definition. What a tool does lives in `store-tools.server.ts`.
+ * The `/mcp` server and the `/api/agent-tools` Endpoint import this module, and the Radiant hosts that register the
+ * page tools with WebMCP reach it through `agentToolConfig` (`agent-tool-config.ts`), which finds a tool's schema in
+ * {@link toolsByName} by the name its info carries. All three read the same info and the same schema, so they cannot
+ * disagree about what a tool is called or what it takes. The module carries no server code and no `run`; what a tool
+ * does lives in `store-tools.server.ts`.
  *
  * The schemas use `zod/mini`, whose functions a bundler can drop one by one, so the browser carries the few it uses
  * instead of the whole classic API: the Zod chunk of a built store is 14 kB gzipped, against 26 kB with classic Zod.
- * A host cannot defer it: `@agentTool` reads `inputSchema` and `parse` when the element is constructed, before a
- * dynamic import could resolve, so the chunk loads with the page whether or not the browser has WebMCP.
+ * The hosts import this module only inside `import()`, which Radiant runs when a tool registers, so a visitor whose
+ * browser has no `document.modelContext` never downloads that chunk.
  *
  * @module
  */
 
-/**
- * Where a tool runs. `page` is WebMCP in the shopper's browser, acting on the shopper's cart through
- * `/api/agent-tools`; `mcp` is the `/mcp` server, where a cart is named by its id.
- */
-export type ToolSurface = 'page' | 'mcp';
-
-/**
- * What a tool says about itself to an agent. The first three are WebMCP annotations; `idempotentHint` and
- * `destructiveHint` are MCP annotations that `/mcp` sends.
- */
-export interface StoreToolAnnotations {
-	readOnlyHint?: boolean;
-	consequentialHint?: boolean;
-	untrustedContentHint?: boolean;
-	idempotentHint?: boolean;
-	destructiveHint?: boolean;
-}
-
-export interface StoreToolSpec<Input extends z.ZodMiniObject = z.ZodMiniObject> {
-	name: string;
-	title: string;
-	description: string;
+export interface StoreToolSpec<Input extends z.ZodMiniObject = z.ZodMiniObject> extends StoreToolInfo {
 	input: Input;
-	annotations: StoreToolAnnotations;
-	surfaces: ToolSurface[];
-	/** Its only change is opening a page, which `/mcp` never does, so there it is read-only. */
-	readOnlyOverMcp?: true;
 }
 
 /**
@@ -54,7 +43,9 @@ export interface StoreToolSpec<Input extends z.ZodMiniObject = z.ZodMiniObject> 
  */
 export type ToolInput<Tool extends StoreToolSpec> = z.output<Tool['input']>;
 
-function defineSpec<Input extends z.ZodMiniObject>(spec: StoreToolSpec<Input>): StoreToolSpec<Input> {
+function defineSpec<const Name extends string, Input extends z.ZodMiniObject>(
+	spec: StoreToolSpec<Input> & { name: Name },
+): StoreToolSpec<Input> & { name: Name } {
 	return spec;
 }
 
@@ -98,10 +89,7 @@ const cartIdField = z.optional(
 /* The tools. */
 
 export const searchCatalogTool = defineSpec({
-	name: 'search_catalog',
-	title: 'Search the catalog',
-	description:
-		'Search the store for products, collections and pages by keywords. Each product carries variant_id, its first available variant, which create_cart and update_cart take. Read-only: it never changes the cart.',
+	...searchCatalogInfo,
 	input: z.object({
 		catalog: z.object({
 			query: z.string().check(z.trim(), z.minLength(1), z.maxLength(200), z.describe('Search keywords.')),
@@ -115,15 +103,10 @@ export const searchCatalogTool = defineSpec({
 			),
 		}),
 	}),
-	annotations: { readOnlyHint: true, untrustedContentHint: true },
-	surfaces: ['page', 'mcp'],
 });
 
 export const browseStoreTool = defineSpec({
-	name: 'browse_store',
-	title: 'Browse collections',
-	description:
-		'Without a collection handle, list the store collections. With one, list its products a page at a time; "all" lists every product. Set navigate to true to also open the collection page in the browser. Does not change the cart.',
+	...browseStoreInfo,
 	input: z.object({
 		collection: z.optional(
 			z.string().check(z.minLength(1), z.describe('Collection handle, or "all". Omit to list collections.')),
@@ -144,16 +127,10 @@ export const browseStoreTool = defineSpec({
 				),
 		),
 	}),
-	annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
-	surfaces: ['page', 'mcp'],
-	readOnlyOverMcp: true,
 });
 
 export const getProductTool = defineSpec({
-	name: 'get_product',
-	title: 'Get a product',
-	description:
-		'Read a product: description, options, variants with their ids, prices and availability. Defaults to the product of the current page. Pass selected_options to narrow the variants. Set navigate to true to also open the product page. Does not change the cart.',
+	...getProductInfo,
 	input: z.object({
 		catalog: z._default(
 			z.object({
@@ -175,16 +152,10 @@ export const getProductTool = defineSpec({
 			{},
 		),
 	}),
-	annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
-	surfaces: ['page', 'mcp'],
-	readOnlyOverMcp: true,
 });
 
 export const showVariantTool = defineSpec({
-	name: 'show_variant',
-	title: 'Show a variant',
-	description:
-		'Open a product page in the browser with a variant selected: an exact variant_id, or partial selected_options, which pick the first available match. Does not change the cart; take the variant id from get_product for that.',
+	...showVariantInfo,
 	input: z.object({
 		catalog: z.object({
 			handle: z.optional(
@@ -198,15 +169,10 @@ export const showVariantTool = defineSpec({
 			),
 		}),
 	}),
-	annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
-	surfaces: ['page'],
 });
 
 export const getCartTool = defineSpec({
-	name: 'get_cart',
-	title: 'Get the cart',
-	description:
-		"Read the shopper's cart: its id, its lines with their line ids, titles, variant ids and line prices, and the subtotal. On a page a long cart comes a few lines at a time: pass offset (the next_offset of the last result) to read on. update_cart starts from this result.",
+	...getCartInfo,
 	input: z.object({
 		id: cartIdField,
 		offset: z.optional(
@@ -221,15 +187,10 @@ export const getCartTool = defineSpec({
 			z.int().check(z.minimum(1), z.maximum(100), z.describe('Most lines to show. A page may show fewer.')),
 		),
 	}),
-	annotations: { readOnlyHint: true, untrustedContentHint: true },
-	surfaces: ['page', 'mcp'],
 });
 
 export const createCartTool = defineSpec({
-	name: 'create_cart',
-	title: 'Create the cart',
-	description:
-		"Put items in the shopper's cart while it is empty. When the cart already has items nothing changes, and the result is that cart with an error message; use update_cart then. Over /mcp every call starts a new cart.",
+	...createCartInfo,
 	input: z.object({
 		cart: z.object({
 			line_items: z
@@ -237,24 +198,10 @@ export const createCartTool = defineSpec({
 				.check(z.minLength(1), z.maxLength(MAX_LINE_ITEMS), z.describe('The items the new cart holds.')),
 		}),
 	}),
-	annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
-	surfaces: ['page', 'mcp'],
 });
 
-/**
- * Changes the lines it is sent and leaves the others as they are.
- *
- * @remarks
- * A page shows a long cart a few lines at a time (`get_cart` with `offset`), so an agent may know only some of its
- * lines. If an unlisted line were removed, an agent that sends the page it read would empty the rest of the cart by
- * accident. Changing only what is sent is the safer design, and removing is explicit: a quantity of 0, or
- * `cancel_cart` for all of it. It holds over `/mcp` too, so the tool means the same on both.
- */
 export const updateCartTool = defineSpec({
-	name: 'update_cart',
-	title: 'Update the cart',
-	description:
-		'Change the quantity of the listed lines: a line takes the quantity given, and 0 removes it. A line you do not list stays as it is, so a long cart can be changed a few lines at a time; cancel_cart empties it. Send line ids from the latest cart result; when the cart changed since, nothing changes and an error message explains it.',
+	...updateCartInfo,
 	input: z.object({
 		id: cartIdField,
 		cart: z.object({
@@ -283,40 +230,20 @@ export const updateCartTool = defineSpec({
 			),
 		}),
 	}),
-	annotations: {
-		readOnlyHint: false,
-		consequentialHint: false,
-		idempotentHint: true,
-		destructiveHint: true,
-		untrustedContentHint: true,
-	},
-	surfaces: ['page', 'mcp'],
 });
 
 export const cancelCartTool = defineSpec({
-	name: 'cancel_cart',
-	title: 'Empty the cart',
-	description: 'Remove every item from the cart in one step, for a shopper who wants to start over.',
+	...cancelCartInfo,
 	input: z.object({ id: cartIdField }),
-	annotations: { readOnlyHint: false, consequentialHint: false, destructiveHint: true },
-	surfaces: ['page', 'mcp'],
 });
 
 export const proceedToCheckoutTool = defineSpec({
-	name: 'proceed_to_checkout',
-	title: 'Go to checkout',
-	description:
-		"Check the cart has items, then open the store's checkout in the browser, where the shopper pays. Over /mcp it returns the checkout URL to hand to the shopper.",
+	...proceedToCheckoutInfo,
 	input: z.object({ id: cartIdField }),
-	annotations: { readOnlyHint: false, consequentialHint: false },
-	surfaces: ['page', 'mcp'],
 });
 
 export const askBusinessTool = defineSpec({
-	name: 'ask_business',
-	title: 'Ask the store',
-	description:
-		"Ask about the store's policies and services: returns and refunds, shipping, privacy, terms, contact details, or FAQ topics such as gift wrapping. One question per call, in the shopper's words. Read-only; for products and prices use search_catalog.",
+	...askBusinessInfo,
 	input: z.object({
 		ask: z.object({
 			query: z
@@ -334,29 +261,35 @@ export const askBusinessTool = defineSpec({
 			),
 		}),
 	}),
-	annotations: { readOnlyHint: true, untrustedContentHint: true },
-	surfaces: ['page', 'mcp'],
 });
 
 export const addToCartTool = defineSpec({
-	name: 'add_to_cart',
-	title: 'Add to cart',
-	description:
-		"Add a variant of the product on this page to the shopper's cart, on top of what the cart holds. Take the variant id from get_product. Returns the whole cart.",
+	...addToCartInfo,
 	input: lineItem,
-	annotations: { readOnlyHint: false, consequentialHint: false, untrustedContentHint: true },
-	surfaces: ['page'],
 });
 
 export const getUcpProfileTool = defineSpec({
-	name: 'get_ucp_profile',
-	title: 'Get the UCP profile',
-	description:
-		"Read the store's Universal Commerce Protocol profile: the capabilities it supports, such as catalog and cart, and the endpoint that serves them. Offered only when the store is a connected Shopify store.",
+	...getUcpProfileInfo,
 	input: z.object({}),
-	annotations: { readOnlyHint: true, untrustedContentHint: true },
-	surfaces: ['page'],
 });
+
+/**
+ * Every tool by its name, which is how `agentToolConfig` gets from the info a host holds to the schema.
+ */
+export const toolsByName = {
+	[searchCatalogTool.name]: searchCatalogTool,
+	[browseStoreTool.name]: browseStoreTool,
+	[getProductTool.name]: getProductTool,
+	[showVariantTool.name]: showVariantTool,
+	[getCartTool.name]: getCartTool,
+	[createCartTool.name]: createCartTool,
+	[updateCartTool.name]: updateCartTool,
+	[cancelCartTool.name]: cancelCartTool,
+	[proceedToCheckoutTool.name]: proceedToCheckoutTool,
+	[askBusinessTool.name]: askBusinessTool,
+	[addToCartTool.name]: addToCartTool,
+	[getUcpProfileTool.name]: getUcpProfileTool,
+};
 
 /**
  * The tool's input schema as JSON Schema, which is what an agent reads.
@@ -385,39 +318,4 @@ export function readToolInput<Input extends z.ZodMiniObject>(
 	const parsed = z.safeParse(tool.input, input ?? {});
 	if (!parsed.success) throw new Error(invalidInputMessage(parsed.error).message);
 	return parsed.data;
-}
-
-/**
- * The part of a tool the browser registers: its definition without `execute`, which the Radiant host's decorated
- * method supplies. Pass it to `@agentTool`.
- *
- * @remarks
- * Radiant runs `parse` on an agent's input in the browser, before the method runs and before a request is made; the
- * server checks it again, since a client can skip the browser. The UI calls the method with values of its own. `getEnabled` follows {@link modelContextPresent}, so
- * the tool registers when `document.modelContext` appears after the host connected. `inputSchema` is built once, when the first host
- * reads it, which is when Radiant constructs the first host, whether or not the browser has WebMCP: it spreads the
- * config then. It is a few kilobytes of JSON Schema for all the tools of a page.
- */
-export function agentToolConfig<Input extends z.ZodMiniObject>(
-	tool: StoreToolSpec<Input>,
-): Omit<AgentToolConfig<AgentToolHost, z.output<Input>>, 'execute'> {
-	const { readOnlyHint, consequentialHint, untrustedContentHint } = tool.annotations;
-	const annotations = Object.fromEntries(
-		Object.entries({ readOnlyHint, consequentialHint, untrustedContentHint }).filter(
-			([, hint]) => hint !== undefined,
-		),
-	);
-	let inputSchema: Record<string, unknown> | undefined;
-	return {
-		name: tool.name,
-		title: tool.title,
-		description: tool.description,
-		annotations,
-		getEnabled: () => modelContextPresent.get(),
-		get inputSchema() {
-			inputSchema ??= inputJsonSchema(tool);
-			return inputSchema;
-		},
-		parse: (input) => readToolInput(tool, input),
-	};
 }

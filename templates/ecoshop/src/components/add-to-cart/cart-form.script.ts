@@ -1,17 +1,14 @@
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
 import { RadiantElement, bindTo, customElement, onEvent, prop, query, state } from '@ecopages/radiant';
+import '@ecopages/radiant-ui/number-field';
 import '@ecopages/radiant-ui/radio-group';
 import { agentTool } from '@ecopages/radiant/decorators/agent-tool';
 import type { AgentToolExecuteOptions } from '@ecopages/radiant/helpers/register-agent-tool';
 import { callAgentTool } from '../../lib/agents/agent-tool-client';
 import type { StoreToolResult } from '../../lib/agents/agent-tool-types';
 import { announceCartChange } from '../../lib/agents/assistant-cart-change';
-import {
-	type ToolInput,
-	addToCartTool,
-	agentToolConfig,
-	showVariantTool,
-} from '../../lib/agents/store-tool-definitions';
+import { agentToolConfig, type ToolInputOf } from '../../lib/agents/agent-tool-config';
+import { addToCartInfo, showVariantInfo } from '../../lib/agents/store-tool-info';
 import type { CartTotals } from '../../lib/cart/cart-events';
 import { productHandleFromPath } from '../../lib/store-urls';
 
@@ -82,14 +79,14 @@ export class CartForm extends RadiantElement {
 	 * status line; nothing is posted again. Radiant passes the agent's call `options`, which the shopper's click does
 	 * not, so the toast says who added.
 	 */
-	@agentTool(agentToolConfig(addToCartTool))
-	async add(input: ToolInput<typeof addToCartTool>, options?: AgentToolExecuteOptions): Promise<StoreToolResult> {
+	@agentTool(agentToolConfig(addToCartInfo))
+	async add(input: ToolInputOf<typeof addToCartInfo>, options?: AgentToolExecuteOptions): Promise<StoreToolResult> {
 		if (this.pending) return this.refuse('Another addition to the cart is still on its way.');
 		this.pending = true;
 		this.status = '';
 		let result: StoreToolResult;
 		try {
-			result = await callAgentTool(addToCartTool.name, input, options?.signal, {
+			result = await callAgentTool(addToCartInfo.name, input, options?.signal, {
 				onCartChange: (totals, outcome) =>
 					this.announce(options ? 'Your assistant added this to your cart' : this.success, totals, outcome),
 			});
@@ -112,9 +109,9 @@ export class CartForm extends RadiantElement {
 	 * The server resolves the variant. One of this page's product is selected in place, so the page the agent sees
 	 * shows it without a navigation; another product's page opens through the router.
 	 */
-	@agentTool(agentToolConfig(showVariantTool))
-	showVariant(input: ToolInput<typeof showVariantTool>, { signal }: AgentToolExecuteOptions) {
-		return callAgentTool(showVariantTool.name, input, signal, { showsPage: (href) => this.showsPage(href) });
+	@agentTool(agentToolConfig(showVariantInfo))
+	showVariant(input: ToolInputOf<typeof showVariantInfo>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(showVariantInfo.name, input, signal, { showsPage: (href) => this.showsPage(href) });
 	}
 
 	private showsPage(href: string): boolean {
@@ -144,7 +141,7 @@ export class CartForm extends RadiantElement {
 		if (!(form instanceof HTMLFormElement)) return;
 		event.preventDefault();
 		const data = new FormData(form);
-		const variantId = data.getAll('variantId').at(-1);
+		const variantId = data.get('variantId');
 		void this.add({
 			item: { id: typeof variantId === 'string' ? variantId : '' },
 			quantity: Number(data.get('quantity')),

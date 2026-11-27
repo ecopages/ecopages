@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiButton } from '@ecopages/radiant-ui/button';
+import { RuiRadioGroup } from '@ecopages/radiant-ui/radio-group';
 import {
 	RuiNumberField,
 	RuiNumberFieldDecrementButton,
@@ -8,7 +9,6 @@ import {
 	RuiNumberFieldIncrementButton,
 	RuiNumberFieldInput,
 } from '@ecopages/radiant-ui/number-field';
-import { RadioChoices } from '@/components/radio-choices';
 import { RuiSpinner } from '@ecopages/radiant-ui/spinner';
 import type { ProductVariant } from '@/lib/commerce/types';
 import { LIMITS } from '@/lib/limits';
@@ -35,7 +35,7 @@ export const AddToCart = eco.component<AddToCartProps, JsxRenderable>({
 			<form method="post" action="/cart/add" class="add-to-cart" data-ref="form">
 				<fieldset class="add-to-cart__variants">
 					<legend>Finish</legend>
-					<RadioChoices
+					<RuiRadioGroup
 						name="variantId"
 						label="Finish"
 						value={variants[0]?.id}

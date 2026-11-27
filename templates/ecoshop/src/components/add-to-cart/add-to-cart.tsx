@@ -1,10 +1,10 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiButton } from '@ecopages/radiant-ui/button';
-import { RuiInput } from '@ecopages/radiant-ui/input';
+import { RuiNumberField } from '@ecopages/radiant-ui/number-field';
 import { RuiRadio, RuiRadioGroup } from '@ecopages/radiant-ui/radio-group';
 import { formatMoney } from '@/lib/commerce/money';
-import { DEFAULT_VARIANT_TITLE, type Product } from '@/lib/commerce/types';
+import { DEFAULT_VARIANT_TITLE, MAX_LINE_QUANTITY, type Product } from '@/lib/commerce/types';
 import { storePaths } from '@/lib/store-urls';
 import './add-to-cart.css';
 
@@ -16,10 +16,10 @@ const isDefaultVariant = (product: Product) =>
  *
  * @remarks
  * It posts to `/api/cart` as a plain form, so it works without JavaScript; `cart-form` upgrades it to an in-place
- * update. The variant picker is a `RuiRadioGroup` of native radios. Its host checks the selected radio only once its
- * script runs, so a hidden `variantId` before the group carries the first available variant for a post without
- * JavaScript; a checked radio comes later in the form and wins. The quantity stays a native number input: Radiant
- * UI's number field names its input only once its script runs, so a post without JavaScript would lose it.
+ * update. The variant picker is a `RuiRadioGroup` of native radios, and its server markup names them and checks the
+ * first available variant, so a post without JavaScript carries the shopper's choice. A product with one variant has
+ * no picker and posts it in a hidden `variantId`. The quantity is a `RuiNumberField`, whose server markup names its
+ * input and carries the raw number for the same reason.
  */
 export const AddToCart = eco.component<{ product: Product }, JsxRenderable>({
 	dependencies: {
@@ -33,8 +33,9 @@ export const AddToCart = eco.component<{ product: Product }, JsxRenderable>({
 			<cart-form attr:success="Added to your cart">
 				<form method="post" action={storePaths.cartApi} class="add-to-cart">
 					<input type="hidden" name="intent" value="add" />
-					<input type="hidden" name="variantId" value={firstAvailable?.id ?? ''} />
-					{isDefaultVariant(product) ? null : (
+					{isDefaultVariant(product) ? (
+						<input type="hidden" name="variantId" value={firstAvailable?.id ?? ''} />
+					) : (
 						<fieldset class="variant-picker">
 							<legend class="variant-picker__legend">{pickerLabel}</legend>
 							<RuiRadioGroup
@@ -59,10 +60,14 @@ export const AddToCart = eco.component<{ product: Product }, JsxRenderable>({
 						</fieldset>
 					)}
 					<div class="add-to-cart__row">
-						<label class="add-to-cart__quantity">
-							<span class="sr-only">Quantity</span>
-							<RuiInput type="number" name="quantity" value="1" min="1" max="99" inputmode="numeric" />
-						</label>
+						<RuiNumberField
+							name="quantity"
+							label="Quantity"
+							minValue={1}
+							maxValue={MAX_LINE_QUANTITY}
+							defaultValue={1}
+							class="add-to-cart__quantity"
+						/>
 						<RuiButton
 							type="submit"
 							data-ref="submit"

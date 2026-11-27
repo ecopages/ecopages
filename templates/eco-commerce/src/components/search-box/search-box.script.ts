@@ -15,6 +15,10 @@ const SUGGESTION_COUNT = 6;
  * @remarks
  * Picking an option opens that product; Enter without a picked option opens the search page. Both are client
  * navigations. Answers are kept per term for the page's lifetime, and a newer keystroke aborts an older request.
+ * The combobox opens by itself when the options arrive after the keystroke.
+ *
+ * The scripts load on the first pointer or focus on the search, so a visitor may have typed before they run: the
+ * combobox keeps that text, and `onConnected` looks it up when the input has focus.
  */
 @customElement('search-box')
 export class SearchBoxElement extends RadiantElement {
@@ -72,21 +76,6 @@ export class SearchBoxElement extends RadiantElement {
 		if (isStoreError(body) || controller.signal.aborted) return;
 		this.answers.set(term, body.items);
 		this.results = body.items;
-		requestAnimationFrame(() => this.reopenWithResults());
-	}
-
-	/**
-	 * Lets the combobox open on options that arrived after the keystroke.
-	 *
-	 * @remarks
-	 * `RuiCombobox` decides whether to open when the input fires `input`, and at that moment the answer has not
-	 * arrived. It offers no method to open the popup, so the input event is sent again once the options render;
-	 * this host's own listener then finds the answer cached and sends no request.
-	 */
-	private reopenWithResults(): void {
-		if (this.input && document.activeElement === this.input && this.results.length > 0) {
-			this.input.dispatchEvent(new Event('input', { bubbles: true }));
-		}
 	}
 }
 

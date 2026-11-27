@@ -120,10 +120,14 @@ describe('cart endpoint without JavaScript', () => {
 });
 
 describe('cart endpoint input and totals', () => {
-	it('takes the last variant when the product form posts a hidden one and a checked radio', () => {
-		const parsed = cartActionSchema.parse({ intent: 'add', variantId: [fieldShirtM, canvasTote], quantity: '1' });
+	it('refuses a post that names two variants, since the product form posts one', () => {
+		const parsed = cartActionSchema.safeParse({
+			intent: 'add',
+			variantId: [fieldShirtM, canvasTote],
+			quantity: '1',
+		});
 
-		expect(parsed.variantId).toBe(canvasTote);
+		expect(parsed.error?.issues.map((issue) => issue.path)).toEqual([['variantId']]);
 	});
 
 	it('sends a post that fails the schema back to the cart with the invalid notice', () => {

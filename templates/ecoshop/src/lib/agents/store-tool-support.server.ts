@@ -19,7 +19,8 @@ import {
 import { describeLine } from '@/lib/cart/cart-messages';
 import { productHandleFromPath, resolveUrl, storePaths } from '@/lib/store-urls';
 import type { CartViewMessage, StoreToolResult } from './agent-tool-types';
-import type { StoreToolSpec, ToolSurface } from './store-tool-definitions';
+import type { StoreToolSpec } from './store-tool-definitions';
+import type { ToolSurface } from './store-tool-info';
 
 export interface StoreToolContext {
 	provider: CommerceProvider;

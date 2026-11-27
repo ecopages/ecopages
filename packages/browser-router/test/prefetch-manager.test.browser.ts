@@ -119,6 +119,154 @@ describe('PrefetchManager', () => {
 		});
 	});
 
+	describe('priority images', () => {
+		const IMAGE_FILE = '/packages/browser-router/test/fixtures/pixel.svg';
+
+		/** An image that loads. The query tells the requests of one test apart; the file is the same. */
+		const image = (name: string) => `${IMAGE_FILE}?name=${name}&run=${run}`;
+
+		/** An image that fails to load, which a later prefetch may request again. */
+		const missingImage = (name: string) => `/prefetch-images/missing.png?name=${name}&run=${run}`;
+
+		const pages = new Map<string, string>();
+		const heads = new Map<string, string>();
+
+		function requestedImages(): string[] {
+			return performance
+				.getEntriesByType('resource')
+				.map((entry) => new URL(entry.name))
+				.filter((url) => url.searchParams.get('run') === String(run) && url.searchParams.has('name'))
+				.map((url) => url.searchParams.get('name')!);
+		}
+
+		function prefetchPage(test: string, options: Partial<PrefetchOptions> = {}): Promise<void> {
+			return new PrefetchManager({ strategy: 'hover', ...options }).prefetch(
+				new URL(destination(test), window.location.href).href,
+			);
+		}
+
+		/**
+		 * Waits until the requests of an earlier prefetch have started and settled.
+		 *
+		 * @remarks
+		 * A request that must not happen cannot be waited for. A page whose only image is the marker is
+		 * prefetched after it, and once the marker shows up, every earlier request has started.
+		 */
+		async function afterWarming(): Promise<string[]> {
+			pages.set('marker', `<img fetchpriority="high" src="${image('marker')}">`);
+			await prefetchPage('marker');
+			await vi.waitFor(() => expect(requestedImages()).toContain('marker'));
+			return requestedImages().filter((name) => name !== 'marker');
+		}
+
+		beforeEach(() => {
+			pages.clear();
+			heads.clear();
+			performance.clearResourceTimings();
+			fetchSpy.mockImplementation(async (input) => {
+				const test = new URL(String(input), window.location.href).searchParams.get('test') ?? '';
+				return new Response(
+					`<html><head>${heads.get(test) ?? ''}</head><body>${pages.get(test) ?? ''}</body></html>`,
+					{
+						headers: { 'Content-Type': 'text/html' },
+					},
+				);
+			});
+		});
+
+		it('requests the high-priority image of a prefetched page and no other image', async () => {
+			pages.set(
+				'hero',
+				`<img fetchpriority="high" src="${image('hero')}">
+				<img loading="lazy" src="${image('lazy')}">
+				<img fetchpriority="high" loading="lazy" src="${image('lazy-high')}">
+				<img src="${image('plain')}">`,
+			);
+
+			await prefetchPage('hero');
+
+			expect(await afterWarming()).toEqual(['hero']);
+		});
+
+		it('requests the image a page preloads in its head', async () => {
+			heads.set('preloaded', `<link rel="preload" as="image" href="${image('preloaded')}">`);
+
+			await prefetchPage('preloaded');
+
+			expect(await afterWarming()).toEqual(['preloaded']);
+		});
+
+		it('requests the one candidate the browser picks from srcset and sizes, not the src', async () => {
+			pages.set(
+				'srcset',
+				`<img fetchpriority="high" src="${image('fallback')}" srcset="${image('small')} 100w, ${image('huge')} 1000000w" sizes="100px">`,
+			);
+
+			await prefetchPage('srcset');
+
+			expect(await afterWarming()).toEqual(['small']);
+		});
+
+		it('requests the source of a picture the browser picks, not its fallback', async () => {
+			pages.set(
+				'picture',
+				`<picture>
+					<source type="image/avif-not-supported" srcset="${image('unsupported')}">
+					<source type="image/svg+xml" srcset="${image('source')}">
+					<img fetchpriority="high" src="${image('fallback')}">
+				</picture>`,
+			);
+
+			await prefetchPage('picture');
+
+			expect(await afterWarming()).toEqual(['source']);
+		});
+
+		it('requests at most two images for one page', async () => {
+			pages.set(
+				'budget',
+				['first', 'second', 'third'].map((name) => `<img fetchpriority="high" src="${image(name)}">`).join(''),
+			);
+
+			await prefetchPage('budget');
+
+			expect((await afterWarming()).sort()).toEqual(['first', 'second']);
+		});
+
+		it('requests an image again on a later prefetch when its load failed', async () => {
+			pages.set('failed-a', `<img fetchpriority="high" src="${missingImage('failed')}">`);
+			pages.set('failed-b', `<img fetchpriority="high" src="${missingImage('failed')}">`);
+			const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+
+			await prefetchManager.prefetch(new URL(destination('failed-a'), window.location.href).href);
+			await vi.waitFor(() => expect(requestedImages()).toEqual(['failed']));
+			await prefetchManager.prefetch(new URL(destination('failed-b'), window.location.href).href);
+
+			await vi.waitFor(() => expect(requestedImages()).toEqual(['failed', 'failed']));
+		});
+
+		it('requests no image when images are turned off', async () => {
+			pages.set('off', `<img fetchpriority="high" src="${image('off')}">`);
+
+			await prefetchPage('off', { images: false });
+
+			expect(await afterWarming()).toEqual([]);
+		});
+
+		it('requests no image while data saver is on', async () => {
+			pages.set('saver', `<img fetchpriority="high" src="${image('saver')}">`);
+			Object.defineProperty(navigator, 'connection', { value: { saveData: true }, configurable: true });
+
+			try {
+				await prefetchPage('saver');
+			} finally {
+				Reflect.deleteProperty(navigator, 'connection');
+			}
+
+			expect(await afterWarming()).toEqual([]);
+		});
+	});
+
 	describe('visited pages', () => {
 		beforeEach(() => {
 			vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });

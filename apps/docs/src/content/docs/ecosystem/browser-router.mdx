@@ -256,7 +256,7 @@ Optionally, add `data-eco-script-id="unique-id"` to identify the script. When pr
 
 ### Prefetching
 
-The router includes a smart prefetching system to speed up navigation. By default, it uses the `intent` strategy, which prefetches pages when the user hovers over a link or when a link enters the viewport.
+The router includes a smart prefetching system to speed up navigation. By default, it uses the `intent` strategy, which prefetches a page when the user hovers over or focuses a link. A link marked `data-eco-prefetch="viewport"` prefetches when it enters the viewport.
 
 #### Configuration
 
@@ -273,6 +273,8 @@ const router = createRouter({
 		noPrefetchAttribute: 'data-eco-no-prefetch',
 		// Whether to respect data-saver mode (default: true)
 		respectDataSaver: true,
+		// Whether to warm the page's high-priority images (default: true)
+		images: true,
 	},
 });
 ```
@@ -283,9 +285,19 @@ To disable prefetching entirely, set `prefetch: false`.
 
 | Strategy   | Description                                                                                                         |
 | :--------- | :------------------------------------------------------------------------------------------------------------------ |
-| `intent`   | (Recommended) Prefetches on hover (with delay) and acts as a fallback for `viewport`. Balances speed and bandwidth. |
+| `intent`   | (Recommended) Prefetches on hover and focus, after a delay. Balances speed and bandwidth.                           |
 | `hover`    | Prefetches only when the user hovers over a link.                                                                   |
 | `viewport` | Prefetches links as soon as they enter the viewport using IntersectionObserver.                                     |
+
+#### Priority images
+
+A prefetch also warms the images the page marks as critical, so its largest element does not start loading after the click: the `<link rel="preload" as="image">` elements in the head and the `<img fetchpriority="high">` elements in the body, the first two in that order. They are requested at low priority and once each, unless a load fails. `srcset`, `sizes` and `<picture>` sources are honored, so the browser warms the candidate this device will use. Lazy and unmarked images are never requested, and nothing is added to the document, so the browser has no unused preload to warn about.
+
+```html
+<img src="/images/chair.webp" fetchpriority="high" alt="Chair" width="800" height="600" />
+```
+
+This is on by default because the page's author chose those images as the ones its first paint waits for, and the cap holds the cost to two low-priority requests per prefetched page. It follows the page prefetch: the strategy, the delay, `data-eco-no-prefetch`, and data saver and slow connections. With the `viewport` strategy or `data-eco-prefetch="eager"` links, many pages are prefetched at once and each brings its images; set `images: false` there if bandwidth matters more than the paint.
 
 #### Per-Link Control
 

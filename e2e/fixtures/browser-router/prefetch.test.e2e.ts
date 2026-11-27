@@ -48,4 +48,46 @@ test.describe('Browser Router Prefetch', () => {
 		await expect(page.locator('link[rel="preload"]')).toHaveCount(0);
 		expect(preloadWarnings).toEqual([]);
 	});
+
+	test('should warm the high-priority image of a hovered link before the click, and no other image', async ({
+		page,
+	}) => {
+		const preloadWarnings = trackConsoleWarnings(page, /preloaded using link preload but not used/i);
+		const requested: string[] = [];
+		page.on('request', (request) => {
+			const pathname = new URL(request.url()).pathname;
+			if (pathname.startsWith('/prefetch-images/')) requested.push(pathname);
+		});
+		await gotoAndWait(page, '/prefetch');
+		const productDocument = page.waitForRequest(
+			(request) => new URL(request.url()).pathname === '/prefetch/product',
+		);
+
+		await page.locator('#link-product').hover();
+		await productDocument;
+
+		await expect.poll(() => requested).toEqual(['/prefetch-images/chair.svg']);
+		await expect(page).toHaveURL(/\/prefetch$/);
+		await expect(page.locator('link[rel="preload"]')).toHaveCount(0);
+		expect(preloadWarnings).toEqual([]);
+		expect(requested).toEqual(['/prefetch-images/chair.svg']);
+	});
+
+	test('should serve the warmed image to the page without a second request', async ({ page }) => {
+		const imageRequests: string[] = [];
+		page.on('request', (request) => {
+			if (new URL(request.url()).pathname === '/prefetch-images/chair.svg') imageRequests.push(request.url());
+		});
+		await gotoAndWait(page, '/prefetch');
+
+		await page.locator('#link-product').hover();
+		await expect.poll(() => imageRequests.length).toBe(1);
+		await page.locator('#link-product').click();
+		await expect(page.locator('[data-testid="product-page"]')).toBeVisible();
+		await page
+			.locator('[data-testid="product-page"] img[fetchpriority="high"]')
+			.evaluate((image: HTMLImageElement) => image.decode());
+
+		expect(imageRequests).toHaveLength(1);
+	});
 });

@@ -352,6 +352,33 @@ test('without WebMCP, no tool is registered and nothing is logged', async ({ pag
 	expect(messages).toEqual([]);
 });
 
+test('a polyfill that installs document.modelContext after the page loaded gets the tools', async ({ page }) => {
+	const messages: string[] = [];
+	page.on('console', (message) => {
+		if (message.type() === 'error' || message.type() === 'warning') messages.push(message.text());
+	});
+	await page.goto('/products/field-shirt');
+	await page.waitForFunction(() =>
+		Boolean(
+			customElements.get('store-agent-tools') &&
+			customElements.get('cart-form') &&
+			customElements.get('cart-count'),
+		),
+	);
+	expect(await page.evaluate(() => 'modelContext' in document)).toBe(false);
+
+	await page.evaluate(installFakeModelContext);
+	await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+
+	await expect
+		.poll(() => toolNames(page))
+		.toEqual(expect.arrayContaining(['add_to_cart', 'show_variant', 'get_cart', 'search_catalog', 'create_cart']));
+	expect(messages).toEqual([]);
+	const result = await execute(page, 'add_to_cart', { item: { id: fieldShirtM }, quantity: 1 });
+	expect(result.isError).toBeFalsy();
+	await expect(page.locator('cart-count [data-ref="value"]')).toHaveText('1');
+});
+
 test('the cart works without JavaScript', async ({ browser, baseURL }) => {
 	const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
 	const page = await context.newPage();

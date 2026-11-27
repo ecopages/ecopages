@@ -1,6 +1,7 @@
 import type { AgentToolConfig, AgentToolHost } from '@ecopages/radiant/helpers/create-agent-tool';
 import * as z from 'zod/mini';
 import { MAX_LINE_QUANTITY } from '@/lib/commerce/types';
+import { modelContextPresent } from './model-context';
 
 /**
  * The store's tool definitions: each tool's name, description, input schema and annotations, in one module.
@@ -377,7 +378,8 @@ export function readToolInput<Input extends z.ZodMiniObject>(
  *
  * @remarks
  * `parse` validates the agent's input in the browser, before the method runs and before a request is made; the
- * server checks it again, since a client can skip the browser. `inputSchema` is built once, when the first host
+ * server checks it again, since a client can skip the browser. `getEnabled` follows {@link modelContextPresent}, so
+ * the tool registers when `document.modelContext` appears after the host connected. `inputSchema` is built once, when the first host
  * reads it, and is a few kilobytes of JSON Schema for all the tools of a page.
  */
 export function agentToolConfig<Input extends z.ZodMiniObject>(
@@ -395,6 +397,7 @@ export function agentToolConfig<Input extends z.ZodMiniObject>(
 		title: tool.title,
 		description: tool.description,
 		annotations,
+		getEnabled: () => modelContextPresent.get(),
 		get inputSchema() {
 			inputSchema ??= inputJsonSchema(tool);
 			return inputSchema;

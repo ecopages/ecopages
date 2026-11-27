@@ -4,6 +4,7 @@ import { agentTool } from '@ecopages/radiant/decorators/agent-tool';
 import type { AgentToolExecuteOptions } from '@ecopages/radiant/helpers/register-agent-tool';
 import { callAgentTool } from '../../lib/agents/agent-tool-client';
 import { announceAssistantCartChange } from '../../lib/agents/assistant-cart-change';
+import { modelContextPresent } from '../../lib/agents/model-context';
 import {
 	type ToolInput,
 	agentToolConfig,
@@ -66,7 +67,10 @@ export class StoreAgentTools extends RadiantElement {
 	 * Registered only while `ucp` is set, which the layout does for a connected Shopify store: the demo catalog has no
 	 * UCP profile to read.
 	 */
-	@agentTool({ ...agentToolConfig(getUcpProfileTool), getEnabled: (host: StoreAgentTools) => host.ucp })
+	@agentTool({
+		...agentToolConfig(getUcpProfileTool),
+		getEnabled: (host: StoreAgentTools) => modelContextPresent.get() && host.ucp,
+	})
 	getUcpProfile(input: ToolInput<typeof getUcpProfileTool>, { signal }: AgentToolExecuteOptions) {
 		return callAgentTool(getUcpProfileTool.name, input, signal);
 	}

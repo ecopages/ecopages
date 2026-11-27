@@ -4,6 +4,7 @@ import {
 	realpathSync,
 	statSync,
 	watch as watchFs,
+	type Dirent,
 	type FSWatcher,
 	type Stats,
 	type WatchOptionsWithStringEncoding,
@@ -32,6 +33,7 @@ type WatchRoot = {
 type RootReconcileRequest = {
 	root: WatchRoot;
 	notifyRescan: boolean;
+	origin?: ChangeOrigin;
 };
 
 type PendingPathChange = {
@@ -51,6 +53,28 @@ type NativeWatchOptions = WatchOptionsWithStringEncoding & { ignore?: (relativeP
 const CHANGE_COALESCING_MS = 50;
 const NATIVE_REGISTRATION_PROBE_INTERVAL_MS = 20;
 const NATIVE_REGISTRATION_TIMEOUT_MS = 3_000;
+const SAFETY_RESCAN_DEFAULT_MS = 2_000;
+/** The wait after a rescan, in rescan durations, so a rescan uses about a tenth of the time. */
+const SAFETY_RESCAN_WAIT_PER_DURATION = 10;
+/** The cap on that wait, in intervals, so a slow rescan delays the next report by a bounded time. */
+const SAFETY_RESCAN_MAX_WAIT_INTERVALS = 5;
+/** How long a rescan's report of a file can swallow a late native change for it, in intervals. */
+const SAFETY_RESCAN_REPORT_TTL_INTERVALS = 10;
+
+/**
+ * Where a change came from: a native event, or a safety rescan that found what the native watcher dropped.
+ */
+type ChangeOrigin = 'native' | 'rescan';
+
+/**
+ * Tuning the watcher exposes to its own tests.
+ */
+export interface RecursiveFileWatcherInternals {
+	/** Shortest wait between safety rescans of the watched roots. */
+	safetyRescanMs?: number;
+	/** Whether to run safety rescans. Defaults to whether the platform's native watcher can drop events. */
+	rescans?: boolean;
+}
 
 /**
  * Watches requested filesystem paths with native directory watchers.
@@ -83,9 +107,16 @@ export class RecursiveFileWatcher implements FileWatcher {
 	private readySettled = false;
 	private closed = false;
 	private closePromise: Promise<void> | undefined;
+	private readonly safetyRescanMs: number;
+	private readonly rescansEnabled: boolean;
+	private lastSafetyRescanError: string | undefined;
+	private readonly rescanReports = new Map<string, { stats: Stats; reportedAt: number }>();
+	private safetyRescanTimer: ReturnType<typeof setTimeout> | undefined;
 
-	public constructor(paths: readonly string[], options: WatchOptions) {
+	public constructor(paths: readonly string[], options: WatchOptions, internals: RecursiveFileWatcherInternals = {}) {
 		this.options = options;
+		this.safetyRescanMs = internals.safetyRescanMs ?? SAFETY_RESCAN_DEFAULT_MS;
+		this.rescansEnabled = internals.rescans ?? dropsNativeEvents();
 		this.ready = new Promise<void>((resolve, reject) => {
 			this.readyResolve = resolve;
 			this.readyReject = reject;
@@ -121,6 +152,9 @@ export class RecursiveFileWatcher implements FileWatcher {
 	}
 
 	private async closeWatchers(): Promise<void> {
+		clearTimeout(this.safetyRescanTimer);
+		this.safetyRescanTimer = undefined;
+		this.rescanReports.clear();
 		for (const pending of this.pendingChanges.values()) clearTimeout(pending.timer);
 		this.pendingChanges.clear();
 		for (const pending of this.pendingRootReconciles.values()) clearTimeout(pending);
@@ -156,6 +190,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 			for (const watcher of this.getWatchRoots()) this.openWatcher(watcher);
 			await this.catchUpNewWatchRoots(existingWatchRoots, nativeWatchRegistrationStartedAt);
 			this.closeUnneededWatchers();
+			this.startSafetyRescans();
 		} catch (error) {
 			this.rollbackAddedPaths(newPaths, existingWatchRoots);
 			throw error;
@@ -167,6 +202,124 @@ export class RecursiveFileWatcher implements FileWatcher {
 				this.scheduleRootReconcile(root, notifyRescan);
 			this.rootsToReconcileAfterIndex.clear();
 		}
+	}
+
+	/**
+	 * Starts the periodic rescans that report what the native watcher dropped, where it can drop.
+	 *
+	 * @remarks
+	 * On macOS, `fseventsd` drops events for every watcher on the volume while other processes write many files, and
+	 * Node and Bun do not pass the drop flag on, so an edit made then is never reported. A measured raw `fs.watch`
+	 * lost 8 edits in 10 with six writers, under either runtime. Each rescan checks the watched roots against the
+	 * index and reports what differs, as the native events would have: a recursive root with
+	 * {@link reconcileWatchRoot}, a non-recursive one by checking the paths it exists to watch.
+	 *
+	 * One timer serves every root and each root goes through the same reconcile scheduler as an event with no file
+	 * name, so a root is never reconciled twice at once and nothing runs while the index is being built. Ignored
+	 * directories are not entered. The wait before the next rescan is ten times the duration of the last, so a
+	 * large tree is scanned rarely, but never more than five intervals, so a missed change is reported within a
+	 * bounded time even when the volume is slow. `close()` stops the timer. The `ignored` callback runs for every
+	 * entry on every rescan, so it should be cheap.
+	 */
+	private startSafetyRescans(): void {
+		if (this.safetyRescanTimer || this.closed || !this.rescansEnabled) return;
+		this.scheduleSafetyRescan(this.safetyRescanMs);
+	}
+
+	private scheduleSafetyRescan(delayMs: number): void {
+		if (this.closed) return;
+		this.safetyRescanTimer = setTimeout(() => {
+			void this.runSafetyRescan();
+		}, delayMs);
+		this.safetyRescanTimer.unref();
+	}
+
+	/**
+	 * Follows the watched paths that did not exist yet down to the deepest ancestor that exists now.
+	 *
+	 * @remarks
+	 * A path that is still missing is watched through its nearest existing ancestor, and each ancestor created
+	 * later is followed by the native event that announces it. When that event is dropped, no scan of a watched
+	 * root finds the new ancestor, which is not inside any watched path, so the rescan looks for it here.
+	 */
+	private async followMissingPaths(): Promise<void> {
+		for (const watchedPath of [...this.watchedPaths]) {
+			if (this.closed) return;
+			if (watchedPath.scope !== 'unknown') continue;
+			let existing = watchedPath.canonicalPath;
+			let stats = await tryStatAsync(existing);
+			while (!stats && existing !== path.dirname(existing)) {
+				existing = path.dirname(existing);
+				stats = await tryStatAsync(existing);
+			}
+			if (!stats) continue;
+			if (existing === watchedPath.canonicalPath) await this.reconcileCurrentEntry(existing, 'rescan');
+			else this.watchMissingPathAncestors(existing, stats);
+		}
+	}
+
+	/**
+	 * Checks the paths a non-recursive root exists to watch, one by one, instead of listing its directory.
+	 *
+	 * @remarks
+	 * A non-recursive root watches the parent of a watched file or directory, so that its removal and return are
+	 * seen, or the nearest existing ancestor of a path that does not exist yet. Such a directory can be large and
+	 * holds mostly entries nobody asked about, such as the system's temporary directory, so only the watched paths
+	 * are stat-ed.
+	 */
+	private async reconcileWatchedPaths(root: WatchRoot): Promise<void> {
+		for (const watchedPath of [...this.watchedPaths]) {
+			if (this.closed) return;
+			const watchesRoot =
+				watchedPath.scope === 'directory'
+					? path.dirname(watchedPath.canonicalPath) === root.path
+					: watchedPath.rootPath === root.path;
+			if (watchesRoot) await this.reconcileCurrentEntry(watchedPath.canonicalPath, 'rescan');
+		}
+	}
+
+	private async runSafetyRescan(): Promise<void> {
+		const startedAt = performance.now();
+		this.pruneRescanReports();
+		if (!this.indexing) {
+			await this.rescanSafely(() => this.followMissingPaths());
+			for (const root of this.getWatchRoots()) {
+				if (this.closed) return;
+				await this.rescanSafely(async () => {
+					if (root.recursive) await this.beginRootReconcile({ root, notifyRescan: false, origin: 'rescan' });
+					else if (!this.indexing && !this.activeRootReconciles.has(rootKey(root)))
+						await this.reconcileWatchedPaths(root);
+				});
+			}
+		}
+		this.safetyRescanTimer = undefined;
+		const dutyWaitMs = (performance.now() - startedAt) * SAFETY_RESCAN_WAIT_PER_DURATION;
+		this.scheduleSafetyRescan(
+			Math.min(Math.max(this.safetyRescanMs, dutyWaitMs), this.safetyRescanMs * SAFETY_RESCAN_MAX_WAIT_INTERVALS),
+		);
+	}
+
+	/**
+	 * Runs one step of a rescan so that its failure ends that step only, and reports a failure that repeats once.
+	 */
+	private async rescanSafely(step: () => Promise<void>): Promise<void> {
+		try {
+			await step();
+			this.lastSafetyRescanError = undefined;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			if (message !== this.lastSafetyRescanError) this.handleError(error);
+			this.lastSafetyRescanError = message;
+		}
+	}
+
+	/**
+	 * Drops the rescan reports that no native event can still repeat.
+	 */
+	private pruneRescanReports(): void {
+		const expiredBefore = performance.now() - this.safetyRescanMs * SAFETY_RESCAN_REPORT_TTL_INTERVALS;
+		for (const [entryPath, report] of this.rescanReports)
+			if (report.reportedAt < expiredBefore) this.rescanReports.delete(entryPath);
 	}
 
 	private rollbackAddedPaths(paths: readonly WatchedPath[], existingWatchRoots: ReadonlySet<string>): void {
@@ -390,25 +543,28 @@ export class RecursiveFileWatcher implements FileWatcher {
 				notifyRescan: this.pendingRootReconcileNotifications.get(key) === true,
 			};
 			this.pendingRootReconcileNotifications.delete(key);
-			this.beginRootReconcile(reconcileRequest);
+			void this.beginRootReconcile(reconcileRequest);
 		}, CHANGE_COALESCING_MS);
 		this.pendingRootReconciles.set(key, timer);
 	}
 
-	private beginRootReconcile(request: RootReconcileRequest): void {
+	private beginRootReconcile(request: RootReconcileRequest): Promise<void> {
 		if (this.indexing) {
 			this.deferRootReconcile(request.root, request.notifyRescan, this.rootsToReconcileAfterIndex);
-			return;
+			return Promise.resolve();
 		}
 		const key = rootKey(request.root);
 		if (this.activeRootReconciles.has(key)) {
 			this.deferRootReconcile(request.root, request.notifyRescan, this.rootsToReconcileAgain);
-			return;
+			return Promise.resolve();
 		}
-		const reconciliation = this.reconcileWatchRoot(request.root, request.notifyRescan);
+		const reconciliation = this.reconcileWatchRoot(request.root, request.notifyRescan, request.origin);
 		this.activeRootReconciles.set(key, reconciliation);
-		void reconciliation
-			.catch((error: unknown) => this.handleError(error))
+		return reconciliation
+			.catch((error: unknown) => {
+				if (request.origin === 'rescan') throw error;
+				this.handleError(error);
+			})
 			.finally(() => {
 				this.activeRootReconciles.delete(key);
 				const nextRequest = this.rootsToReconcileAgain.get(key);
@@ -434,8 +590,15 @@ export class RecursiveFileWatcher implements FileWatcher {
 	 * Some platforms omit filenames from native watch events. A root scan reconciles known entries so one such event
 	 * cannot leave the subscription stale. A reconciliation can emit rescan events for mapped requested paths so
 	 * consumers can invalidate the affected roots.
+	 *
+	 * A safety rescan passes its `origin`, so that what it reports is remembered and a native `change` that is only
+	 * late is not reported again.
 	 */
-	private async reconcileWatchRoot(root: WatchRoot, notifyRescan: boolean): Promise<void> {
+	private async reconcileWatchRoot(
+		root: WatchRoot,
+		notifyRescan: boolean,
+		origin: ChangeOrigin = 'native',
+	): Promise<void> {
 		if (this.closed) return;
 		const snapshot = await this.scanWatchRoot(root);
 		const removedEntries = this.getRemovedReconciliationEntries(root, snapshot);
@@ -446,11 +609,11 @@ export class RecursiveFileWatcher implements FileWatcher {
 		}
 		for (const [entryPath] of removedEntries) {
 			if (this.closed) return;
-			await this.reconcileRemovedEntry(entryPath);
+			await this.reconcileRemovedEntry(entryPath, origin);
 		}
 		for (const entryPath of snapshot.changedEntries) {
 			if (this.closed) return;
-			await this.reconcileCurrentEntry(entryPath);
+			await this.reconcileCurrentEntry(entryPath, origin);
 		}
 		if (notifyRescan && !this.closed)
 			for (const rescanPath of this.getMappedRescanPaths(root)) {
@@ -508,7 +671,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 		return removedEntries;
 	}
 
-	private async reconcileRemovedEntry(entryPath: string): Promise<void> {
+	private async reconcileRemovedEntry(entryPath: string, origin: ChangeOrigin = 'native'): Promise<void> {
 		let stats: Stats | undefined;
 		try {
 			stats = await tryLstatAsync(entryPath);
@@ -520,14 +683,14 @@ export class RecursiveFileWatcher implements FileWatcher {
 		if (stats) {
 			const mappedPaths = this.getMappedPaths(entryPath, stats);
 			if (mappedPaths.length) {
-				this.flushPresentPath(entryPath, stats, this.knownEntries.get(entryPath), mappedPaths);
+				this.flushPresentPath(entryPath, stats, this.knownEntries.get(entryPath), mappedPaths, false, origin);
 				return;
 			}
 		}
 		this.flushRemovedPath(entryPath, this.knownEntries.get(entryPath), this.getMappedPaths(entryPath));
 	}
 
-	private async reconcileCurrentEntry(entryPath: string): Promise<void> {
+	private async reconcileCurrentEntry(entryPath: string, origin: ChangeOrigin = 'native'): Promise<void> {
 		let stats: Stats | undefined;
 		try {
 			stats = await tryLstatAsync(entryPath);
@@ -536,6 +699,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 			throw error;
 		}
 		if (this.closed) return;
+		if (stats?.isDirectory()) this.watchMissingPathAncestors(entryPath, stats);
 		if (!stats) {
 			this.flushRemovedPath(entryPath, this.knownEntries.get(entryPath), this.getMappedPaths(entryPath));
 			return;
@@ -545,7 +709,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 			this.flushRemovedPath(entryPath, this.knownEntries.get(entryPath), mappedPaths);
 			return;
 		}
-		this.flushPresentPath(entryPath, stats, this.knownEntries.get(entryPath), mappedPaths);
+		this.flushPresentPath(entryPath, stats, this.knownEntries.get(entryPath), mappedPaths, false, origin);
 	}
 
 	private async collectReconciliationChildren(
@@ -727,13 +891,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 
 	private async seedDirectory(directoryPath: string): Promise<void> {
 		if (this.closed) return;
-		let entries;
-		try {
-			entries = await readdirAsync(directoryPath, { withFileTypes: true });
-		} catch (error) {
-			if (isPermissionError(error) || isMissingPathError(error)) return;
-			throw error;
-		}
+		const entries = await readDirectoryOrNothing(directoryPath);
 
 		for (const entry of entries) {
 			if (this.closed) return;
@@ -819,6 +977,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 	}
 
 	private flushRemovedPath(canonicalPath: string, previousKind: EntryKind | undefined, mappedPaths: string[]): void {
+		this.rescanReports.delete(canonicalPath);
 		if (!previousKind) return;
 		this.emitChange(previousKind === 'directory' ? 'unlinkDir' : 'unlink', mappedPaths);
 		this.knownEntries.delete(canonicalPath);
@@ -835,10 +994,12 @@ export class RecursiveFileWatcher implements FileWatcher {
 		previousKind: EntryKind | undefined,
 		mappedPaths: string[],
 		forceChange = false,
+		origin: ChangeOrigin = 'native',
 	): void {
 		const nextKind = getEntryKind(stats);
 		const previousStats = this.knownStats.get(canonicalPath);
 		if (isUnchangedFile(previousKind, nextKind, previousStats, stats, forceChange)) return;
+		if (this.isRepeatOfRescanReport(canonicalPath, previousKind, nextKind, stats, forceChange)) return;
 		if (previousKind && previousKind !== nextKind)
 			this.removeReplacedEntry(canonicalPath, previousKind, mappedPaths);
 		this.knownEntries.set(canonicalPath, nextKind);
@@ -848,10 +1009,40 @@ export class RecursiveFileWatcher implements FileWatcher {
 
 		if (previousKind === nextKind && nextKind === 'directory') return;
 		const eventType = previousKind === nextKind ? 'change' : nextKind === 'directory' ? 'addDir' : 'add';
+		this.rememberRescanReport(canonicalPath, stats, nextKind, origin);
 		this.emitChange(eventType, mappedPaths);
 		if (!previousKind && nextKind === 'directory') {
-			void this.seedAddedDirectory(canonicalPath).catch((error: unknown) => this.handleError(error));
+			void this.seedAddedDirectory(canonicalPath, origin).catch((error: unknown) => this.handleError(error));
 		}
+	}
+
+	/**
+	 * True when a native `change` repeats what a safety rescan reported for the same version of the file.
+	 *
+	 * @remarks
+	 * A native event that is slow, not dropped, arrives after the rescan has reported its change. The report is
+	 * consumed by the first native event for the same size, times and inode, so the change is reported once. A
+	 * newer edit has another version and is reported. A report that no event consumed is dropped when the file is
+	 * removed, and by {@link pruneRescanReports} once ten intervals old.
+	 */
+	private isRepeatOfRescanReport(
+		canonicalPath: string,
+		previousKind: EntryKind | undefined,
+		nextKind: EntryKind,
+		stats: Stats,
+		forceChange: boolean,
+	): boolean {
+		const report = forceChange ? this.rescanReports.get(canonicalPath) : undefined;
+		if (!report) return false;
+		this.rescanReports.delete(canonicalPath);
+		const isRecent =
+			performance.now() - report.reportedAt < this.safetyRescanMs * SAFETY_RESCAN_REPORT_TTL_INTERVALS;
+		return isRecent && previousKind === 'file' && nextKind === 'file' && hasSameEntryVersion(report.stats, stats);
+	}
+
+	private rememberRescanReport(canonicalPath: string, stats: Stats, kind: EntryKind, origin: ChangeOrigin): void {
+		if (origin === 'rescan' && kind === 'file')
+			this.rescanReports.set(canonicalPath, { stats, reportedAt: performance.now() });
 	}
 
 	private removeReplacedEntry(canonicalPath: string, previousKind: EntryKind, mappedPaths: string[]): void {
@@ -861,34 +1052,29 @@ export class RecursiveFileWatcher implements FileWatcher {
 		this.removeKnownDescendants(canonicalPath);
 	}
 
-	private async seedAddedDirectory(directoryPath: string): Promise<void> {
+	private async seedAddedDirectory(directoryPath: string, origin: ChangeOrigin = 'native'): Promise<void> {
 		if (this.closed) return;
-		let entries;
-		try {
-			entries = await readdirAsync(directoryPath, { withFileTypes: true });
-		} catch (error) {
-			if (isPermissionError(error) || isMissingPathError(error)) return;
-			throw error;
+		for (const entry of await readDirectoryOrNothing(directoryPath)) {
+			if (this.closed) return;
+			await this.seedAddedEntry(path.join(directoryPath, entry.name), entry, origin);
 		}
+	}
 
-		for (const entry of entries) {
-			if (this.closed) return;
-			const entryPath = path.join(directoryPath, entry.name);
-			const stats = await tryLstatAsync(entryPath);
-			if (this.closed) return;
-			if (!stats || this.knownEntries.has(entryPath)) continue;
-			const mappedPaths = this.getMappedPaths(entryPath, stats);
-			if (!mappedPaths.length) continue;
-			const kind: EntryKind = entry.isDirectory() && !entry.isSymbolicLink() ? 'directory' : 'file';
-			this.knownEntries.set(entryPath, kind);
-			this.knownStats.set(entryPath, stats);
-			this.cancelPendingChange(entryPath);
-			this.promoteUnknownPaths(entryPath, kind);
-			this.emitChange(kind === 'directory' ? 'addDir' : 'add', mappedPaths);
-			if (kind === 'directory') {
-				this.ensureRecursiveWatcher(entryPath);
-				await this.seedAddedDirectory(entryPath);
-			}
+	private async seedAddedEntry(entryPath: string, entry: Dirent, origin: ChangeOrigin): Promise<void> {
+		const stats = await tryLstatAsync(entryPath);
+		if (this.closed || !stats || this.knownEntries.has(entryPath)) return;
+		const mappedPaths = this.getMappedPaths(entryPath, stats);
+		if (!mappedPaths.length) return;
+		const kind: EntryKind = entry.isDirectory() && !entry.isSymbolicLink() ? 'directory' : 'file';
+		this.knownEntries.set(entryPath, kind);
+		this.knownStats.set(entryPath, stats);
+		this.cancelPendingChange(entryPath);
+		this.promoteUnknownPaths(entryPath, kind);
+		this.rememberRescanReport(entryPath, stats, kind, origin);
+		this.emitChange(kind === 'directory' ? 'addDir' : 'add', mappedPaths);
+		if (kind === 'directory') {
+			this.ensureRecursiveWatcher(entryPath);
+			await this.seedAddedDirectory(entryPath, origin);
 		}
 	}
 
@@ -1023,6 +1209,17 @@ function needsNativeRegistrationProbe(): boolean {
 	return process.platform === 'darwin' && process.versions.bun === undefined;
 }
 
+/**
+ * True where the platform's native watcher can drop events without saying so, which is macOS under Node and Bun.
+ *
+ * @remarks
+ * Linux can overflow its inotify queue and Windows its change buffer, but both signal it, and the watcher already
+ * reconciles on that signal (an event with no file name).
+ */
+function dropsNativeEvents(): boolean {
+	return process.platform === 'darwin';
+}
+
 function rootKey(root: WatchRoot): string {
 	return `${root.recursive ? 'recursive' : 'flat'}:${root.path}`;
 }
@@ -1059,6 +1256,15 @@ function resolveWatchedPath(input: string): WatchedPath {
 		if (parentPath === currentPath) throw new Error(`Cannot resolve a directory to watch for ${requestedPath}`);
 		missingSegments.unshift(path.basename(currentPath));
 		currentPath = parentPath;
+	}
+}
+
+async function readDirectoryOrNothing(directoryPath: string): Promise<Dirent[]> {
+	try {
+		return await readdirAsync(directoryPath, { withFileTypes: true });
+	} catch (error) {
+		if (isPermissionError(error) || isMissingPathError(error)) return [];
+		throw error;
 	}
 }
 

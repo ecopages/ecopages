@@ -26,11 +26,15 @@ function eventually(assertion: () => void): Promise<void> {
 const roots: string[] = [];
 const watchers: ProjectWatcher[] = [];
 
+/**
+ * The hook's timeout is above the default because removing a temporary tree takes seconds while other processes
+ * write many files, which the native-watcher tests run beside.
+ */
 afterEach(async () => {
 	await Promise.all(watchers.splice(0).map((watcher) => watcher.close()));
 	for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 	vi.restoreAllMocks();
-});
+}, 30_000);
 
 test.each(['package', 'dependency', 'add', 'unlink'])(
 	'a linked package %s event requests a restart and serves current browser code',

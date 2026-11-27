@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { path } from '../path.ts';
 import { expect, test, vi } from 'vitest';
@@ -100,6 +100,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 
 import { NodeFileSystem } from './node.ts';
+import { RecursiveFileWatcher } from './recursive-file-watcher.ts';
 
 test('reconciles a watched root when native events omit the filename', async () => {
 	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-null-name-'))));
@@ -509,6 +510,209 @@ test('opens no native watcher for a directory found after close', async () => {
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		expect(nativeWatchers.watchers.filter(({ closed }) => !closed)).toEqual([]);
 	} finally {
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
+/**
+ * Starts a watcher whose native events the test controls, and that rescans every 100 ms.
+ *
+ * @remarks
+ * The native watcher is mocked and stays silent unless a test calls `notify`, which is what a dropped event looks
+ * like. The rescans are switched on, so these tests run on every platform.
+ */
+function watchWithRescans(paths: string[], changes: Array<{ type: string; path: string }>): RecursiveFileWatcher {
+	nativeWatchers.watchers.length = 0;
+	return new RecursiveFileWatcher(
+		paths,
+		{
+			onChange: (change) => changes.push(change),
+			onError: (error) => {
+				throw error;
+			},
+		},
+		{ safetyRescanMs: 100, rescans: true },
+	);
+}
+
+function nativeWatcherOf(directory: string): NativeWatcher {
+	const found = nativeWatchers.watchers.find(({ path: watched }) => watched === directory);
+	if (!found) throw new Error(`No native watcher for ${directory}`);
+	return found;
+}
+
+function makeTempDirectory(prefix: string): string {
+	return path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), prefix))));
+}
+
+test('a rescan reports what the native watcher never delivered, once, even if the native event arrives late', async () => {
+	const rootDir = makeTempDirectory('eco-node-fs-watch-rescan-');
+	const edited = path.join(rootDir, 'edited.ts');
+	const removed = path.join(rootDir, 'removed.ts');
+	const added = path.join(rootDir, 'nested', 'added.ts');
+	writeFileSync(edited, 'export const value = 1;', 'utf8');
+	writeFileSync(removed, 'export const value = 1;', 'utf8');
+	const changes: Array<{ type: string; path: string }> = [];
+	const watcher = watchWithRescans([rootDir], changes);
+
+	try {
+		await watcher.ready;
+		writeFileSync(edited, 'export const value = 22;', 'utf8');
+		unlinkSync(removed);
+		mkdirSync(path.dirname(added));
+		writeFileSync(added, 'export {};', 'utf8');
+		await vi.waitFor(
+			() => {
+				expect(changes).toContainEqual({ type: 'change', path: edited });
+				expect(changes).toContainEqual({ type: 'unlink', path: removed });
+				expect(changes).toContainEqual({ type: 'addDir', path: path.dirname(added) });
+				expect(changes).toContainEqual({ type: 'add', path: added });
+			},
+			{ timeout: 5_000, interval: 25 },
+		);
+
+		const native = nativeWatcherOf(rootDir);
+		native.notify('change', 'edited.ts');
+		native.notify('rename', 'removed.ts');
+		native.notify('change', 'nested/added.ts');
+		await new Promise((resolve) => setTimeout(resolve, 600));
+
+		expect(changes.filter(({ type }) => type === 'change')).toEqual([{ type: 'change', path: edited }]);
+		expect(changes.filter(({ type }) => type === 'unlink')).toEqual([{ type: 'unlink', path: removed }]);
+		expect(changes.filter(({ type }) => type === 'add')).toEqual([{ type: 'add', path: added }]);
+	} finally {
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
+test('a rescan reports a directory before the entries it holds', async () => {
+	const rootDir = makeTempDirectory('eco-node-fs-watch-rescan-order-');
+	const nested = path.join(rootDir, 'nested');
+	const changes: Array<{ type: string; path: string }> = [];
+	const watcher = watchWithRescans([rootDir], changes);
+
+	try {
+		await watcher.ready;
+		mkdirSync(nested);
+		writeFileSync(path.join(nested, 'a.ts'), 'export {};', 'utf8');
+		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'add', path: path.join(nested, 'a.ts') }), {
+			timeout: 5_000,
+			interval: 25,
+		});
+
+		expect(changes.findIndex(({ type }) => type === 'addDir')).toBeLessThan(
+			changes.findIndex(({ type }) => type === 'add'),
+		);
+	} finally {
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
+test('a native change for a newer version of a file a rescan reported is still reported', async () => {
+	const rootDir = makeTempDirectory('eco-node-fs-watch-rescan-newer-');
+	const edited = path.join(rootDir, 'edited.ts');
+	writeFileSync(edited, 'export const value = 1;', 'utf8');
+	const changes: Array<{ type: string; path: string }> = [];
+	const watcher = watchWithRescans([rootDir], changes);
+
+	try {
+		await watcher.ready;
+		writeFileSync(edited, 'export const value = 22;', 'utf8');
+		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'change', path: edited }), {
+			timeout: 5_000,
+			interval: 25,
+		});
+
+		writeFileSync(edited, 'export const value = 333;', 'utf8');
+		nativeWatcherOf(rootDir).notify('change', 'edited.ts');
+		await vi.waitFor(() => expect(changes.filter(({ type }) => type === 'change')).toHaveLength(2), {
+			timeout: 5_000,
+			interval: 25,
+		});
+	} finally {
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
+test('a rescan follows a missing path that appeared while the native watcher was silent', async () => {
+	const rootDir = makeTempDirectory('eco-node-fs-watch-rescan-missing-');
+	const watchedRoot = path.join(rootDir, 'a', 'b');
+	const created = path.join(watchedRoot, 'created.ts');
+	const changes: Array<{ type: string; path: string }> = [];
+	const watcher = watchWithRescans([watchedRoot], changes);
+
+	try {
+		await watcher.ready;
+		mkdirSync(watchedRoot, { recursive: true });
+		writeFileSync(created, 'export {};', 'utf8');
+		await vi.waitFor(
+			() => {
+				expect(changes).toContainEqual({ type: 'addDir', path: watchedRoot });
+				expect(changes).toContainEqual({ type: 'add', path: created });
+			},
+			{ timeout: 5_000, interval: 25 },
+		);
+	} finally {
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
+test('a rescan reports a watched file that was edited, removed and created again without native events', async () => {
+	const rootDir = makeTempDirectory('eco-node-fs-watch-rescan-file-');
+	const watchedFile = path.join(rootDir, 'watched.ts');
+	writeFileSync(watchedFile, 'export const value = 1;', 'utf8');
+	const changes: Array<{ type: string; path: string }> = [];
+	const watcher = watchWithRescans([watchedFile], changes);
+
+	try {
+		await watcher.ready;
+		writeFileSync(watchedFile, 'export const value = 22;', 'utf8');
+		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'change', path: watchedFile }), {
+			timeout: 5_000,
+			interval: 25,
+		});
+		unlinkSync(watchedFile);
+		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'unlink', path: watchedFile }), {
+			timeout: 5_000,
+			interval: 25,
+		});
+		writeFileSync(watchedFile, 'export const value = 3;', 'utf8');
+		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'add', path: watchedFile }), {
+			timeout: 5_000,
+			interval: 25,
+		});
+	} finally {
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
+test('a rescan stops when the watcher is closed', async () => {
+	const rootDir = makeTempDirectory('eco-node-fs-watch-rescan-close-');
+	nativePromises.failReaddirPath = rootDir;
+	nativePromises.failReaddirOnOccurrence = 0;
+	nativePromises.readdirCallsOnFailurePath = 0;
+	const watcher = watchWithRescans([rootDir], []);
+
+	try {
+		await watcher.ready;
+		await vi.waitFor(() => expect(nativePromises.readdirCallsOnFailurePath).toBeGreaterThan(0), {
+			timeout: 5_000,
+			interval: 25,
+		});
+		await watcher.close();
+		const callsAtClose = nativePromises.readdirCallsOnFailurePath;
+		await new Promise((resolve) => setTimeout(resolve, 400));
+
+		expect(nativePromises.readdirCallsOnFailurePath).toBe(callsAtClose);
+	} finally {
+		nativePromises.failReaddirPath = undefined;
+		nativePromises.failReaddirOnOccurrence = undefined;
 		await watcher.close();
 		rmSync(rootDir, { recursive: true, force: true });
 	}

@@ -13,6 +13,14 @@ import {
 	subscribeWithFakeFileSystemWatch,
 } from './project-watcher.test-helpers';
 
+/**
+ * Longest a test waits for the watcher to report a change.
+ *
+ * @remarks
+ * A native event that the platform dropped is reported by the next safety rescan, which can be a few seconds away.
+ */
+const EVENT_DEADLINE_MS = 10_000;
+
 let testRoot: string;
 
 const writeTestFile = (filePath: string, content: string): void => {
@@ -89,7 +97,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 				expect(watchEvents).toEqual([]);
 				writeTestFile(newFile, 'export const newPost = {};\n');
 				await vi.waitFor(() => expect(watchEvents.length > 0 || restart.mock.calls.length > 0).toBe(true), {
-					timeout: 3000,
+					timeout: EVENT_DEADLINE_MS,
 				});
 				if (watchEvents.length > 0)
 					expect(watchEvents).toEqual([{ kind: 'created', path: path.resolve(newFile) }]);
@@ -102,7 +110,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 			if (watchEvents.length > 0)
 				expect(hmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(newFile)], { broadcast: true });
 			expect(bridge.reload).not.toHaveBeenCalled();
-		});
+		}, 30_000);
 	});
 
 	describe('Public Directory File Operations', () => {

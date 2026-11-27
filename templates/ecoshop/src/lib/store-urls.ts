@@ -10,7 +10,6 @@ export const storePaths = {
 	policy: (handle: string) => `/policies/${encodeURIComponent(handle)}`,
 	cart: '/cart',
 	cartApi: '/api/cart',
-	agentTools: '/api/agent-tools',
 	agentTool: (name: string) => `/api/agent-tools/${encodeURIComponent(name)}`,
 	demoCheckout: '/demo-checkout',
 	mcp: '/mcp',

@@ -1,4 +1,4 @@
-import { storeToolDescriptors } from '@/lib/agents/store-tools.server';
+import { toolsOn } from '@/lib/agents/store-tool-definitions';
 import { formatPriceRange } from '@/lib/commerce/money';
 import type { CommerceProvider } from '@/lib/commerce/types';
 import { resolveUrl, storePaths } from '@/lib/store-urls';
@@ -24,9 +24,7 @@ export async function buildLlmsTxt(provider: CommerceProvider, origin: string): 
 		[
 			'## Shop with an agent',
 			'',
-			`- [MCP server](${url(storePaths.mcp)}): Streamable HTTP endpoint with the tools ${storeToolDescriptors(
-				'mcp',
-			)
+			`- [MCP server](${url(storePaths.mcp)}): Streamable HTTP endpoint with the tools ${toolsOn('mcp')
 				.map((tool) => tool.name)
 				.join(', ')}. Checkout happens on the checkout URL the cart returns.`,
 			"- WebMCP: in a browser that supports it, every page registers these tools with `document.modelContext`, plus show_variant, and add_to_cart on product pages, acting on the shopper's own cart.",

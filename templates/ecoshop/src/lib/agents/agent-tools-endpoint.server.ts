@@ -4,18 +4,7 @@ import type { CommerceProvider } from '@/lib/commerce/types';
 import { isSameOriginRequest } from '@/lib/http/same-origin';
 import { siteOrigin } from '@/lib/site-origin';
 import type { AgentToolResponse } from './agent-tool-types';
-import { findStoreTool, runStoreTool, storeToolDescriptors } from './store-tools.server';
-
-/**
- * Lists the tools a storefront page registers with WebMCP.
- *
- * @remarks
- * The page fetches this only in a browser that has `document.modelContext`, so other visitors never download the
- * schemas. The list is the same for every visitor, so it is cacheable.
- */
-export async function handleAgentToolList(): Promise<Response> {
-	return Response.json(storeToolDescriptors('page'), { headers: { 'Cache-Control': 'public, max-age=300' } });
-}
+import { findStoreTool, runStoreTool } from './store-tools.server';
 
 /**
  * Runs one WebMCP tool for the page: on the visitor's own cart, from the cart cookie, through the same definitions

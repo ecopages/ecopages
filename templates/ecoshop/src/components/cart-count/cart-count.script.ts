@@ -1,15 +1,33 @@
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
 import { RadiantElement, bindTo, customElement, onEvent, state } from '@ecopages/radiant';
+import { agentTool } from '@ecopages/radiant/decorators/agent-tool';
+import type { AgentToolExecuteOptions } from '@ecopages/radiant/helpers/register-agent-tool';
+import { callAgentTool } from '../../lib/agents/agent-tool-client';
+import { announceAssistantCartChange } from '../../lib/agents/assistant-cart-change';
+import {
+	type ToolInput,
+	agentToolConfig,
+	cancelCartTool,
+	getCartTool,
+	proceedToCheckoutTool,
+	updateCartTool,
+} from '../../lib/agents/store-tool-definitions';
 import { CART_CHANGE_EVENT, type CartTotals } from '../../lib/cart/cart-events';
 import { storePaths } from '../../lib/store-urls';
 
 /**
- * The number of items in the cart, next to the header's cart link.
+ * The number of items in the cart, next to the header's cart link, and the host of the cart tools an agent reads and
+ * changes the cart with.
  *
  * @remarks
  * Catalog pages are cached and shared by every shopper, so the server cannot render a shopper's count into them.
- * The host reads it from `/api/cart` once, then follows {@link CART_CHANGE_EVENT}. Without JavaScript it stays
- * hidden and the cart link still works.
+ * The host reads it from `/api/cart` once, then follows {@link CART_CHANGE_EVENT}, which the add button and every
+ * cart tool dispatch. Without JavaScript it stays hidden and the cart link still works.
+ *
+ * It sits in the layout with `data-eco-persist`, so its tools (`get_cart`, `update_cart`, `cancel_cart` and
+ * `proceed_to_checkout`) stay registered on every page. The cart page's forms are plain forms that post to
+ * `/api/cart`, so no UI method stands behind these tools; they run on the server on the shopper's cart, and a change
+ * updates the count, shows a toast and refreshes the cart page when it is open before the tool returns.
  */
 @customElement('cart-count')
 export class CartCount extends RadiantElement {
@@ -43,6 +61,26 @@ export class CartCount extends RadiantElement {
 		if (!response?.ok) return;
 		const totals = (await response.json().catch(() => null)) as CartTotals | null;
 		if (totals && !this.changed) this.count = totals.totalQuantity;
+	}
+
+	@agentTool(agentToolConfig(getCartTool))
+	getCart(input: ToolInput<typeof getCartTool>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(getCartTool.name, input, signal);
+	}
+
+	@agentTool(agentToolConfig(updateCartTool))
+	updateCart(input: ToolInput<typeof updateCartTool>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(updateCartTool.name, input, signal, { onCartChange: announceAssistantCartChange });
+	}
+
+	@agentTool(agentToolConfig(cancelCartTool))
+	cancelCart(input: ToolInput<typeof cancelCartTool>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(cancelCartTool.name, input, signal, { onCartChange: announceAssistantCartChange });
+	}
+
+	@agentTool(agentToolConfig(proceedToCheckoutTool))
+	proceedToCheckout(input: ToolInput<typeof proceedToCheckoutTool>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(proceedToCheckoutTool.name, input, signal);
 	}
 }
 

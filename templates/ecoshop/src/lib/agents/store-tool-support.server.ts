@@ -5,7 +5,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { z } from 'zod';
+import * as z from 'zod/mini';
 import { CartInputError } from '@/lib/commerce/errors';
 import { type AgentPrice, toAgentPrice } from '@/lib/commerce/money';
 import {
@@ -17,13 +17,8 @@ import {
 	type SelectedOption,
 } from '@/lib/commerce/types';
 import { productHandleFromPath, resolveUrl, storePaths } from '@/lib/store-urls';
-import type { StoreToolDescriptor, StoreToolResult } from './agent-tool-types';
-
-/**
- * Where a tool runs. `page` is WebMCP in the shopper's browser, acting on the shopper's cart through
- * `/api/agent-tools`; `mcp` is the `/mcp` server, where a cart is named by its id.
- */
-export type ToolSurface = 'page' | 'mcp';
+import type { StoreToolResult } from './agent-tool-types';
+import type { StoreToolSpec, ToolSurface } from './store-tool-definitions';
 
 export interface StoreToolContext {
 	provider: CommerceProvider;
@@ -45,34 +40,19 @@ export interface StoreToolOutcome {
 	navigateTo?: string;
 }
 
-export type StoreToolAnnotations = StoreToolDescriptor['annotations'] & {
-	idempotentHint?: boolean;
-	destructiveHint?: boolean;
-};
-
-export interface StoreToolDefinition<Input extends z.ZodObject> {
-	name: string;
-	title: string;
-	description: string;
-	input: Input;
-	annotations: StoreToolAnnotations;
-	surfaces: ToolSurface[];
-	/** `product` for a tool that only a product page registers; `store` (the default) for every page. */
-	scope?: StoreToolDescriptor['scope'];
-	/** Its only change is opening a page, which `/mcp` never does, so there it is read-only. */
-	readOnlyOverMcp?: true;
-	run(input: z.infer<Input>, context: StoreToolContext): Promise<StoreToolOutcome>;
-}
-
 /**
- * A tool with its input type erased, so tools of different inputs share one list. `run` parses its input.
+ * A tool: its shared definition and what it runs against the provider, with the input type erased so tools of
+ * different inputs share one list. `run` parses its input.
  */
-export type StoreTool = Omit<StoreToolDefinition<z.ZodObject>, 'run'> & {
+export type StoreTool = StoreToolSpec & {
 	run(input: unknown, context: StoreToolContext): Promise<StoreToolOutcome>;
 };
 
-export function define<Input extends z.ZodObject>(tool: StoreToolDefinition<Input>): StoreTool {
-	return { ...tool, run: (input, context) => tool.run(tool.input.parse(input), context) };
+export function define<Input extends z.ZodMiniObject>(
+	spec: StoreToolSpec<Input>,
+	run: (input: z.output<Input>, context: StoreToolContext) => Promise<StoreToolOutcome>,
+): StoreTool {
+	return { ...spec, run: (input, context) => run(z.parse(spec.input, input), context) };
 }
 
 /* Views in the shapes Shopify's storefront tools return. */

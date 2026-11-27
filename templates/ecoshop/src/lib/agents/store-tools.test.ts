@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDemoProvider } from '@/lib/commerce/demo/demo-provider';
 import type { CommerceProvider } from '@/lib/commerce/types';
-import { runStoreTool, storeToolDescriptors, storeTools, type StoreToolContext } from './store-tools.server';
+import { runStoreTool, storeTools, type StoreToolContext } from './store-tools.server';
 
 const ORIGIN = 'https://shop.test';
 const provider = createDemoProvider();
@@ -54,15 +54,6 @@ describe('store tools: names and surfaces', () => {
 			'ask_business',
 			'add_to_cart',
 		]);
-	});
-
-	it('describes each tool with JSON Schema and an annotation that says what it changes', () => {
-		for (const descriptor of storeToolDescriptors('page')) {
-			expect(descriptor.inputSchema).toMatchObject({ type: 'object' });
-			expect(descriptor.description.length).toBeLessThanOrEqual(500);
-			const annotations = descriptor.annotations ?? {};
-			expect('readOnlyHint' in annotations || 'consequentialHint' in annotations).toBe(true);
-		}
 	});
 });
 
@@ -300,15 +291,6 @@ describe('store tools: the shopper cart on a page', () => {
 		expect((outcome.structured as CartResult).line_items).toEqual([
 			expect.objectContaining({ quantity: 2, item: expect.objectContaining({ id: fieldShirtM }) }),
 		]);
-	});
-});
-
-describe('store tools: descriptors', () => {
-	it('marks add_to_cart as a product page tool and the rest as store tools', () => {
-		const scopes = Object.fromEntries(storeToolDescriptors('page').map((tool) => [tool.name, tool.scope]));
-
-		expect(scopes.add_to_cart).toBe('product');
-		expect(scopes.search_catalog).toBe('store');
 	});
 });
 

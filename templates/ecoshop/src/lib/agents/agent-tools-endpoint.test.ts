@@ -3,7 +3,7 @@ import { readCartId } from '@/lib/cart/cart-cookie';
 import { createDemoProvider } from '@/lib/commerce/demo/demo-provider';
 import type { CommerceProvider } from '@/lib/commerce/types';
 import { siteOrigin } from '@/lib/site-origin';
-import { handleAgentToolCall, handleAgentToolList } from './agent-tools-endpoint.server';
+import { handleAgentToolCall } from './agent-tools-endpoint.server';
 
 const provider = createDemoProvider();
 const fieldShirtM = 'gid://ecoshop/ProductVariant/field-shirt-m';
@@ -23,14 +23,6 @@ function call(name: string, input: unknown, headers: Record<string, string> = {}
 const cookieFrom = (response: Response) => (response.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
 
 describe('agent tools endpoint', () => {
-	it('lists the page tools with their JSON schemas', async () => {
-		const response = await handleAgentToolList();
-		const tools = (await response.json()) as Array<{ name: string; inputSchema: { type: string } }>;
-
-		expect(tools.map((tool) => tool.name)).toContain('add_to_cart');
-		expect(tools.every((tool) => tool.inputSchema.type === 'object')).toBe(true);
-	});
-
 	it("runs a cart tool on the visitor's cookie cart and stores the new cart", async () => {
 		const response = await call(
 			'add_to_cart',

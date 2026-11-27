@@ -4,6 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT, RESOLVED_ASSETS_DIR } from '../../../constants.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { setupAppRuntimePlugins } from '../../../build/build-adapter.ts';
+import { setupAppRuntimeIntegrations } from '../../../build/app-build-manifest-runtime.ts';
 import {
 	createServerBundleStagingDirectory,
 	publishServerBundleDirectory,
@@ -34,6 +35,7 @@ import type { ErrorPageLoaders, StaticRoute } from '../../../types/contracts.ts'
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
+import { pageNeedsServer } from '../../../eco/page-data-hooks.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
 import { readEndpointHandlers, type EndpointRouteHandlerOptions } from '../http/endpoint-route-handler.ts';
 import {
@@ -71,9 +73,9 @@ export interface ServerStaticBuilderParams {
 	 * Defaults to `false` (static-only build, no server needed).
 	 *
 	 * @remarks
-	 * Covers what the app registers: Explicit Routes and WebSocket handlers. An endpoint file under the pages
-	 * directory is known only once the Route Registry has scanned it, so {@link ServerStaticBuilder.build} adds
-	 * it to this decision.
+	 * Covers what the app registers: Explicit Routes and WebSocket handlers. An endpoint file or a Page that needs a
+	 * server (Dynamic, revalidating or with middleware) under the pages directory is known only once the Route
+	 * Registry has scanned it, so {@link ServerStaticBuilder.build} adds them to this decision.
 	 */
 	needsServerBundle?: boolean;
 	logger?: ServerStaticBuilderLogger;
@@ -286,6 +288,35 @@ export class ServerStaticBuilder {
 		await this.buildPreparedExport(baseUrl, force, dependencies, options?.keepGoing);
 	}
 
+	/**
+	 * Whether a Page under the pages directory can only be served by a running server, so the build must emit the
+	 * server bundle `ecopages start` runs.
+	 *
+	 * @remarks
+	 * Without it, an app whose only server need is a Dynamic Page, a revalidating Page or a Page with middleware
+	 * builds a static-only `dist/`, which `ecopages start` refuses and `ecopages preview` answers with a 404 for that
+	 * Page. It runs once `dist/server/` holds the emitted server modules, the route list and the declared server
+	 * files, so each Page loads from the copy static generation loads, with the files it reads, and no module is
+	 * evaluated from two copies; publishing the server bundle replaces `dist/server/`, so all three are written
+	 * again after it. Loading a Page needs its Integration, so this activates the Integrations
+	 * first. A Page that fails to load is skipped here: static generation loads it again and reports the failure
+	 * the way `keepGoing` says.
+	 */
+	private async hasRequestTimePage(dependencies: StaticBuildDependencies): Promise<boolean> {
+		const pageRoutes = dependencies.router.templateRoutes.filter((route) => route.role === 'page');
+		if (pageRoutes.length === 0) return false;
+		await setupAppRuntimeIntegrations({ appConfig: this.appConfig });
+		for (const route of pageRoutes) {
+			try {
+				const renderer = dependencies.routeRendererFactory.getPageRenderer(route.filePath);
+				if (pageNeedsServer((await renderer.loadPageModule(route.filePath)).default)) return true;
+			} catch {
+				continue;
+			}
+		}
+		return false;
+	}
+
 	private async buildPreparedExport(
 		baseUrl: string,
 		force: boolean,
@@ -293,22 +324,30 @@ export class ServerStaticBuilder {
 		keepGoing: boolean | undefined,
 	): Promise<void> {
 		const endpointRoutes = dependencies.router.templateRoutes.filter((route) => route.role === 'endpoint');
-		const buildsServerBundle = this.needsServerBundle || endpointRoutes.length > 0;
+		let buildsServerBundle = this.needsServerBundle || endpointRoutes.length > 0;
 		if (buildsServerBundle) {
 			await this.bundleServerEntry();
 		}
 
-		if (shouldBuildPagesUnifiedGraph()) {
-			await emitProductionServerModules({
-				appConfig: this.appConfig,
-				router: dependencies.router,
-				staticRoutes: dependencies.staticRoutes,
-				errorPageLoaders: dependencies.errorPageLoaders,
-			});
-		}
+		const writeServerOutput = async (): Promise<void> => {
+			if (shouldBuildPagesUnifiedGraph()) {
+				await emitProductionServerModules({
+					appConfig: this.appConfig,
+					router: dependencies.router,
+					staticRoutes: dependencies.staticRoutes,
+					errorPageLoaders: dependencies.errorPageLoaders,
+				});
+			}
+			writeProductionRouteList(this.appConfig, dependencies.router.templateRoutes);
+			await copyDeclaredServerFiles(this.appConfig);
+		};
+		await writeServerOutput();
 
-		writeProductionRouteList(this.appConfig, dependencies.router.templateRoutes);
-		await copyDeclaredServerFiles(this.appConfig);
+		if (!buildsServerBundle && (await this.hasRequestTimePage(dependencies))) {
+			buildsServerBundle = true;
+			await this.bundleServerEntry();
+			await writeServerOutput();
+		}
 
 		for (const route of endpointRoutes) {
 			readEndpointHandlers(await dependencies.importServerModule(route.filePath), route);

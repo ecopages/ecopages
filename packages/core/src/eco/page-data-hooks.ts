@@ -53,6 +53,23 @@ export function isDynamicPage(page: unknown): page is DynamicEcoPageComponent<an
 	return typeof page === 'function' && 'cache' in page && page.cache === 'dynamic';
 }
 
+/**
+ * Whether a loaded Page can only be served by a running server: it is a Dynamic Page, its Cache Strategy
+ * revalidates (an object, or a function that returns one), or it lists middleware.
+ *
+ * @remarks
+ * A Static Page is a file in `dist/`, so a build with only Static Pages needs no server. A Dynamic Page renders on
+ * each request, and a revalidating Page regenerates when it goes stale, so `ecopages build` emits the server bundle
+ * `ecopages start` runs for either.
+ */
+export function pageNeedsServer(page: unknown): boolean {
+	if (typeof page !== 'function') return false;
+	const cache = 'cache' in page ? page.cache : undefined;
+	const middleware = 'middleware' in page ? page.middleware : undefined;
+	const revalidates = typeof cache === 'function' || (typeof cache === 'object' && cache !== null);
+	return cache === 'dynamic' || revalidates || (Array.isArray(middleware) && middleware.length > 0);
+}
+
 /** The keys of {@link NoRouteProps}, listed once so the type and this check cannot drift apart. */
 const ROUTE_PROPS: Record<keyof NoRouteProps, true> = { params: true, query: true };
 

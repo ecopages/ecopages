@@ -549,6 +549,54 @@ describe('ServerStaticBuilder', () => {
 				assert.ok(fs.existsSync(path.join(distDir, 'server', 'manifest.json')));
 			});
 
+			describe('a Page that needs a server at run time', () => {
+				async function buildWithPage(name: string, page: unknown): Promise<number> {
+					const { AppConfig, StaticSiteGenerator, ServeOptions, logger } = createMockDependencies();
+					const distDir = setupBundleFixture(name);
+					fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
+					const appConfig = createAppConfigWithOutputDirectory(AppConfig, distDir);
+					const buildCalls = recordServerEntryBuilds(appConfig);
+					const router = {
+						templateRoutes: [
+							{ pathname: '/page', kind: 'exact', role: 'page', filePath: 'src/pages/page.tsx' },
+						],
+					} as unknown as RouteRegistry;
+					const routeRendererFactory = {
+						getPageRenderer: () => ({ loadPageModule: async () => ({ default: page }) }),
+						getExplicitViewRenderer: () => null,
+					} as unknown as StaticGenerationRendererResolver;
+
+					await new ServerStaticBuilder({
+						appConfig,
+						runtime: AppConfig.appRuntime!,
+						staticSiteGenerator: StaticSiteGenerator,
+						serveOptions: ServeOptions,
+						logger,
+					}).build(undefined, { router, routeRendererFactory, importServerModule });
+
+					return buildCalls.length;
+				}
+
+				const withCache = (cache: unknown) => Object.assign(() => '', { cache });
+
+				it.each([
+					['dynamic', withCache('dynamic')],
+					['revalidating', withCache({ revalidate: 60, tags: ['a'] })],
+					['cache function', withCache(() => ({ revalidate: 60 }))],
+					['middleware', Object.assign(() => '', { cache: 'dynamic', middleware: [() => undefined] })],
+				])('bundles the server entry for a %s Page when nothing else needs a server', async (label, page) => {
+					expect(await buildWithPage(`page-${label.replaceAll(' ', '-')}`, page)).toBe(1);
+				});
+
+				it.each([
+					['static', withCache('static')],
+					['without a cache', withCache(undefined)],
+					['an HTML Page', 'plain html'],
+				])('builds static-only for a %s Page', async (label, page) => {
+					expect(await buildWithPage(`static-${label.replaceAll(' ', '-')}`, page)).toBe(0);
+				});
+			});
+
 			it.each([['src/pages/health.api.ts'], ['src/pages/health.api.js']])(
 				'fails the build on the endpoint file %p without a method export, naming it whatever its ending, before static generation',
 				async (filePath) => {

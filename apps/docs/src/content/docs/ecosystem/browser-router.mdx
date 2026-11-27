@@ -302,6 +302,14 @@ You can override prefetching behavior on individual links:
 <a href="/about" data-eco-prefetch="hover" data-eco-prefetch-delay="200">About</a>
 ```
 
+#### Caching
+
+The router keeps the pages it fetches or prefetches in memory for the session, so a link back to a page renders it without a request. A page whose response carries `Cache-Control: no-store` or an unqualified `no-cache` is never kept: the router fetches it again on every navigation, back and forward included. A page with a `cache: 'dynamic'` [Cache Strategy](/docs/server/caching) is sent `no-store`, so a cart or any other per-request page stays current without `data-eco-reload` on the links to it. An Explicit Route or Endpoint that returns HTML opts out the same way with `Cache-Control: no-store`. The router does not read `max-age`: a page that allows caching stays for the session.
+
+Hovering a link to a `no-store` page still prefetches it once, because the header is known only from the response. Set `data-eco-no-prefetch` on links to pages that are costly to render.
+
+The page the visitor lands on is not kept, because a script cannot read the headers of its own document and so cannot tell whether it may be reused. The first link back to it fetches it, and later visits reuse that copy when its response allows. With `prefetch: false` the router keeps no pages at all.
+
 ### View Transitions
 
 If `viewTransitions` is enabled (default `true`), the router opts the document out of the UA root group and only uses `startViewTransition` when pages define `data-view-transition` shared elements. Set `false` to disable. Optional presets: `@import 'ecopages/css/view-transitions.css'` and `data-eco-transition` on elements.

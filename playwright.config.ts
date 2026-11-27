@@ -20,8 +20,17 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 	{
 		name: 'browser-router-e2e',
 		testMatch: 'e2e/fixtures/browser-router/**/*.test.e2e.ts',
-		testIgnore: 'e2e/fixtures/browser-router/hmr-soft-reload.dev.test.e2e.ts',
+		testIgnore: [
+			'e2e/fixtures/browser-router/hmr-soft-reload.dev.test.e2e.ts',
+			'e2e/fixtures/browser-router/cache-control.start.test.e2e.ts',
+		],
 		use: { ...chrome, baseURL: 'http://localhost:4002' },
+	},
+	{
+		name: 'browser-router-cache-control-start-e2e',
+		testMatch: 'e2e/fixtures/browser-router/cache-control.start.test.e2e.ts',
+		timeout: 60_000,
+		use: { ...chrome, appOptions: { source: 'e2e/fixtures/browser-router', serve: 'moved-start' } },
 	},
 	{
 		name: 'browser-router-hmr-dev-e2e',

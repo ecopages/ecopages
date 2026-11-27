@@ -4,7 +4,7 @@
  * @module prefetch-manager
  */
 
-import { cacheNavigationHtml, fetchNavigationPage, invalidateNavigationHtml } from '@ecopages/core/client';
+import { fetchNavigationPage, invalidateNavigationHtml } from '@ecopages/core/client';
 import { isSamePageHref, shouldPrefetchLink } from '@ecopages/core/client';
 import { discoverNewStylesheetLinks, getCurrentStylesheetHrefs } from '../dom/stylesheet-discovery.ts';
 
@@ -114,20 +114,20 @@ export class PrefetchManager {
 	}
 
 	/**
-	 * Caches the HTML of a visited page so a revisit renders it immediately.
+	 * Records that the router navigated to a page, so a link to it is not prefetched again.
 	 *
 	 * @remarks
-	 * The cached copy is not refreshed in the background. The page on screen was just fetched or loaded, so
-	 * fetching it again would add a request to every page load and navigation without a stale copy to fix.
+	 * The page's HTML is already in the navigation cache when its response allowed reuse, because the fetch
+	 * that loaded it stored it; a `no-store` page stays out, so a revisit fetches it. The document the router
+	 * started on is not stored at all: a page script cannot read the response headers of its own document,
+	 * so that copy could not be told from a `no-store` page. The first return to it fetches it.
 	 *
 	 * @param href - The URL of the visited page
-	 * @param html - The HTML content to cache
 	 */
-	cacheVisitedPage(href: string, html: string): void {
+	markVisited(href: string): void {
 		const url = new URL(href, window.location.origin);
 		if (url.origin !== window.location.origin) return;
 
-		cacheNavigationHtml(url, html);
 		this.prefetched.add(url.href);
 	}
 

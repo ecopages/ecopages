@@ -7,7 +7,7 @@
 import { createHash } from 'node:crypto';
 import * as z from 'zod/mini';
 import { CartInputError } from '@/lib/commerce/errors';
-import { type AgentPrice, toAgentPrice } from '@/lib/commerce/money';
+import { type AgentPrice, formatMoney, formatPriceRange, toAgentPrice } from '@/lib/commerce/money';
 import {
 	type Cart,
 	type CommerceProvider,
@@ -76,6 +76,69 @@ export function summaryView(product: ProductSummary, origin: string) {
 		options: product.options,
 		product_type: product.productType,
 		vendor: product.vendor,
+	};
+}
+
+/**
+ * The most characters Chrome recommends a WebMCP tool result holds, counted as the result is serialized for the agent.
+ * Radiant warns in development when a page tool returns more.
+ */
+export const PAGE_RESULT_CHARACTERS = 1500;
+
+const PAGE_TITLE_CHARACTERS = 60;
+
+/**
+ * The size of a result as WebMCP serializes it for the agent.
+ */
+export function resultSize(result: StoreToolResult): number {
+	return JSON.stringify(result).length;
+}
+
+/**
+ * Keeps as many leading items as fit in {@link PAGE_RESULT_CHARACTERS}, and at least one.
+ *
+ * @param items What the tool would list.
+ * @param size The size of the result that lists the given items.
+ */
+export function fitToPageResult<T>(items: T[], size: (shown: T[]) => number): T[] {
+	let shown = items;
+	while (shown.length > 1 && size(shown) > PAGE_RESULT_CHARACTERS) shown = shown.slice(0, -1);
+	return shown;
+}
+
+/**
+ * A product as a page tool lists it: what an agent needs to pick one and call `get_product` or a cart tool. The full
+ * `summaryView` is for `/mcp`, where no result size is recommended.
+ */
+export function pageSummaryView(product: ProductSummary, origin: string) {
+	return {
+		title: clipText(product.title, PAGE_TITLE_CHARACTERS),
+		handle: product.handle,
+		variant_id: product.defaultVariantId ?? '',
+		url: productUrl(origin, product.handle),
+		price: formatPriceRange(product.priceRange),
+		...(product.availableForSale ? {} : { available: false }),
+	};
+}
+
+/**
+ * Shortens text to `limit` characters at a word end, with an ellipsis when it cuts.
+ */
+export function clipText(text: string, limit: number): string {
+	if (text.length <= limit) return text;
+	const cut = text.slice(0, limit - 1);
+	return `${cut.slice(0, cut.lastIndexOf(' ') > limit / 2 ? cut.lastIndexOf(' ') : cut.length)}...`;
+}
+
+/**
+ * A variant as a page tool lists it: its id for a cart tool, its title and price.
+ */
+export function pageVariantView(variant: ProductVariant) {
+	return {
+		id: variant.id,
+		title: variant.title,
+		price: formatMoney(variant.price),
+		...(variant.availableForSale ? {} : { available: false }),
 	};
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDemoProvider } from '@/lib/commerce/demo/demo-provider';
 import type { CommerceProvider } from '@/lib/commerce/types';
+import { resultSize } from './store-tool-support.server';
 import { runStoreTool, storeTools, type StoreToolContext } from './store-tools.server';
 
 const ORIGIN = 'https://shop.test';
@@ -59,8 +60,8 @@ describe('store tools: names and surfaces', () => {
 });
 
 describe('store tools: catalog', () => {
-	it('searches the catalog in the Shopify result shape', async () => {
-		const { structured } = await call('search_catalog', { catalog: { query: 'shirt' } }, page());
+	it('searches the catalog in the Shopify result shape over /mcp', async () => {
+		const { structured } = await call('search_catalog', { catalog: { query: 'shirt' } }, mcp);
 
 		expect(structured.search_url).toBe(`${ORIGIN}/search?q=shirt`);
 		expect(structured.products).toEqual([
@@ -111,6 +112,19 @@ describe('store tools: catalog', () => {
 			'get_product',
 			{ catalog: { selected_options: [{ name: 'Capacity', value: '750 ml' }] } },
 			page(undefined, 'steel-bottle'),
+		);
+
+		expect(outcome.structured).toMatchObject({
+			handle: 'steel-bottle',
+			variants: [{ id: 'gid://ecoshop/ProductVariant/steel-bottle-750-ml', title: '750 ml', price: '$29.00' }],
+		});
+	});
+
+	it('reads a product with its variants narrowed by options in the full Shopify shape over /mcp', async () => {
+		const outcome = await call(
+			'get_product',
+			{ catalog: { id: 'steel-bottle', selected_options: [{ name: 'Capacity', value: '750 ml' }] } },
+			mcp,
 		);
 
 		expect(outcome.structured).toMatchObject({
@@ -447,5 +461,99 @@ describe('store tools: variant ids', () => {
 		expect((outcome.structured as CartResult).line_items).toEqual([
 			expect.objectContaining({ item: expect.objectContaining({ id: fieldShirtM }) }),
 		]);
+	});
+});
+
+describe('store tools: result size on a page', () => {
+	const handles = ['field-shirt', 'linen-overshirt', 'trail-tee', 'canvas-tote', 'steel-bottle', 'merino-beanie'];
+
+	it('keeps a search for "shirt" within the size Chrome recommends, with the products an agent needs to pick one', async () => {
+		const { result } = await runStoreTool('search_catalog', { catalog: { query: 'shirt' } }, page());
+
+		expect(result.content.map((entry) => entry.text).join('').length).toBeLessThanOrEqual(1500);
+		expect(resultSize(result)).toBeLessThanOrEqual(1500);
+		expect(result.structuredContent.products).toEqual([
+			expect.objectContaining({
+				handle: 'field-shirt',
+				variant_id: 'gid://ecoshop/ProductVariant/field-shirt-s',
+				price: '$68.00',
+			}),
+			expect.objectContaining({ handle: 'linen-overshirt' }),
+			expect.objectContaining({ handle: 'trail-tee' }),
+		]);
+	});
+
+	it('keeps every page result within the recommended size', async () => {
+		const outcomes = [
+			...(await Promise.all(
+				['shirt', 'tote', 'bottle', 'shipping returns'].map((query) =>
+					runStoreTool('search_catalog', { catalog: { query, pagination: { limit: 10 } } }, page()),
+				),
+			)),
+			...(await Promise.all(
+				handles.map((handle) => runStoreTool('get_product', { catalog: { id: handle } }, page())),
+			)),
+			await runStoreTool('browse_store', {}, page()),
+			await runStoreTool('browse_store', { collection: 'all' }, page()),
+			await runStoreTool('browse_store', { collection: 'apparel', page: 2 }, page()),
+			await runStoreTool('ask_business', { ask: { query: 'What is your return and shipping policy?' } }, page()),
+		];
+
+		for (const { result } of outcomes) expect(resultSize(result)).toBeLessThanOrEqual(1500);
+	});
+
+	it('pages the products in full, a few at a time, and says whether more follow', async () => {
+		const listed: string[] = [];
+		for (let number = 1; ; number += 1) {
+			const { structured } = await call('browse_store', { collection: 'all', page: number }, page());
+			listed.push(...(structured.products as Array<{ handle: string }>).map((product) => product.handle));
+			if (!structured.has_more) break;
+		}
+		const overMcp = await call('browse_store', { collection: 'all' }, mcp);
+
+		expect(listed).toEqual(
+			(overMcp.structured.products as Array<{ handle: string }>).map((product) => product.handle),
+		);
+		expect(listed.length).toBeGreaterThan(4);
+	});
+
+	it('names the products it left out of a result that would be too long', async () => {
+		const longTitle = 'A product with a very long title that goes on and on '.repeat(3);
+		const [base] = await provider.listProducts({ limit: 1 });
+		if (!base) throw new Error('The demo catalog has products.');
+		const crowded: CommerceProvider = {
+			...provider,
+			searchProducts: async () =>
+				Array.from({ length: 10 }, (_, index) => ({
+					...base,
+					id: `gid://ecoshop/Product/p${index}`,
+					handle: `product-${index}`,
+					title: `${longTitle}${index}`,
+				})),
+		};
+
+		const { result } = await runStoreTool(
+			'search_catalog',
+			{ catalog: { query: 'product', pagination: { limit: 10 } } },
+			{ ...page(), provider: crowded },
+		);
+
+		expect(resultSize(result)).toBeLessThanOrEqual(1500);
+		expect(result.structuredContent.products_not_shown).toBeGreaterThan(0);
+		expect(result.content[0]?.text).toMatch(/shown to keep the result short/u);
+	});
+
+	it('keeps the full product shape over /mcp', async () => {
+		const { structured } = await call('search_catalog', { catalog: { query: 'shirt' } }, mcp);
+
+		expect(structured.products).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					price_range: expect.any(Object),
+					options: expect.any(Array),
+					vendor: expect.any(String),
+				}),
+			]),
+		);
 	});
 });

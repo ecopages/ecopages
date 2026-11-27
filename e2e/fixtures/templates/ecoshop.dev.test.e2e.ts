@@ -207,6 +207,27 @@ test.describe('ecoshop WebMCP tools', () => {
 		await expect(page.locator('cart-count')).toBeHidden();
 	});
 
+	test('the catalog tools return results within the size Chrome recommends, so Radiant warns of nothing', async ({
+		page,
+	}) => {
+		const warnings: string[] = [];
+		page.on('console', (message) => {
+			if (message.type() === 'warning' || message.type() === 'error') warnings.push(message.text());
+		});
+		await page.goto('/products/field-shirt');
+		await expect.poll(() => toolNames(page)).toContain('add_to_cart');
+
+		const results = [
+			await execute(page, 'search_catalog', { catalog: { query: 'shirt' } }),
+			await execute(page, 'get_product', {}),
+			await execute(page, 'browse_store', { collection: 'all' }),
+			await execute(page, 'ask_business', { ask: { query: 'What is your return policy?' } }),
+		];
+
+		for (const result of results) expect(JSON.stringify(result).length).toBeLessThanOrEqual(1500);
+		expect(warnings).toEqual([]);
+	});
+
 	test('the server checks the input again for a call that skips the browser', async ({ page }) => {
 		await page.goto('/products/field-shirt');
 

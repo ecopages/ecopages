@@ -1,7 +1,7 @@
 import * as z from 'zod/mini';
 import { CommerceBackendError } from '@/lib/commerce/errors';
-import { formatMoney, toAgentPrice } from '@/lib/commerce/money';
-import type { Product, ProductSummary } from '@/lib/commerce/types';
+import { formatMoney, formatPriceRange, toAgentPrice } from '@/lib/commerce/money';
+import type { Product, ProductSummary, ProductVariant } from '@/lib/commerce/types';
 import { resolveUrl, storePaths } from '@/lib/store-urls';
 import { readUcpProfile } from '@/lib/ucp/ucp.server';
 import {
@@ -26,6 +26,11 @@ import {
 	type StoreToolOutcome,
 	applyCartChange,
 	cartOutcome,
+	clipText,
+	fitToPageResult,
+	pageSummaryView,
+	pageVariantView,
+	resultSize,
 	cartView,
 	currentCart,
 	define,
@@ -50,12 +55,44 @@ export type { StoreTool, StoreToolContext, StoreToolOutcome } from './store-tool
 export type { ToolSurface } from './store-tool-definitions';
 
 const PRODUCTS_PER_PAGE = 30;
+
+/* What a page tool lists, so a result stays within `PAGE_RESULT_CHARACTERS`; `/mcp` has no such limit. */
+
+const PAGE_PRODUCTS_PER_PAGE = 4;
+const PAGE_RELATED_LIMIT = 3;
+const PAGE_DESCRIPTION_CHARACTERS = 240;
+const PAGE_ANSWER_SECTIONS = 2;
+const PAGE_ANSWER_CHARACTERS = 280;
 const MAX_OPTION_COMBINATIONS = 50;
+
+/**
+ * The store's collections as a tool lists them: with their descriptions over `/mcp`, and as many as fit on a page.
+ */
+async function collectionsResult(provider: StoreToolContext['provider'], origin: string, surface: ToolSurface) {
+	const collections = await provider.listCollections({ limit: 100 });
+	const describeCollections = (shown: typeof collections) => {
+		const list = shown.map((entry) => ({
+			title: entry.title,
+			handle: entry.handle,
+			url: resolveUrl(origin, storePaths.collection(entry.handle)),
+			...(surface === 'page' ? {} : { description: entry.description }),
+		}));
+		return ok(
+			{ collections: list },
+			`The store has ${collections.length} collection(s): ${list.map((entry) => entry.title).join(', ')}${list.length < collections.length ? ', and more' : ''}.`,
+		);
+	};
+	const shown =
+		surface === 'page'
+			? fitToPageResult(collections, (list) => resultSize(describeCollections(list)))
+			: collections;
+	return describeCollections(shown);
+}
 
 /* The tools. */
 
 export const storeTools: StoreTool[] = [
-	define(searchCatalogTool, async ({ catalog }, { provider, origin }) => {
+	define(searchCatalogTool, async ({ catalog }, { provider, origin, surface }) => {
 		const limit = catalog.pagination?.limit ?? 5;
 		const terms = searchTerms(catalog.query);
 		const [products, collections, policies] = await Promise.all([
@@ -63,53 +100,44 @@ export const storeTools: StoreTool[] = [
 			provider.listCollections({ limit: 100 }),
 			provider.listPolicies(),
 		]);
-		const structured = {
-			products: products.map((product) => summaryView(product, origin)),
-			collections: collections
-				.filter((collection) => terms.some((term) => collection.title.toLowerCase().includes(term)))
-				.slice(0, limit)
-				.map((collection) => ({
-					title: collection.title,
-					handle: collection.handle,
-					url: resolveUrl(origin, storePaths.collection(collection.handle)),
-				})),
-			articles: [],
-			pages: policies
-				.filter((policy) => relevance(`${policy.title} ${policy.body}`, terms) > 0)
-				.slice(0, limit)
-				.map((policy) => ({
-					title: policy.title,
-					url: resolveUrl(origin, storePaths.policy(policy.handle)),
-				})),
-			search_url: resolveUrl(origin, storePaths.search(catalog.query)),
+		const related = surface === 'page' ? Math.min(limit, PAGE_RELATED_LIMIT) : limit;
+		const describeResult = (shown: ProductSummary[]) => {
+			const structured = {
+				products: shown.map((product) =>
+					surface === 'page' ? pageSummaryView(product, origin) : summaryView(product, origin),
+				),
+				collections: collections
+					.filter((collection) => terms.some((term) => collection.title.toLowerCase().includes(term)))
+					.slice(0, related)
+					.map((collection) => ({
+						title: collection.title,
+						handle: collection.handle,
+						url: resolveUrl(origin, storePaths.collection(collection.handle)),
+					})),
+				articles: [],
+				pages: policies
+					.filter((policy) => relevance(`${policy.title} ${policy.body}`, terms) > 0)
+					.slice(0, related)
+					.map((policy) => ({
+						title: policy.title,
+						url: resolveUrl(origin, storePaths.policy(policy.handle)),
+					})),
+				search_url: resolveUrl(origin, storePaths.search(catalog.query)),
+				...(shown.length < products.length ? { products_not_shown: products.length - shown.length } : {}),
+			};
+			const text = products.length
+				? `Found ${products.length} product(s)${shown.length < products.length ? `, ${shown.length} shown to keep the result short; search again with a narrower query for the rest` : ''}.`
+				: `No products match "${catalog.query}".`;
+			return ok(structured, text);
 		};
-		return {
-			result: ok(
-				structured,
-				products.length
-					? `Found ${products.length} product(s): ${products.map((product) => product.title).join(', ')}.`
-					: `No products match "${catalog.query}".`,
-			),
-		};
+		const shown =
+			surface === 'page' ? fitToPageResult(products, (list) => resultSize(describeResult(list))) : products;
+		return { result: describeResult(shown) };
 	}),
 	define(
 		browseStoreTool,
 		async ({ collection, navigate, sort_by: sortBy = 'best-selling', page = 1 }, { provider, origin, surface }) => {
-			if (!collection) {
-				const collections = await provider.listCollections({ limit: 100 });
-				const list = collections.map((entry) => ({
-					title: entry.title,
-					handle: entry.handle,
-					url: resolveUrl(origin, storePaths.collection(entry.handle)),
-					description: entry.description,
-				}));
-				return {
-					result: ok(
-						{ collections: list },
-						`The store has ${list.length} collection(s): ${list.map((entry) => entry.title).join(', ')}.`,
-					),
-				};
-			}
+			if (!collection) return { result: await collectionsResult(provider, origin, surface) };
 
 			const found =
 				collection === 'all'
@@ -138,18 +166,28 @@ export const storeTools: StoreTool[] = [
 			if (sortBy === 'price-descending') sorted.sort((a, b) => price(b) - price(a));
 			if (sortBy === 'title-ascending') sorted.sort((a, b) => a.title.localeCompare(b.title));
 			if (sortBy === 'title-descending') sorted.sort((a, b) => b.title.localeCompare(a.title));
-			const products = sorted.slice((page - 1) * PRODUCTS_PER_PAGE, page * PRODUCTS_PER_PAGE);
+			const pageSize = surface === 'page' ? PAGE_PRODUCTS_PER_PAGE : PRODUCTS_PER_PAGE;
+			const products = sorted.slice((page - 1) * pageSize, page * pageSize);
 			const url = resolveUrl(origin, found.path);
 			const navigated = Boolean(navigate) && surface === 'page';
 			return {
 				result: ok(
 					{
-						products: products.map((product) => summaryView(product, origin)),
+						products: products.map((product) =>
+							surface === 'page' ? pageSummaryView(product, origin) : summaryView(product, origin),
+						),
 						collection_title: found.title,
 						page,
 						sort_by: sortBy,
 						navigated,
 						url,
+						...(surface === 'page'
+							? {
+									page_size: pageSize,
+									total_products: sorted.length,
+									has_more: page * pageSize < sorted.length,
+								}
+							: {}),
 					},
 					`${found.title}: ${products.length} product(s) on page ${page}.${navigated ? ` Opening ${url}.` : ''}`,
 				),
@@ -174,6 +212,33 @@ export const storeTools: StoreTool[] = [
 			.map((variant) => variant.selectedOptions);
 		const url = productUrl(context.origin, product.handle);
 		const navigated = Boolean(catalog.navigate) && context.surface === 'page';
+		const summary = `${product.title}, ${formatMoney(product.priceRange.min)}, ${product.availableForSale ? 'in stock' : 'sold out'}. ${candidates.length} matching variant(s).`;
+		if (context.surface === 'page') {
+			const listed = complete ? candidates.slice(0, 1) : candidates;
+			const describeProduct = (shown: ProductVariant[]) =>
+				ok(
+					{
+						title: product.title,
+						handle: product.handle,
+						description: clipText(product.description, PAGE_DESCRIPTION_CHARACTERS),
+						url,
+						price: formatPriceRange(product.priceRange),
+						available: product.availableForSale,
+						options: product.options,
+						variants: shown.map(pageVariantView),
+						...(shown.length < listed.length
+							? {
+									variants_not_shown: listed.length - shown.length,
+									hint: 'Pass selected_options to narrow the variants.',
+								}
+							: {}),
+						navigated,
+					},
+					summary,
+				);
+			const shown = fitToPageResult(listed, (list) => resultSize(describeProduct(list)));
+			return { result: describeProduct(shown), ...(navigated ? { navigateTo: url } : {}) };
+		}
 		const structured = {
 			id: product.id,
 			title: product.title,
@@ -194,13 +259,7 @@ export const storeTools: StoreTool[] = [
 			images: product.images.map((image) => resolveUrl(context.origin, image.url)),
 			navigated,
 		};
-		return {
-			result: ok(
-				structured,
-				`${product.title}, ${formatMoney(product.priceRange.min)}, ${product.availableForSale ? 'in stock' : 'sold out'}. ${candidates.length} matching variant(s).`,
-			),
-			...(navigated ? { navigateTo: url } : {}),
-		};
+		return { result: ok(structured, summary), ...(navigated ? { navigateTo: url } : {}) };
 	}),
 	define(showVariantTool, async ({ catalog }, context) => {
 		const handle = catalog.handle ?? context.currentProductHandle;
@@ -336,7 +395,8 @@ export const storeTools: StoreTool[] = [
 			? { result: ok(structured, `Opening checkout for ${cart.totalQuantity} item(s).`), navigateTo: url }
 			: { result: ok(structured, `Checkout for ${cart.totalQuantity} item(s): ${url}`) };
 	}),
-	define(askBusinessTool, async ({ ask }, { provider, origin }) => {
+	define(askBusinessTool, async ({ ask }, { provider, origin, surface }) => {
+		const compact = surface === 'page';
 		const terms = searchTerms(ask.query);
 		const policies = await provider.listPolicies();
 		const sections = policies
@@ -350,7 +410,7 @@ export const storeTools: StoreTool[] = [
 			})
 			.filter((section) => section.score > 0)
 			.sort((a, b) => b.score - a.score)
-			.slice(0, 3);
+			.slice(0, compact ? PAGE_ANSWER_SECTIONS : 3);
 		const link = (policy: (typeof policies)[number]) => ({
 			type: policy.type,
 			url: resolveUrl(origin, storePaths.policy(policy.handle)),
@@ -361,7 +421,11 @@ export const storeTools: StoreTool[] = [
 					.map(({ policy, paragraphs }) =>
 						[
 							`${policy.title} (${resolveUrl(origin, storePaths.policy(policy.handle))}):`,
-							...paragraphs.slice(0, 2).map((entry) => entry.paragraph),
+							...paragraphs
+								.slice(0, compact ? 1 : 2)
+								.map((entry) =>
+									compact ? clipText(entry.paragraph, PAGE_ANSWER_CHARACTERS) : entry.paragraph,
+								),
 						].join('\n'),
 					)
 					.join('\n\n')
@@ -370,7 +434,9 @@ export const storeTools: StoreTool[] = [
 			result: ok(
 				{
 					answer: { plain },
-					links: (sections.length ? sections.map((section) => section.policy) : policies).map(link),
+					links: (sections.length ? sections.map((section) => section.policy) : policies)
+						.slice(0, compact ? PAGE_ANSWER_SECTIONS + 1 : undefined)
+						.map(link),
 				},
 				plain,
 			),

@@ -117,7 +117,7 @@ export const browseStoreTool = defineSpec({
 	name: 'browse_store',
 	title: 'Browse collections',
 	description:
-		'Without a collection handle, list the store collections. With one, list its products, 30 per page; "all" lists every product. Set navigate to true to also open the collection page in the browser. Does not change the cart.',
+		'Without a collection handle, list the store collections. With one, list its products a page at a time; "all" lists every product. Set navigate to true to also open the collection page in the browser. Does not change the cart.',
 	input: z.object({
 		collection: z.optional(
 			z.string().check(z.minLength(1), z.describe('Collection handle, or "all". Omit to list collections.')),

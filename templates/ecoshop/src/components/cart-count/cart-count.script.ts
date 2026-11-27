@@ -4,14 +4,8 @@ import { agentTool } from '@ecopages/radiant/decorators/agent-tool';
 import type { AgentToolExecuteOptions } from '@ecopages/radiant/helpers/register-agent-tool';
 import { callAgentTool } from '../../lib/agents/agent-tool-client';
 import { announceAssistantCartChange } from '../../lib/agents/assistant-cart-change';
-import {
-	type ToolInput,
-	agentToolConfig,
-	cancelCartTool,
-	getCartTool,
-	proceedToCheckoutTool,
-	updateCartTool,
-} from '../../lib/agents/store-tool-definitions';
+import { agentToolConfig, type ToolInputOf } from '../../lib/agents/agent-tool-config';
+import { cancelCartInfo, getCartInfo, proceedToCheckoutInfo, updateCartInfo } from '../../lib/agents/store-tool-info';
 import { CART_CHANGE_EVENT, type CartTotals } from '../../lib/cart/cart-events';
 import { storePaths } from '../../lib/store-urls';
 
@@ -64,24 +58,24 @@ export class CartCount extends RadiantElement {
 		if (totals && !this.changed) this.count = totals.totalQuantity;
 	}
 
-	@agentTool(agentToolConfig(getCartTool))
-	getCart(input: ToolInput<typeof getCartTool>, { signal }: AgentToolExecuteOptions) {
-		return callAgentTool(getCartTool.name, input, signal);
+	@agentTool(agentToolConfig(getCartInfo))
+	getCart(input: ToolInputOf<typeof getCartInfo>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(getCartInfo.name, input, signal);
 	}
 
-	@agentTool(agentToolConfig(updateCartTool))
-	updateCart(input: ToolInput<typeof updateCartTool>, { signal }: AgentToolExecuteOptions) {
-		return callAgentTool(updateCartTool.name, input, signal, { onCartChange: announceAssistantCartChange });
+	@agentTool(agentToolConfig(updateCartInfo))
+	updateCart(input: ToolInputOf<typeof updateCartInfo>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(updateCartInfo.name, input, signal, { onCartChange: announceAssistantCartChange });
 	}
 
-	@agentTool(agentToolConfig(cancelCartTool))
-	cancelCart(input: ToolInput<typeof cancelCartTool>, { signal }: AgentToolExecuteOptions) {
-		return callAgentTool(cancelCartTool.name, input, signal, { onCartChange: announceAssistantCartChange });
+	@agentTool(agentToolConfig(cancelCartInfo))
+	cancelCart(input: ToolInputOf<typeof cancelCartInfo>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(cancelCartInfo.name, input, signal, { onCartChange: announceAssistantCartChange });
 	}
 
-	@agentTool(agentToolConfig(proceedToCheckoutTool))
-	proceedToCheckout(input: ToolInput<typeof proceedToCheckoutTool>, { signal }: AgentToolExecuteOptions) {
-		return callAgentTool(proceedToCheckoutTool.name, input, signal);
+	@agentTool(agentToolConfig(proceedToCheckoutInfo))
+	proceedToCheckout(input: ToolInputOf<typeof proceedToCheckoutInfo>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(proceedToCheckoutInfo.name, input, signal);
 	}
 }
 

@@ -11,10 +11,10 @@ import { noticeQuery, shortageQuery } from './cart-messages';
 import type { CartTotals } from './cart-events';
 
 /**
- * The variant a form posted. The product form carries a hidden `variantId` for a post without JavaScript and a checked
- * radio of the same name after it, so a repeated key reaches the schema as an array and the last value wins.
+ * The variant a form posted: one value. The product form posts the checked radio of its picker, or the hidden input
+ * of a product with a single variant, never both, so a repeated key is refused.
  */
-const variantIdField = z.preprocess((value) => (Array.isArray(value) ? value.at(-1) : value), z.string().min(1));
+const variantIdField = z.string().min(1);
 
 /**
  * A cart change posted by a plain form. `add` adds to the line; `set` replaces its quantity, and `0`

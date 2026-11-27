@@ -57,6 +57,7 @@ const execute = (page: Page, name: string, input: unknown) =>
 		[name, input] as const,
 	) as Promise<ToolResult>;
 
+const fieldShirtS = 'gid://ecoshop/ProductVariant/field-shirt-s';
 const fieldShirtM = 'gid://ecoshop/ProductVariant/field-shirt-m';
 const fieldShirtL = 'gid://ecoshop/ProductVariant/field-shirt-l';
 
@@ -137,7 +138,7 @@ test.describe('ecoshop WebMCP tools', () => {
 		await page.locator('.cart-link').click();
 		await expect(page).toHaveURL(/\/cart$/u);
 		await expect(page.locator('.cart-line')).toHaveCount(1);
-		await expect(page.locator('.cart-line input[type="number"]')).toHaveValue('2');
+		await expect(page.locator('.cart-line [data-number-field-input]')).toHaveValue('2');
 		expect(await page.evaluate(() => (window as unknown as { __samePage?: boolean }).__samePage)).toBe(true);
 	});
 
@@ -231,12 +232,22 @@ test.describe('ecoshop WebMCP tools', () => {
 
 	test('a shopper who adds more than the store holds is told how many went in, in the toast', async ({ page }) => {
 		await page.goto('/products/canvas-tote');
-		await page.locator('cart-form input[name="quantity"]').fill('5');
+		await page.locator('cart-form [data-number-field-input]').fill('5');
 
 		await page.getByRole('button', { name: 'Add to cart' }).click();
 
 		await expect(page.getByText('only 3 in stock, so the cart holds 3 instead of 5.')).toBeVisible();
 		await expect(page.locator('cart-count [data-ref="value"]')).toHaveText('3');
+	});
+
+	test('the quantity stepper raises the quantity the button adds', async ({ page }) => {
+		await page.goto('/products/steel-bottle');
+		await page.waitForFunction(() => customElements.get('rui-number-field') && customElements.get('cart-form'));
+		await page.locator('cart-form').getByRole('button', { name: 'Increment' }).click();
+
+		await page.getByRole('button', { name: 'Add to cart' }).click();
+
+		await expect(page.locator('cart-count [data-ref="value"]')).toHaveText('2');
 	});
 
 	test('an agent that asks for more than the store holds gets the line at the stock and a warning', async ({
@@ -462,6 +473,52 @@ test('the cart works without JavaScript', async ({ browser, baseURL }) => {
 	await context.close();
 });
 
+test('a form without JavaScript posts the variant and the quantity the shopper chose', async ({ browser, baseURL }) => {
+	const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+	const page = await context.newPage();
+
+	await page.goto('/products/field-shirt');
+	await expect(page.locator('cart-form input[type="hidden"][name="variantId"]')).toHaveCount(0);
+	await expect(page.locator('cart-form input[type="radio"]:checked')).toHaveAttribute('value', fieldShirtS);
+	await expect(page.locator('cart-form rui-number-field input[name="quantity"]')).toHaveValue('1');
+	await page.getByText('L', { exact: true }).click();
+	await page.locator('cart-form rui-number-field input[name="quantity"]').fill('3');
+	await page.getByRole('button', { name: 'Add to cart' }).click();
+
+	await expect(page).toHaveURL(/\/cart$/u);
+	await expect(page.locator('.cart-line__variant')).toHaveText('L');
+	await expect(page.locator('.cart-line [data-number-field-input]')).toHaveValue('3');
+	await context.close();
+});
+
+test('a cart line changes its quantity through a form without JavaScript', async ({ browser, baseURL }) => {
+	const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+	const page = await context.newPage();
+
+	await page.goto('/products/steel-bottle');
+	await page.getByRole('button', { name: 'Add to cart' }).click();
+	await expect(page).toHaveURL(/\/cart$/u);
+	await page.locator('.cart-line [data-number-field-input]').fill('4');
+	await page.getByRole('button', { name: 'Update' }).click();
+
+	await expect(page).toHaveURL(/\/cart$/u);
+	await expect(page.locator('.cart-line [data-number-field-input]')).toHaveValue('4');
+	await context.close();
+});
+
+test('a product with one variant posts it without a picker', async ({ browser, baseURL }) => {
+	const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+	const page = await context.newPage();
+
+	await page.goto('/products/canvas-tote');
+	await expect(page.locator('cart-form input[type="radio"]')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Add to cart' }).click();
+
+	await expect(page).toHaveURL(/\/cart$/u);
+	await expect(page.locator('.cart-line')).toHaveCount(1);
+	await context.close();
+});
+
 test('the cart page says a line is short of what a form without JavaScript asked for', async ({ browser, baseURL }) => {
 	const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
 	const page = await context.newPage();
@@ -472,7 +529,7 @@ test('the cart page says a line is short of what a form without JavaScript asked
 
 	await expect(page).toHaveURL(/\/cart\?notice=short/u);
 	await expect(page.getByText('Canvas Tote: only 3 in stock, so the cart holds 3 instead of 5.')).toBeVisible();
-	await expect(page.locator('.cart-line input[type="number"]')).toHaveValue('3');
+	await expect(page.locator('.cart-line [data-number-field-input]')).toHaveValue('3');
 	await context.close();
 });
 

@@ -2,13 +2,13 @@ import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiAlert, RuiAlertDescription } from '@ecopages/radiant-ui/alert';
 import { RuiButton } from '@ecopages/radiant-ui/button';
-import { RuiInput } from '@ecopages/radiant-ui/input';
+import { RuiNumberField } from '@ecopages/radiant-ui/number-field';
 import { ProductImage } from '@/components/product-image';
 import { readCartId } from '@/lib/cart/cart-cookie';
 import { shortageNotice, statusNotice } from '@/lib/cart/cart-messages';
 import { formatMoney } from '@/lib/commerce/money';
 import { getCommerce } from '@/lib/commerce/provider.server';
-import { type Cart, type CartLine, DEFAULT_VARIANT_TITLE } from '@/lib/commerce/types';
+import { type Cart, type CartLine, DEFAULT_VARIANT_TITLE, MAX_LINE_QUANTITY } from '@/lib/commerce/types';
 import { storePaths } from '@/lib/store-urls';
 import { StoreLayout } from '@/layouts/store-layout/store-layout';
 import './cart.css';
@@ -31,10 +31,14 @@ function LineItem({ line }: { line: CartLine }): JsxRenderable {
 			<form method="post" action={storePaths.cartApi} class="cart-line__form">
 				<input type="hidden" name="intent" value="set" />
 				<input type="hidden" name="variantId" value={line.variantId} />
-				<label>
-					<span class="sr-only">Quantity of {line.productTitle}</span>
-					<RuiInput type="number" name="quantity" value={String(line.quantity)} min="0" max="99" />
-				</label>
+				<RuiNumberField
+					name="quantity"
+					label={`Quantity of ${line.productTitle}`}
+					minValue={0}
+					maxValue={MAX_LINE_QUANTITY}
+					defaultValue={line.quantity}
+					class="cart-line__quantity"
+				/>
 				<RuiButton type="submit" variant="outline" size="sm">
 					Update
 				</RuiButton>
@@ -60,6 +64,7 @@ function LineItem({ line }: { line: CartLine }): JsxRenderable {
  */
 export default eco.page<CartPageProps, JsxRenderable>({
 	layout: StoreLayout,
+	dependencies: { scripts: ['./cart.script.ts'] },
 	cache: 'dynamic',
 	props: async ({ request, query }) => {
 		const cartId = readCartId(request.headers);

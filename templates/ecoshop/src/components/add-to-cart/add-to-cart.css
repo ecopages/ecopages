@@ -53,8 +53,8 @@
 		@apply flex gap-3;
 	}
 
-	.add-to-cart__quantity .rui-input {
-		@apply w-20 text-center;
+	rui-number-field.add-to-cart__quantity {
+		@apply w-32! shrink-0;
 	}
 
 	.add-to-cart__submit {

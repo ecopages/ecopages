@@ -18,9 +18,9 @@ import {
 	proceedToCheckoutTool,
 	searchCatalogTool,
 	showVariantTool,
-	type ToolSurface,
 	updateCartTool,
 } from './store-tool-definitions';
+import type { ToolSurface } from './store-tool-info';
 import {
 	type StoreTool,
 	type StoreToolContext,
@@ -55,7 +55,7 @@ import {
 import type { StoreToolResult } from './agent-tool-types';
 export type { StoreToolResult } from './agent-tool-types';
 export type { StoreTool, StoreToolContext, StoreToolOutcome } from './store-tool-support.server';
-export type { ToolSurface } from './store-tool-definitions';
+export type { ToolSurface } from './store-tool-info';
 
 const PRODUCTS_PER_PAGE = 30;
 

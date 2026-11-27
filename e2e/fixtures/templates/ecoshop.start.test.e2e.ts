@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { expect } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { test } from '../../app-fixture.ts';
 
 /**
@@ -10,6 +10,50 @@ const WEBHOOK_SECRET = 'whsec-ecoshop-e2e';
 const fieldShirtM = 'gid://ecoshop/ProductVariant/field-shirt-m';
 const canvasTote = 'gid://ecoshop/ProductVariant/canvas-tote';
 const fieldShirtHandle = 'field-shirt';
+
+/** Marks the schema library: its chunk names its classes, and no other file of the store does. */
+const SCHEMA_LIBRARY_MARKER = 'ZodMiniObject';
+
+async function schemaChunksDownloaded(page: Page, path: string, withModelContext: boolean): Promise<string[]> {
+	if (withModelContext) {
+		await page.addInitScript(() => {
+			const names = new Set<string>();
+			Object.defineProperty(document, 'modelContext', {
+				value: {
+					registerTool(tool: { name: string }, options: { signal: AbortSignal }) {
+						names.add(tool.name);
+						options.signal.addEventListener('abort', () => names.delete(tool.name));
+						return Promise.resolve(undefined);
+					},
+				},
+				configurable: true,
+			});
+			Object.assign(window, { __toolNames: names });
+		});
+	}
+	const reads: Promise<string | null>[] = [];
+	page.on('response', (response) => {
+		if (!response.url().endsWith('.js')) return;
+		reads.push(response.text().then((text) => (text.includes(SCHEMA_LIBRARY_MARKER) ? response.url() : null)));
+	});
+	await page.goto(path);
+	await page.waitForFunction(() =>
+		['cart-form', 'cart-count', 'store-agent-tools'].every((tag) => customElements.get(tag)),
+	);
+	await page.waitForLoadState('networkidle');
+	if (withModelContext) {
+		await page.waitForFunction(() => (window as unknown as { __toolNames: Set<string> }).__toolNames.size > 0);
+	}
+	return (await Promise.all(reads)).filter((url): url is string => url !== null);
+}
+
+test('a visitor without WebMCP downloads no schema library', async ({ page }) => {
+	expect(await schemaChunksDownloaded(page, '/products/field-shirt', false)).toEqual([]);
+});
+
+test('a browser with WebMCP downloads the schema library to register the tools', async ({ page }) => {
+	expect(await schemaChunksDownloaded(page, '/products/field-shirt', true)).toHaveLength(1);
+});
 
 const mcpHeaders = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
 
@@ -69,7 +113,8 @@ test('the cart answers a form post with a redirect, and an invalid one with a re
 		maxRedirects: 0,
 	});
 	expect(repeated.status()).toBe(303);
-	expect(await (await request.get('/api/cart')).json()).toEqual({ totalQuantity: 4, subtotal: '$272.00' });
+	expect(repeated.headers().location).toBe('/cart?notice=invalid');
+	expect(await (await request.get('/api/cart')).json()).toEqual({ totalQuantity: 3, subtotal: '$204.00' });
 });
 
 test('the MCP server lists its tools and runs one', async ({ request }) => {

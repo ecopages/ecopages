@@ -5,16 +5,15 @@ import type { AgentToolExecuteOptions } from '@ecopages/radiant/helpers/register
 import { callAgentTool } from '../../lib/agents/agent-tool-client';
 import { announceAssistantCartChange } from '../../lib/agents/assistant-cart-change';
 import { modelContextPresent } from '../../lib/agents/model-context';
+import { agentToolConfig, type ToolInputOf } from '../../lib/agents/agent-tool-config';
 import {
-	type ToolInput,
-	agentToolConfig,
-	askBusinessTool,
-	browseStoreTool,
-	createCartTool,
-	getProductTool,
-	getUcpProfileTool,
-	searchCatalogTool,
-} from '../../lib/agents/store-tool-definitions';
+	askBusinessInfo,
+	browseStoreInfo,
+	createCartInfo,
+	getProductInfo,
+	getUcpProfileInfo,
+	searchCatalogInfo,
+} from '../../lib/agents/store-tool-info';
 
 type StoreAgentToolsProps = {
 	/** Whether the store is a connected Shopify store, which has a UCP profile for `get_ucp_profile` to read. */
@@ -37,29 +36,29 @@ export class StoreAgentTools extends RadiantElement {
 	@prop({ type: Boolean, defaultValue: false })
 	ucp!: boolean;
 
-	@agentTool(agentToolConfig(searchCatalogTool))
-	searchCatalog(input: ToolInput<typeof searchCatalogTool>, { signal }: AgentToolExecuteOptions) {
-		return callAgentTool(searchCatalogTool.name, input, signal);
+	@agentTool(agentToolConfig(searchCatalogInfo))
+	searchCatalog(input: ToolInputOf<typeof searchCatalogInfo>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(searchCatalogInfo.name, input, signal);
 	}
 
-	@agentTool(agentToolConfig(browseStoreTool))
-	browseStore(input: ToolInput<typeof browseStoreTool>, { signal }: AgentToolExecuteOptions) {
-		return callAgentTool(browseStoreTool.name, input, signal);
+	@agentTool(agentToolConfig(browseStoreInfo))
+	browseStore(input: ToolInputOf<typeof browseStoreInfo>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(browseStoreInfo.name, input, signal);
 	}
 
-	@agentTool(agentToolConfig(getProductTool))
-	getProduct(input: ToolInput<typeof getProductTool>, { signal }: AgentToolExecuteOptions) {
-		return callAgentTool(getProductTool.name, input, signal);
+	@agentTool(agentToolConfig(getProductInfo))
+	getProduct(input: ToolInputOf<typeof getProductInfo>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(getProductInfo.name, input, signal);
 	}
 
-	@agentTool(agentToolConfig(askBusinessTool))
-	askBusiness(input: ToolInput<typeof askBusinessTool>, { signal }: AgentToolExecuteOptions) {
-		return callAgentTool(askBusinessTool.name, input, signal);
+	@agentTool(agentToolConfig(askBusinessInfo))
+	askBusiness(input: ToolInputOf<typeof askBusinessInfo>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(askBusinessInfo.name, input, signal);
 	}
 
-	@agentTool(agentToolConfig(createCartTool))
-	createCart(input: ToolInput<typeof createCartTool>, { signal }: AgentToolExecuteOptions) {
-		return callAgentTool(createCartTool.name, input, signal, { onCartChange: announceAssistantCartChange });
+	@agentTool(agentToolConfig(createCartInfo))
+	createCart(input: ToolInputOf<typeof createCartInfo>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(createCartInfo.name, input, signal, { onCartChange: announceAssistantCartChange });
 	}
 
 	/**
@@ -67,12 +66,13 @@ export class StoreAgentTools extends RadiantElement {
 	 * Registered only while `ucp` is set, which the layout does for a connected Shopify store: the demo catalog has no
 	 * UCP profile to read.
 	 */
-	@agentTool({
-		...agentToolConfig(getUcpProfileTool),
-		getEnabled: (host: StoreAgentTools) => modelContextPresent.get() && host.ucp,
-	})
-	getUcpProfile(input: ToolInput<typeof getUcpProfileTool>, { signal }: AgentToolExecuteOptions) {
-		return callAgentTool(getUcpProfileTool.name, input, signal);
+	@agentTool(
+		agentToolConfig(getUcpProfileInfo, {
+			getEnabled: (host: StoreAgentTools) => modelContextPresent.get() && host.ucp,
+		}),
+	)
+	getUcpProfile(input: ToolInputOf<typeof getUcpProfileInfo>, { signal }: AgentToolExecuteOptions) {
+		return callAgentTool(getUcpProfileInfo.name, input, signal);
 	}
 }
 

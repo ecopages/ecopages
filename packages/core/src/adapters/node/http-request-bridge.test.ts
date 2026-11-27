@@ -2,6 +2,7 @@ import { createServer, request as httpRequest, type IncomingMessage, type Server
 import type { AddressInfo } from 'node:net';
 import { PassThrough, Writable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
+import type { TrustProxy } from '../../config/user-config-types.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 
 class MockIncomingMessage extends PassThrough {
@@ -67,7 +68,7 @@ describe('NodeHttpRequestBridge', () => {
 	describe('request origin', () => {
 		const requestUrl = (
 			headers: Record<string, string | string[] | undefined>,
-			options?: { trustProxy?: boolean },
+			options?: { trustProxy?: TrustProxy },
 			url = '/submit?ok=1',
 		) => {
 			const req = new MockIncomingMessage();
@@ -109,6 +110,20 @@ describe('NodeHttpRequestBridge', () => {
 
 			expect(requestUrl(headers)).toBe('http://internal:3000/submit?ok=1');
 			expect(requestUrl(headers, { trustProxy: false })).toBe('http://internal:3000/submit?ok=1');
+		});
+
+		it('trusts only the forwarded protocol, or only the forwarded host, when the app asks for one', () => {
+			const headers = { host: 'app.internal', 'x-forwarded-host': 'evil.example', 'x-forwarded-proto': 'https' };
+
+			expect(requestUrl(headers, { trustProxy: { proto: true } })).toBe('https://app.internal/submit?ok=1');
+			expect(requestUrl(headers, { trustProxy: { host: true } })).toBe('http://evil.example/submit?ok=1');
+			expect(requestUrl(headers, { trustProxy: { host: true, proto: true } })).toBe(
+				'https://evil.example/submit?ok=1',
+			);
+			expect(requestUrl(headers, { trustProxy: {} })).toBe('http://app.internal/submit?ok=1');
+			expect(requestUrl(headers, { trustProxy: { host: false, proto: false } })).toBe(
+				'http://app.internal/submit?ok=1',
+			);
 		});
 
 		it('reads the first forwarded host and a known protocol when the app trusts its proxy', () => {

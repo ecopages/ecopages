@@ -20,6 +20,13 @@ export type ResponseHeaderRule = {
 };
 
 /**
+ * Which forwarded headers a request URL may read: `true` for both `X-Forwarded-Host` and `X-Forwarded-Proto`, or the
+ * ones named. A proxy that sets the protocol but passes the client's `X-Forwarded-Host` through is trusted with
+ * `{ proto: true }`.
+ */
+export type TrustProxy = boolean | { host?: boolean; proto?: boolean };
+
+/**
  * Author-owned Ecopages configuration declared in `eco.config.ts`.
  *
  * @remarks
@@ -137,17 +144,19 @@ export type EcoPagesUserConfig = {
 	maxRequestBodySize?: number;
 
 	/**
-	 * Whether the request URL takes its host and protocol from `X-Forwarded-Host` and `X-Forwarded-Proto`.
+	 * Whether the request URL takes its host and protocol from `X-Forwarded-Host` and `X-Forwarded-Proto`: `true`
+	 * for both, or `{ host?: boolean; proto?: boolean }` for one of them.
 	 *
 	 * @remarks
 	 * By default the origin of `request.url` on the Ecopages server (Node or Bun) is the `Host` header the visitor sent, and the address the
 	 * server listens on when that header is missing or not a host. Set this to `true` only when every request comes
-	 * through a proxy you control that overwrites both forwarded headers: any other client can send them, and an app
-	 * that builds absolute links or compares origins would then trust a value the visitor chose.
+	 * through a proxy you control that overwrites each forwarded header you trust: any other client can send them, and
+	 * an app that builds absolute links or compares origins would then trust a value the visitor chose. Trust only
+	 * `proto` when the proxy sets the protocol but passes `X-Forwarded-Host` through.
 	 *
 	 * @default false
 	 */
-	trustProxy?: boolean;
+	trustProxy?: TrustProxy;
 
 	/**
 	 * Headers added to every response the server sends: rendered pages, explicit routes and endpoints, and files

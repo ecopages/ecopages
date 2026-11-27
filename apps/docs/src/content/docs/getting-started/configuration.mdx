@@ -172,12 +172,14 @@ export default defineConfig({
 
 ## Request URL and proxies
 
-<ApiField name="trustProxy" type="boolean" defaultValue="false">
+<ApiField name="trustProxy" type="boolean | { host?: boolean; proto?: boolean }" defaultValue="false">
 	Whether `new URL(request.url)` takes its host and protocol from `X-Forwarded-Host` and `X-Forwarded-Proto`. By
 	default the origin of `request.url` on the Ecopages server (Node or Bun) is the `Host` header the visitor sent, so `new URL(request.url).origin`
 	is the address they used even behind a proxy that passes `Host` on; the address the server listens on is used only
-	when `Host` is missing or is not a plain host. Set `trustProxy` only when every request comes through a proxy you
-	control that overwrites both forwarded headers. Any other client can send them, and an app that builds absolute links,
+	when `Host` is missing or is not a plain host. Set `trustProxy: true` only when every request comes through a proxy you
+	control that overwrites both forwarded headers. When a proxy sets the protocol but passes the client's
+	`X-Forwarded-Host` through, as some load balancers do, trust only that one: `trustProxy: { proto: true }` reads
+	`X-Forwarded-Proto` and keeps `Host`; `{ host: true }` does the reverse. Any other client can send them, and an app that builds absolute links,
 	redirects or compares `Origin` with the request origin would then trust a value the visitor chose. Only the first
 	value of a comma separated forwarded header is read, and the protocol must be `http` or `https`.
 </ApiField>

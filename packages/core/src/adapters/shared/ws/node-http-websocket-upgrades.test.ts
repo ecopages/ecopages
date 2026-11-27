@@ -44,6 +44,45 @@ describe('attachNodeHttpWebSocketUpgrades', () => {
 	});
 });
 
+describe('attachNodeHttpWebSocketUpgrades request origin', () => {
+	function upgradeUrl(trustProxy?: boolean | { host?: boolean; proto?: boolean }) {
+		let url: string | undefined;
+		const handler: EcopagesWebSocketHandler = {
+			context: ({ request }) => {
+				url = request.url;
+				throw new Error('refuse after reading the URL');
+			},
+		};
+		const server = new EventEmitter();
+		attachNodeHttpWebSocketUpgrades(server as unknown as NodeHttpServer, {
+			runtimeOrigin: 'http://127.0.0.1:3000',
+			trustProxy,
+			websocketHandlers: new Map([['/ws/:room', handler]]),
+		});
+		const socket = { destroy: vi.fn(), end: vi.fn(), write: vi.fn() };
+		server.emit(
+			'upgrade',
+			{
+				url: '/ws/lobby',
+				method: 'GET',
+				headers: { host: 'app.internal', 'x-forwarded-host': 'shop.example', 'x-forwarded-proto': 'https' },
+			},
+			socket,
+			Buffer.alloc(0),
+		);
+		return vi.waitFor(() => {
+			if (!url) throw new Error('context() has not run');
+			return url;
+		});
+	}
+
+	it('gives context() the Host the visitor used, and the forwarded headers only when trusted', async () => {
+		expect(await upgradeUrl()).toBe('http://app.internal/ws/lobby');
+		expect(await upgradeUrl(true)).toBe('https://shop.example/ws/lobby');
+		expect(await upgradeUrl({ proto: true })).toBe('https://app.internal/ws/lobby');
+	});
+});
+
 describe('attachNodeHttpWebSocketUpgrades query parsing', () => {
 	async function connectAndCaptureSearch(search: string) {
 		const captured: { search?: EcopagesSocket['search'] } = {};

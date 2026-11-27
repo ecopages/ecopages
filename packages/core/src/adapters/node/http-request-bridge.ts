@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import type { TrustProxy } from '../../config/user-config-types.ts';
 
 /**
  * Signals that the remote client closed the HTTP exchange before the Node
@@ -93,15 +94,22 @@ function firstHeaderValue(value: string | string[] | undefined): string | undefi
  * @remarks
  * A host that is not a plain authority (a path, credentials, whitespace) is ignored rather than refused, so a
  * malformed header cannot change the origin the app sees. `X-Forwarded-Host` and `X-Forwarded-Proto` replace the
- * host and the protocol only with `trustProxy`: any client can send them, so an app that does not sit behind its
+ * host and the protocol only where `trustProxy` names them: any client can send them, so an app that does not sit behind its
  * own proxy must not read them. The protocol is `http` or `https`, the listen origin's protocol by default.
  */
-export function resolveRequestOrigin(req: IncomingMessage, runtimeOrigin: string, trustProxy: boolean): string {
+export function resolveRequestOrigin(
+	req: IncomingMessage,
+	runtimeOrigin: string,
+	trustProxy: TrustProxy | undefined,
+): string {
+	const trusted = typeof trustProxy === 'object' ? trustProxy : { host: trustProxy, proto: trustProxy };
 	const fallback = new URL(runtimeOrigin);
-	const forwardedProto = trustProxy ? firstHeaderValue(req.headers['x-forwarded-proto'])?.toLowerCase() : undefined;
+	const forwardedProto = trusted.proto
+		? firstHeaderValue(req.headers['x-forwarded-proto'])?.toLowerCase()
+		: undefined;
 	const protocol = forwardedProto === 'http' || forwardedProto === 'https' ? `${forwardedProto}:` : fallback.protocol;
 	const hosts = [
-		trustProxy ? firstHeaderValue(req.headers['x-forwarded-host']) : undefined,
+		trusted.host ? firstHeaderValue(req.headers['x-forwarded-host']) : undefined,
 		req.headers.host?.trim(),
 	];
 	for (const host of hosts) {
@@ -151,9 +159,9 @@ export class NodeHttpRequestBridge {
 	public createWebRequest(
 		req: IncomingMessage,
 		runtimeOrigin: string,
-		options: { trustProxy?: boolean } = {},
+		options: { trustProxy?: TrustProxy } = {},
 	): Request {
-		const url = new URL(req.url ?? '/', resolveRequestOrigin(req, runtimeOrigin, options.trustProxy === true));
+		const url = new URL(req.url ?? '/', resolveRequestOrigin(req, runtimeOrigin, options.trustProxy));
 		const headers = new Headers();
 
 		for (const [key, value] of Object.entries(req.headers)) {

@@ -4,6 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimeIntegrations, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
+import type { TrustProxy } from '../../config/user-config-types.ts';
 import type {
 	ApiHandler,
 	ErrorHandler,
@@ -35,7 +36,7 @@ export type NodeServerInstance = NodeHttpServer;
 export type NodeServeAdapterServerOptions = {
 	port?: number;
 	hostname?: string;
-	trustProxy?: boolean;
+	trustProxy?: TrustProxy;
 };
 
 export interface NodeServerAdapterParams {

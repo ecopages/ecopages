@@ -110,6 +110,7 @@ describe('finalizeEcoPagesConfig maxRequestBodySize', () => {
 describe('finalizeEcoPagesConfig trustProxy', () => {
 	test('keeps the option and leaves it unset by default', async () => {
 		expect((await finalize({ trustProxy: true })).trustProxy).toBe(true);
+		expect((await finalize({ trustProxy: { proto: true } })).trustProxy).toEqual({ proto: true });
 		expect((await finalize({})).trustProxy).toBeUndefined();
 	});
 });

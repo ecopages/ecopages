@@ -1260,6 +1260,143 @@ describe('FileSystemResponseMatcher', () => {
 		});
 	});
 
+	describe('cache tags from Params', () => {
+		const productFile = path.join(appDir, 'src/pages/tagged-products/[slug].ts');
+		const staticTaggedFile = path.join(appDir, 'src/pages/tagged-static.ts');
+		const propsTaggedFile = path.join(appDir, 'src/pages/tagged-from-props/[slug].ts');
+		mkdirSync(path.dirname(productFile), { recursive: true });
+		mkdirSync(path.dirname(propsTaggedFile), { recursive: true });
+		writeFileSync(
+			productFile,
+			[
+				"import { eco } from '@ecopages/core';",
+				'',
+				'export default eco.page({',
+				'	cache: ({ params }) => ({ revalidate: 3600, tags: [`product:${params.slug}`] }),',
+				'	render: ({ params }) => `<p>${params.slug}</p>`,',
+				'});',
+				'',
+			].join('\n'),
+		);
+		writeFileSync(
+			staticTaggedFile,
+			[
+				"import { eco } from '@ecopages/core';",
+				'',
+				'export default eco.page({',
+				"	cache: { revalidate: 60, tags: ['static'] },",
+				"	render: () => '<p>static</p>',",
+				'});',
+				'',
+			].join('\n'),
+		);
+		writeFileSync(
+			propsTaggedFile,
+			[
+				"import { eco } from '@ecopages/core';",
+				'',
+				'export default eco.page({',
+				'	props: async ({ params }) => ({ category: `category-of-${params.slug}` }),',
+				'	cache: ({ props }) => ({ revalidate: 60, tags: [props.category] }),',
+				'	render: ({ category }) => `<p>${category}</p>`,',
+				'});',
+				'',
+			].join('\n'),
+		);
+
+		function createMatcher(defaultCacheStrategy: 'static' | 'dynamic' = 'static') {
+			const cacheService = new PageCacheService({ store: new MemoryCacheStore(), enabled: true });
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: appConfig.absolutePaths.distDir,
+				router,
+				routeRendererFactory,
+				fileSystemResponseFactory,
+				cacheService,
+				defaultCacheStrategy,
+			});
+			return { cacheService, matcher };
+		}
+
+		function productMatch(slug: string): RouteMatch {
+			return {
+				requestedPathname: `/tagged-products/${slug}`,
+				templateRoute: {
+					role: 'page',
+					kind: 'dynamic',
+					pathname: '/tagged-products/[slug]',
+					filePath: productFile,
+				},
+				params: { slug },
+				query: {},
+			};
+		}
+
+		async function xCache(matcher: FileSystemResponseMatcher, match: RouteMatch): Promise<string | null> {
+			const response = await matcher.handleMatch(match);
+			return response.headers.get('X-Cache');
+		}
+
+		it('drops only the page whose Params produced the invalidated tag', async () => {
+			const { cacheService, matcher } = createMatcher();
+			expect(await xCache(matcher, productMatch('a'))).toBe('MISS');
+			expect(await xCache(matcher, productMatch('b'))).toBe('MISS');
+			expect(await xCache(matcher, productMatch('a'))).toBe('HIT');
+			expect(await xCache(matcher, productMatch('b'))).toBe('HIT');
+
+			await cacheService.invalidateByTags(['product:a']);
+
+			expect(await xCache(matcher, productMatch('a'))).toBe('MISS');
+			expect(await xCache(matcher, productMatch('b'))).toBe('HIT');
+		});
+
+		it('caches a function Page even when the app default strategy is dynamic', async () => {
+			const { matcher } = createMatcher('dynamic');
+			const response = await matcher.handleMatch(productMatch('a'));
+			expect(response.headers.get('X-Cache')).toBe('MISS');
+			expect(response.headers.get('Cache-Control')).toBe('public, max-age=3600, stale-while-revalidate=7200');
+			expect(await xCache(matcher, productMatch('a'))).toBe('HIT');
+		});
+
+		it('tags from the props the Page resolved', async () => {
+			const { cacheService, matcher } = createMatcher();
+			const match = (slug: string): RouteMatch => ({
+				requestedPathname: `/tagged-from-props/${slug}`,
+				templateRoute: {
+					role: 'page',
+					kind: 'dynamic',
+					pathname: '/tagged-from-props/[slug]',
+					filePath: propsTaggedFile,
+				},
+				params: { slug },
+				query: {},
+			});
+			await matcher.handleMatch(match('a'));
+			await matcher.handleMatch(match('b'));
+
+			await cacheService.invalidateByTags(['category-of-a']);
+
+			expect(await xCache(matcher, match('a'))).toBe('MISS');
+			expect(await xCache(matcher, match('b'))).toBe('HIT');
+		});
+
+		it('keeps a static cache object working', async () => {
+			const { cacheService, matcher } = createMatcher();
+			const match: RouteMatch = {
+				requestedPathname: '/tagged-static',
+				templateRoute: { role: 'page', kind: 'exact', pathname: '/tagged-static', filePath: staticTaggedFile },
+				params: {},
+				query: {},
+			};
+			expect(await xCache(matcher, match)).toBe('MISS');
+			expect(await xCache(matcher, match)).toBe('HIT');
+
+			expect(await cacheService.invalidateByTags(['static'])).toBe(1);
+
+			expect(await xCache(matcher, match)).toBe('MISS');
+		});
+	});
+
 	describe('error page that is a Dynamic Page with props', () => {
 		const dynamic404File = path.join(appDir, 'src/pages/404.dynamic-props.ts');
 		mkdirSync(path.dirname(dynamic404File), { recursive: true });

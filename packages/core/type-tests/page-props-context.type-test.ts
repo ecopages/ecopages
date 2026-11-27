@@ -1,6 +1,6 @@
 import { createMiddleware } from '../src/middleware/create-middleware.ts';
 import { eco } from '../src/eco/eco.ts';
-import type { PageBuildContext, PageQuery } from '../src/types/contracts.ts';
+import type { PageBuildContext, PageParams, PageQuery } from '../src/types/contracts.ts';
 
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 function assert<T extends true>(): T | void {}
@@ -56,6 +56,24 @@ eco.page({
 		return { title: 'cached' };
 	},
 	render: ({ title }) => title,
+});
+
+// a cache function reads the props the Page resolved with its Params and Query, and returns a strategy that is never dynamic
+eco.page({
+	props: () => ({ category: 'seating' }),
+	cache: ({ props, params, query }) => {
+		assert<Equal<typeof props.category, string>>();
+		assert<Equal<typeof params, PageParams>>();
+		assert<Equal<typeof query, PageQuery>>();
+		return { revalidate: 60, tags: [props.category, `product:${params.slug}`] };
+	},
+	render: ({ category }) => category,
+});
+
+eco.page({
+	// @ts-expect-error a cache function returns a stored strategy, and a Dynamic Page declares cache: 'dynamic' itself
+	cache: () => 'dynamic',
+	render: () => '',
 });
 
 // a Dynamic Page's dependency resolver reads Params and Query, never props

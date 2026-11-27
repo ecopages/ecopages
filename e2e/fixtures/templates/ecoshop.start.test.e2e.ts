@@ -82,18 +82,40 @@ test('the revalidation webhook invalidates a tag for a valid signature and refus
 	});
 
 	await request.get('/products/field-shirt');
-	const cached = await request.get('/products/field-shirt');
-	expect(cached.headers()['x-cache']).toBe('HIT');
+	await request.get('/products/linen-overshirt');
+	expect((await request.get('/products/field-shirt')).headers()['x-cache']).toBe('HIT');
+	expect((await request.get('/products/linen-overshirt')).headers()['x-cache']).toBe('HIT');
 
 	const valid = await request.post('/api/revalidate', { headers: headers(WEBHOOK_SECRET), data: body });
 	expect(valid.status()).toBe(200);
-	expect(await valid.json()).toEqual({ revalidated: true, tags: ['products'] });
+	expect(await valid.json()).toEqual({
+		revalidated: true,
+		tags: ['product-id:1', 'product:field-shirt', 'product-listings'],
+	});
 
-	const afterWebhook = await request.get('/products/field-shirt');
-	expect(afterWebhook.headers()['x-cache']).toBe('MISS');
+	expect((await request.get('/products/field-shirt')).headers()['x-cache']).toBe('MISS');
+	expect((await request.get('/products/linen-overshirt')).headers()['x-cache']).toBe('HIT');
 
 	const invalid = await request.post('/api/revalidate', { headers: headers('another-secret'), data: body });
 	expect(invalid.status()).toBe(401);
+});
+
+test('a renamed product invalidates the page cached under its old handle by id', async ({ request }) => {
+	const body = JSON.stringify({ id: 'linen-overshirt', handle: 'renamed-overshirt' });
+	await request.get('/products/linen-overshirt');
+	expect((await request.get('/products/linen-overshirt')).headers()['x-cache']).toBe('HIT');
+
+	const response = await request.post('/api/revalidate', {
+		headers: {
+			'Content-Type': 'application/json',
+			'X-Shopify-Topic': 'products/update',
+			'X-Shopify-Hmac-Sha256': createHmac('sha256', WEBHOOK_SECRET).update(body, 'utf8').digest('base64'),
+		},
+		data: body,
+	});
+
+	expect((await response.json()).revalidated).toBe(true);
+	expect((await request.get('/products/linen-overshirt')).headers()['x-cache']).toBe('MISS');
 });
 
 test('a shop update re-renders the policy pages', async ({ request }) => {

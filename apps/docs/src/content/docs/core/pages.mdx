@@ -83,7 +83,7 @@ export default eco.page({
 
 The element type is inferred from what `render` returns, and `layout` must use the same element type. `render` receives what `props` returned plus `params` and `query`, always typed; `cache` and `middleware` do not change inference.
 
-`cache` does decide what `props` receives. On a `'static'` or `{ revalidate }` page it receives `{ params, appConfig, runtimeOrigin }` and runs without a request. On a `cache: 'dynamic'` page it is the page's request handler: it runs on every request, the build never runs it, and it also receives `request`, `query` and the `locals` typed from the `middleware` list. See [Data Fetching](/docs/core/data-fetching#props).
+`cache` does decide what `props` receives. On any page other than a `cache: 'dynamic'` one, including a page whose `cache` is a function, it receives `{ params, appConfig, runtimeOrigin }` and runs without a request. On a `cache: 'dynamic'` page it is the page's request handler: it runs on every request, the build never runs it, and it also receives `request`, `query` and the `locals` typed from the `middleware` list. See [Data Fetching](/docs/core/data-fetching#props).
 
 `render` does not receive `locals`, and `requires` is removed. A page that read `locals` in `render` reads them in `props` instead and returns what `render` needs:
 

@@ -16,7 +16,10 @@ type HomeProps = {
 
 export default eco.page<HomeProps, JsxRenderable>({
 	layout: StoreLayout,
-	cache: { revalidate: CATALOG_REVALIDATE_SECONDS, tags: [CACHE_TAGS.products, CACHE_TAGS.collections] },
+	cache: {
+		revalidate: CATALOG_REVALIDATE_SECONDS,
+		tags: [CACHE_TAGS.products, CACHE_TAGS.productListings, CACHE_TAGS.collections],
+	},
 	props: async () => {
 		const commerce = getCommerce();
 		const [store, collections, products] = await Promise.all([

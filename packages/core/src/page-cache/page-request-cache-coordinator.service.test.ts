@@ -27,7 +27,7 @@ describe('PageRequestCacheCoordinator', () => {
 
 		const response = await service.render({
 			cacheKey: '/dynamic',
-			pageCacheStrategy: 'dynamic',
+			bypassCache: true,
 			renderFn,
 		});
 
@@ -49,7 +49,7 @@ describe('PageRequestCacheCoordinator', () => {
 
 		const response = await service.render({
 			cacheKey: '/cached',
-			pageCacheStrategy: { revalidate: 60 },
+			bypassCache: false,
 			renderFn: async () => ({
 				html: '<html><body>fresh</body></html>',
 				strategy: { revalidate: 60 },
@@ -59,7 +59,7 @@ describe('PageRequestCacheCoordinator', () => {
 		expect(await response.text()).toBe('<html><body>cached</body></html>');
 		expect(response.headers.get('X-Cache')).toBe('HIT');
 		expect(response.headers.get('Cache-Control')).toContain('max-age=60');
-		expect(cacheService.getOrCreate).toHaveBeenCalledWith('/cached', { revalidate: 60 }, expect.any(Function));
+		expect(cacheService.getOrCreate).toHaveBeenCalledWith('/cached', 'static', expect.any(Function));
 	});
 
 	it('should normalize supported body types to strings', async () => {
@@ -88,7 +88,7 @@ describe('PageRequestCacheCoordinator', () => {
 
 		const first = await service.render({
 			cacheKey: '/static',
-			pageCacheStrategy: 'static',
+			bypassCache: false,
 			renderFn,
 		});
 
@@ -101,7 +101,7 @@ describe('PageRequestCacheCoordinator', () => {
 
 		const notModified = await service.render({
 			cacheKey: '/static',
-			pageCacheStrategy: 'static',
+			bypassCache: false,
 			renderFn,
 			ifNoneMatch: etag,
 		});

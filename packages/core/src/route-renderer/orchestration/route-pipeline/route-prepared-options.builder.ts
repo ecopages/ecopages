@@ -13,6 +13,7 @@ import type {
 } from '../../../types/contracts.ts';
 import { createPagePackage, type ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import { dedupeProcessedAssets } from '../../../assets/processed-asset-dedupe.ts';
+import { resolveCacheStrategy } from '../../../page-cache/resolve-cache-strategy.ts';
 
 type PreparedRenderInputs = {
 	Page: EcoPageFile['default'] | EcoPageComponent<any>;
@@ -24,6 +25,18 @@ type PreparedRenderInputs = {
 	metadata: PageMetadataProps;
 	integrationSpecificProps: Record<string, unknown>;
 };
+
+/**
+ * Whether the render has the props a `cache` function reads: the `props` hook ran, or the caller passed props.
+ *
+ * @remarks
+ * Build planning prepares a route without running its `props` hook, for a Dynamic Page entry, a route template and
+ * an imported view, and no page is rendered from that preparation. A `cache` function called there would read props
+ * that were never resolved.
+ */
+function hasRenderProps(routeOptions: RouteRendererOptions): boolean {
+	return !routeOptions.skipPropsHook || routeOptions.props !== undefined;
+}
 
 /**
  * Assembles the final integration render options after route prep dependencies resolve.
@@ -56,7 +69,19 @@ export function buildPreparedRenderOptions<C = unknown>(input: {
 		params: routeOptions.params || {},
 		query: routeOptions.query || {},
 	};
-	const cacheStrategy = (Page as EcoPageComponent<any>).cache;
+	const declaredCache = (Page as EcoPageComponent<any>).cache;
+	const cacheStrategy =
+		typeof declaredCache === 'function' && !hasRenderProps(routeOptions)
+			? undefined
+			: resolveCacheStrategy(
+					declaredCache,
+					{
+						props: resolvedProps,
+						params: routeOptions.params || {},
+						query: routeOptions.query || {},
+					},
+					routeOptions.file,
+				);
 	const locals = routeOptions.locals;
 	const preparedOptions: InternalIntegrationRendererRenderOptions<C> = {
 		...routeOptions,

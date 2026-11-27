@@ -13,7 +13,10 @@ const PRODUCTS_PER_COLLECTION = 48;
 
 export default eco.page<CollectionWithProducts, JsxRenderable>({
 	layout: StoreLayout,
-	cache: { revalidate: CATALOG_REVALIDATE_SECONDS, tags: [CACHE_TAGS.products, CACHE_TAGS.collections] },
+	cache: {
+		revalidate: CATALOG_REVALIDATE_SECONDS,
+		tags: [CACHE_TAGS.products, CACHE_TAGS.productListings, CACHE_TAGS.collections],
+	},
 	paths: async () => {
 		const collections = await getCommerce().listCollections({ limit: 100 });
 		return collections.map((collection) => ({ params: { handle: collection.handle } }));

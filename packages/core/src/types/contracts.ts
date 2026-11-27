@@ -928,10 +928,36 @@ type PageStaticsBase<T> = {
 export type StaticCacheStrategy = Exclude<CacheStrategy, 'dynamic'>;
 
 /**
+ * What a Page's `cache` function receives on each render.
+ *
+ * @remarks
+ * `props` is what the Page's `props` hook returned, as `metadata` receives it.
+ */
+export type GetCacheStrategyContext<T = Record<string, unknown>> = Required<StaticPageContext> & {
+	props: T;
+};
+
+/**
+ * A Cache Strategy computed from the route's Params and the Page's props, so a Page tags itself per entity.
+ *
+ * @remarks
+ * It runs on every render of the Page, including a background regeneration, and the page cache stores the strategy
+ * it returns with the entry.
+ */
+export type GetCacheStrategy<T = Record<string, unknown>> = (
+	context: GetCacheStrategyContext<T>,
+) => StaticCacheStrategy;
+
+/**
+ * The `cache` a Static or revalidating Page declares: a fixed strategy, or a function that computes it per render.
+ */
+export type StaticCacheStrategyInput<T = Record<string, unknown>> = StaticCacheStrategy | GetCacheStrategy<T>;
+
+/**
  * What `eco.page()` keeps on a Static or revalidating Page: its `props` hook receives the build context.
  */
 export type StaticPageStatics<T> = PageStaticsBase<T> & {
-	cache?: StaticCacheStrategy;
+	cache?: StaticCacheStrategyInput<T>;
 	props?: GetProps<T>;
 	resolveDependencies?: GetPageDependencies<T>;
 };

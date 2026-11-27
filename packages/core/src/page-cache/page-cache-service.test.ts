@@ -76,6 +76,27 @@ describe('PageCacheService', () => {
 			expect(result.html).toBe('<html>stale</html>');
 		});
 
+		test('should store the tags of the regenerated render in place of the stale ones', async () => {
+			const renderFn = vi.fn().mockResolvedValue({
+				html: '<html>v2</html>',
+				strategy: { revalidate: 60, tags: ['product:new'] },
+			});
+			await store.set('/product', {
+				html: '<html>stale</html>',
+				createdAt: Date.now() - 120000,
+				revalidateAfter: Date.now() - 60000,
+				tags: ['product:old'],
+				strategy: { revalidate: 60, tags: ['product:old'] },
+			});
+
+			const result = await service.getOrCreate('/product', { revalidate: 60 }, renderFn);
+			await service.waitForInFlightRegenerations();
+
+			expect(result.status).toBe('stale');
+			expect(await service.invalidateByTags(['product:old'])).toBe(0);
+			expect(await service.invalidateByTags(['product:new'])).toBe(1);
+		});
+
 		test('should deduplicate concurrent regeneration requests', async () => {
 			let releaseRender: () => void = () => undefined;
 			const renderGate = new Promise<void>((resolve) => {

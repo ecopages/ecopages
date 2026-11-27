@@ -32,14 +32,14 @@ Open [http://localhost:3000](http://localhost:3000). The first request creates t
 
 ## Pages
 
-| Route                                              | Rendered                                                                                                                       |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `/`, `/collections/<c>`, `/collections/<c>/<cat>`  | At build (static). The home page links every subcategory of every collection.                                                  |
-| `/collections/<c>/<cat>/<sub>`                     | At build: the first 24 products, filters, and a pager.                                                                         |
-| `/collections/<c>/<cat>/<sub>/page/<n>`            | Later listing pages: the first ones at build, the rest on first request, then cached for an hour.                              |
-| `/products/<slug>`                                 | The first products of each subcategory at build, the rest on first request, then cached for an hour (`cache: { revalidate }`). |
-| `/search?q=&in=&material=&finish=&min=&max=&sort=` | Per request: search, filters and sort, all in the URL.                                                                         |
-| `/order`                                           | Per request: the cart, with quantity and remove forms.                                                                         |
+| Route                                              | Rendered                                                                                                                                               |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/`, `/collections/<c>`, `/collections/<c>/<cat>`  | At build (static). The home page links every subcategory of every collection.                                                                          |
+| `/collections/<c>/<cat>/<sub>`                     | At build: the first 24 products, filters, and a pager.                                                                                                 |
+| `/collections/<c>/<cat>/<sub>/page/<n>`            | Later listing pages: the first ones at build, the rest on first request, then cached for an hour.                                                      |
+| `/products/<slug>`                                 | The first products of each subcategory at build, the rest on first request, then cached for an hour (`cache: ({ params }) => ({ revalidate, tags })`). |
+| `/search?q=&in=&material=&finish=&min=&max=&sort=` | Per request: search, filters and sort, all in the URL.                                                                                                 |
+| `/order`                                           | Per request: the cart, with quantity and remove forms.                                                                                                 |
 
 Endpoints live in `src/pages/**/*.api.ts`: `/api/products`, `/api/products/<slug>`, `/api/browse`, `/api/cart`, `/cart/add`, `/cart/update`, `/api/revalidate` and `/images/products/<slug>`.
 
@@ -54,8 +54,10 @@ Endpoints live in `src/pages/**/*.api.ts`: `/api/products`, `/api/products/<slug
     curl -X POST http://localhost:3000/api/revalidate \
       -H "Authorization: Bearer $REVALIDATE_TOKEN" \
       -H "Content-Type: application/json" \
-      -d '{"tags":["products"]}'
+      -d '{"tags":["product:<slug>"]}'
     ```
+
+    A product page tags itself `product:<slug>` from its Params with a `cache` function, next to `products` and `catalog`: `{"tags":["product:<slug>"]}` drops only that product's page, and `{"tags":["products"]}` drops every product page.
 
 ### Filters and sort
 

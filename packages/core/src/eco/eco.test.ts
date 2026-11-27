@@ -620,6 +620,16 @@ describe('eco namespace', () => {
 		expect(Page.cache).toEqual({ revalidate: 3600, tags: ['blog'] });
 	});
 
+	test('should attach a cache function as given', () => {
+		const cache = ({ params }: { params: Record<string, string | string[]> }) => ({
+			revalidate: 60,
+			tags: [`product:${params.slug}`],
+		});
+		const Page = eco.page({ cache, render: () => '<h1>Product</h1>' });
+
+		expect(Page.cache).toBe(cache);
+	});
+
 	test('should not have cache when not provided', () => {
 		const Page = eco.page({
 			render: () => '<h1>Page Without Cache</h1>',

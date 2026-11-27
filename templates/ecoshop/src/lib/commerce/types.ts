@@ -86,8 +86,23 @@ export interface CartLine {
 	image: Image | null;
 }
 
+/**
+ * Something the shopper and an agent should know about a cart change that went through: a quantity the store capped,
+ * or a change it only partly made.
+ */
+export interface CartMessage {
+	type: 'error' | 'warning' | 'info';
+	code: string;
+	content: string;
+}
+
 export interface Cart {
 	id: string;
+	/**
+	 * What the provider has to say about the change that returned this cart. Only the result of a change carries any: a
+	 * cart that is read has none.
+	 */
+	messages?: CartMessage[];
 	/** Absolute, or root-relative to the store; pass it through `resolveUrl` before it leaves the site. */
 	checkoutUrl: string;
 	totalQuantity: number;

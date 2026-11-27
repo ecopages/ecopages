@@ -309,6 +309,42 @@ describe('store tools: the shopper cart on a page', () => {
 	});
 });
 
+describe('store tools: a cart change the provider only partly made', () => {
+	it('shows the agent the cart as it now is, with the provider message', async () => {
+		const cartId = await cartWith([{ id: fieldShirtM, quantity: 1 }]);
+		const before = (await call('get_cart', {}, page(cartId))).structured as CartResult;
+		const current = await provider.getCart(cartId);
+		if (!current) throw new Error('The cart exists.');
+		const partly: CommerceProvider = {
+			...provider,
+			setCartQuantities: async () => ({
+				...current,
+				messages: [
+					{
+						type: 'error',
+						code: 'change_incomplete',
+						content:
+							'The new items were added, but the rest of the change was refused: The line does not exist',
+					},
+				],
+			}),
+		};
+
+		const outcome = await call(
+			'update_cart',
+			{ id: before.id, cart: { line_items: [{ item: { id: tote }, quantity: 1 }] } },
+			{ ...page(cartId), provider: partly },
+		);
+
+		expect(outcome.result.isError).toBeUndefined();
+		expect((outcome.structured as CartResult).line_items.map((line) => line.item.id)).toEqual([fieldShirtM]);
+		expect((outcome.structured as CartResult).messages).toEqual([
+			expect.objectContaining({ type: 'error', code: 'change_incomplete' }),
+		]);
+		expect(outcome.result.content[0]?.text).toContain('the rest of the change was refused');
+	});
+});
+
 describe('store tools: add_to_cart scope', () => {
 	it('refuses a variant of another product and works only on a product page', async () => {
 		const otherProduct = await call(

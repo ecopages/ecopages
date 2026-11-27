@@ -32,6 +32,8 @@ Checkout is Shopify's own: the cart links to the cart's `checkoutUrl`.
 
 Setting the quantities of an existing cart (the cart page, `update_cart`, `cancel_cart`) reads the cart and the stock of the variants it keeps in one request, refuses a sold-out variant before writing, then writes the additions, and the updates and removals together, in one request each. Shopify runs every field of a mutation even after one fails, so the additions go first and alone: a refused addition changes nothing. Any addition Shopify accepts but holds none of, because of a stock warning, is refused.
 
+The Storefront API has no transaction and no conditional write, so two things can still happen between the read and the writes, and the provider answers both. A change from another tab can push a line past the 99-unit cap (two tabs that each add one unit to a line of 98): the cart a write returns is checked again and an over-cap line is set back to 99, with a warning message in the result. When the second write is refused after the additions went through, the cart is read again and returned as it now is, with an error message that names the refusal, so the agent and the shopper see what the cart holds instead of an error that hides the additions. The messages are `Cart.messages` of the provider's result, which the agent tools return as `messages`.
+
 ## Revalidation webhook
 
 Catalog pages use `cache: { revalidate: 300, tags }`: the home and collection pages carry the `products` and `collections` tags, product pages `products`, and policy pages `policies`. `POST /api/revalidate` verifies Shopify's `X-Shopify-Hmac-Sha256` signature and invalidates the tags for the topic:

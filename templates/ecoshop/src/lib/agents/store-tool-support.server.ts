@@ -171,6 +171,7 @@ function cartRevision(cart: Cart): string {
 
 export function cartView(cart: Cart | null, context: StoreToolContext, messages: CartMessage[] = []) {
 	const { origin } = context;
+	const all = [...(cart?.messages ?? []), ...messages];
 	const subtotal: AgentPrice | null = cart ? toAgentPrice(cart.subtotal) : null;
 	return {
 		id: cart ? (context.surface === 'page' ? cartRevision(cart) : cart.id) : '',
@@ -192,7 +193,7 @@ export function cartView(cart: Cart | null, context: StoreToolContext, messages:
 			quantity: line.quantity,
 			line_price: toAgentPrice(line.totalPrice),
 		})),
-		...(messages.length ? { messages } : {}),
+		...(all.length ? { messages: all } : {}),
 	};
 }
 
@@ -268,7 +269,8 @@ export async function currentCart(
 
 export function cartOutcome(cart: Cart, context: StoreToolContext): StoreToolOutcome {
 	const view = cartView(cart, context);
-	return { result: ok(view, describeCart(view)), cartId: cart.id, cart };
+	const notes = (cart.messages ?? []).map((message) => ` ${message.content}`).join('');
+	return { result: ok(view, `${describeCart(view)}${notes}`), cartId: cart.id, cart };
 }
 
 export async function applyCartChange(change: () => Promise<Cart>): Promise<Cart | StoreToolOutcome> {

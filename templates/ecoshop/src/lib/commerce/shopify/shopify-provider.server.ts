@@ -181,7 +181,8 @@ function assertWithinCap(lines: CartLineQuantity[], existing: Cart | null, mode:
  * sold-out or unknown variant it would add before anything changes, then writes in at most two requests (see
  * `changeCart`). A new cart is created in one request, refused afterwards when Shopify added nothing. `addToCart` reads
  * the cart first for the line cap of 99. The Storefront API has no transaction or conditional write, so a change made
- * elsewhere between the read and the write is not seen.
+ * elsewhere between the read and the write is not seen: the cart a write returns is checked against the cap again
+ * (`enforceCap`), and a refused second write returns the cart as it now is with a message (`changeCart`).
  */
 export function createShopifyProvider(options: StorefrontClientOptions): CommerceProvider {
 	const query = createStorefrontClient(options);
@@ -292,7 +293,8 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 	 * @remarks
 	 * Shopify runs every field of a mutation even after one reports an error, so a refused addition sent with the
 	 * removals would still remove lines. Sent first and alone, a refused addition changes nothing. A refusal of the
-	 * second request comes after the additions are in the cart, and its message says so.
+	 * second request comes after the additions are in the cart, so the cart is read again and returned as it now is,
+	 * with a message that says which changes were not made, instead of an error that hides the additions.
 	 */
 	async function changeCart(cart: Cart, { add, update, remove }: CartChange): Promise<Cart> {
 		const added = add.length ? await sendCartChange(cart, { add }) : cart;
@@ -301,10 +303,48 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 			return await sendCartChange(added, { update, remove });
 		} catch (error) {
 			if (!add.length || !(error instanceof CartInputError)) throw error;
-			throw new CartInputError(
-				`${error.message} The new items were added to the cart, and other lines may have changed.`,
-			);
+			const current = await getCart(cart.id).catch(() => null);
+			if (!current) throw error;
+			return {
+				...current,
+				messages: [
+					{
+						type: 'error',
+						code: 'change_incomplete',
+						content: `The new items were added, but the rest of the change was refused: ${error.message} The cart is as it now is.`,
+					},
+				],
+			};
 		}
+	}
+
+	/**
+	 * Takes a line that a change from another tab pushed past {@link MAX_LINE_QUANTITY} back to it.
+	 *
+	 * @remarks
+	 * The cap is checked before a write from the cart that was read, and the Storefront API has no conditional write,
+	 * so two tabs that each add one unit to a line of 98 both pass the check and Shopify merges them into 100. The
+	 * cart a write returns is the one it ended with, so the check runs again on it.
+	 */
+	async function enforceCap(cart: Cart): Promise<Cart> {
+		const over = cart.lines.filter((line) => line.quantity > MAX_LINE_QUANTITY);
+		if (!over.length) return cart;
+		const capped = await sendCartChange(cart, {
+			update: over.map((line) => ({ id: line.id, quantity: MAX_LINE_QUANTITY })),
+		});
+		return {
+			...capped,
+			messages: [
+				...(cart.messages ?? []),
+				{
+					type: 'warning',
+					code: 'quantity_capped',
+					content: `A cart line holds at most ${MAX_LINE_QUANTITY} of one variant, so ${over
+						.map((line) => line.productTitle)
+						.join(', ')} was set back to ${MAX_LINE_QUANTITY}.`,
+				},
+			],
+		};
 	}
 
 	/**
@@ -392,9 +432,11 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 			const cart = cartId ? await getCart(cartId) : null;
 			assertWithinCap(lines, cart, 'add');
 			if (!cart) return createCart(lines);
-			return sendCartChange(cart, {
-				add: lines.map((line) => ({ merchandiseId: line.variantId, quantity: line.quantity })),
-			});
+			return enforceCap(
+				await sendCartChange(cart, {
+					add: lines.map((line) => ({ merchandiseId: line.variantId, quantity: line.quantity })),
+				}),
+			);
 		},
 		setCartQuantities: async (cartId, lines) => {
 			assertVariantIds(lines);
@@ -410,7 +452,7 @@ export function createShopifyProvider(options: StorefrontClientOptions): Commerc
 					`These variants are sold out or do not exist: ${refused.map((line) => line.merchandiseId).join(', ')}.`,
 				);
 			}
-			return changeCart(cart, change);
+			return enforceCap(await changeCart(cart, change));
 		},
 	};
 }

@@ -267,7 +267,43 @@ describe('Shopify provider cart', () => {
 		expect(calls[1]?.variables).toEqual({ cartId: cart.id, add: [{ merchandiseId: otherVariant, quantity: 1 }] });
 	});
 
-	it('says the new items are in the cart when the removal after them is refused', async () => {
+	it('returns the cart as it now is, with a message, when the removal after the additions is refused', async () => {
+		const { provider, calls } = providerWith([
+			state(cart.lines.nodes, [{ id: otherVariant, availableForSale: true }]),
+			changed(['add'], [...cart.lines.nodes, lineFor(otherVariant, 1)]),
+			{
+				data: {
+					remove: {
+						cart: null,
+						userErrors: [{ field: ['lineIds', '0'], message: 'The line does not exist' }],
+						warnings: [],
+					},
+				},
+			},
+			{
+				data: {
+					cart: { ...cart, lines: { ...cart.lines, nodes: [...cart.lines.nodes, lineFor(otherVariant, 1)] } },
+				},
+			},
+		]);
+
+		const result = await provider.setCartQuantities(cart.id, [
+			{ variantId: jacketM, quantity: 0 },
+			{ variantId: otherVariant, quantity: 1 },
+		]);
+
+		expect(calls.map((call) => call.operation)).toEqual(['CartState', 'CartChange', 'CartChange', 'Cart']);
+		expect(result.lines.map((line) => line.variantId)).toEqual([jacketM, otherVariant]);
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				type: 'error',
+				code: 'change_incomplete',
+				content: expect.stringContaining('The line does not exist'),
+			}),
+		]);
+	});
+
+	it('reports the refusal as an error when the cart cannot be read again', async () => {
 		const { provider } = providerWith([
 			state(cart.lines.nodes, [{ id: otherVariant, availableForSale: true }]),
 			changed(['add'], [...cart.lines.nodes, lineFor(otherVariant, 1)]),
@@ -280,6 +316,7 @@ describe('Shopify provider cart', () => {
 					},
 				},
 			},
+			new Response('', { status: 500 }),
 		]);
 
 		await expect(
@@ -287,9 +324,7 @@ describe('Shopify provider cart', () => {
 				{ variantId: jacketM, quantity: 0 },
 				{ variantId: otherVariant, quantity: 1 },
 			]),
-		).rejects.toThrow(
-			'The line does not exist The new items were added to the cart, and other lines may have changed.',
-		);
+		).rejects.toThrow('The line does not exist');
 	});
 
 	it('reports a refused update as it is when nothing was added', async () => {
@@ -515,6 +550,51 @@ describe('Shopify provider cart', () => {
 			]),
 		).rejects.toThrow(/at most 99/u);
 		expect(calls.map((call) => call.operation)).toEqual(['Cart']);
+	});
+
+	it('sets a line back to the cap when a change from another tab pushed it past', async () => {
+		const held = (quantity: number) => [{ ...cart.lines.nodes[0]!, quantity }];
+		const { provider, calls } = providerWith([
+			{ data: { cart: { ...cart, lines: { ...cart.lines, nodes: held(98) } } } },
+			changed(['add'], held(100)),
+			changed(['update'], held(99)),
+		]);
+
+		const result = await provider.addToCart(cart.id, [{ variantId: jacketM, quantity: 1 }]);
+
+		expect(calls.map((call) => call.operation)).toEqual(['Cart', 'CartChange', 'CartChange']);
+		expect(calls[2]?.variables).toEqual({
+			cartId: cart.id,
+			update: [{ id: cart.lines.nodes[0]?.id, quantity: 99 }],
+		});
+		expect(result.lines[0]?.quantity).toBe(99);
+		expect(result.messages).toEqual([expect.objectContaining({ type: 'warning', code: 'quantity_capped' })]);
+	});
+
+	it('sets a line back to the cap after a set that another tab raced', async () => {
+		const held = (quantity: number) => [{ ...cart.lines.nodes[0]!, quantity }];
+		const { provider, calls } = providerWith([
+			state(held(2)),
+			changed(['update'], held(120)),
+			changed(['update'], held(99)),
+		]);
+
+		const result = await provider.setCartQuantities(cart.id, [{ variantId: jacketM, quantity: 50 }]);
+
+		expect(calls.map((call) => call.operation)).toEqual(['CartState', 'CartChange', 'CartChange']);
+		expect(result.lines[0]?.quantity).toBe(99);
+	});
+
+	it('leaves a cart within the cap as it is, with no further request and no message', async () => {
+		const { provider, calls } = providerWith([
+			cartFixture,
+			changed(['add'], [{ ...cart.lines.nodes[0]!, quantity: 3 }]),
+		]);
+
+		const result = await provider.addToCart(cart.id, [{ variantId: jacketM, quantity: 1 }]);
+
+		expect(calls).toHaveLength(2);
+		expect(result.messages).toBeUndefined();
 	});
 
 	it('reads every page of a long cart', async () => {

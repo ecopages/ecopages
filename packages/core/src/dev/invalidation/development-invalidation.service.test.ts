@@ -779,8 +779,8 @@ describe('DevelopmentInvalidationService', () => {
 			};
 		};
 
-		await pageCache.getOrCreate('/affected', 'static', renderAffected);
-		await pageCache.getOrCreate('/unrelated', 'static', renderUnrelated);
+		await pageCache.getOrCreate('/affected', renderAffected);
+		await pageCache.getOrCreate('/unrelated', renderUnrelated);
 
 		await service.applyDevFileChanges({
 			changed: [changedSource],
@@ -788,8 +788,8 @@ describe('DevelopmentInvalidationService', () => {
 			deleted: [],
 		});
 
-		await pageCache.getOrCreate('/affected', 'static', renderAffected);
-		await pageCache.getOrCreate('/unrelated', 'static', renderUnrelated);
+		await pageCache.getOrCreate('/affected', renderAffected);
+		await pageCache.getOrCreate('/unrelated', renderUnrelated);
 
 		expect(clearHtml).not.toHaveBeenCalled();
 		expect(affectedRenders).toBe(2);
@@ -807,7 +807,7 @@ describe('DevelopmentInvalidationService', () => {
 		const service = new DevelopmentInvalidationService(appConfig);
 		let renders = 0;
 
-		await pageCache.getOrCreate('/page', 'static', async () => ({
+		await pageCache.getOrCreate('/page', async () => ({
 			html: `<p>${++renders}</p>`,
 			strategy: 'static',
 			sourceDependencyPaths: [path.resolve('/test/project/src/pages/page.tsx')],
@@ -819,7 +819,7 @@ describe('DevelopmentInvalidationService', () => {
 			deleted: [],
 		});
 
-		await pageCache.getOrCreate('/page', 'static', async () => ({
+		await pageCache.getOrCreate('/page', async () => ({
 			html: `<p>${++renders}</p>`,
 			strategy: 'static',
 			sourceDependencyPaths: [path.resolve('/test/project/src/pages/page.tsx')],

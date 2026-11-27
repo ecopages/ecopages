@@ -59,7 +59,7 @@ describe('PageRequestCacheCoordinator', () => {
 		expect(await response.text()).toBe('<html><body>cached</body></html>');
 		expect(response.headers.get('X-Cache')).toBe('HIT');
 		expect(response.headers.get('Cache-Control')).toContain('max-age=60');
-		expect(cacheService.getOrCreate).toHaveBeenCalledWith('/cached', 'static', expect.any(Function));
+		expect(cacheService.getOrCreate).toHaveBeenCalledWith('/cached', expect.any(Function));
 	});
 
 	it('should normalize supported body types to strings', async () => {

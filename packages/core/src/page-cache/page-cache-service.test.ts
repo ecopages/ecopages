@@ -25,7 +25,7 @@ describe('PageCacheService', () => {
 		test('should return miss and render on cache miss', async () => {
 			const renderFn = vi.fn().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
 
-			const result = await service.getOrCreate('/page', 'static', renderFn);
+			const result = await service.getOrCreate('/page', renderFn);
 
 			expect(result.status).toBe('miss');
 			expect(result.html).toBe('<html>hello</html>');
@@ -33,13 +33,22 @@ describe('PageCacheService', () => {
 			expect(renderFn).toHaveBeenCalledTimes(1);
 		});
 
+		test('should store the strategy and tags its render result carries', async () => {
+			const strategy = { revalidate: 60, tags: ['a'] };
+
+			await service.getOrCreate('/tagged', async () => ({ html: '<html>tagged</html>', strategy }));
+
+			expect(await store.get('/tagged')).toMatchObject({ strategy, tags: ['a'] });
+			expect(await service.invalidateByTags(['a'])).toBe(1);
+		});
+
 		test('should return hit on cache hit', async () => {
 			const renderFn = vi.fn().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
 
-			await service.getOrCreate('/page', 'static', renderFn);
+			await service.getOrCreate('/page', renderFn);
 
 			renderFn.mockClear();
-			const result = await service.getOrCreate('/page', 'static', renderFn);
+			const result = await service.getOrCreate('/page', renderFn);
 
 			expect(result.status).toBe('hit');
 			expect(result.html).toBe('<html>hello</html>');
@@ -50,8 +59,8 @@ describe('PageCacheService', () => {
 		test('should bypass cache for dynamic strategy', async () => {
 			const renderFn = vi.fn().mockResolvedValue({ html: '<html>hello</html>', strategy: 'dynamic' as const });
 
-			const result1 = await service.getOrCreate('/page', 'dynamic', renderFn);
-			const result2 = await service.getOrCreate('/page', 'dynamic', renderFn);
+			const result1 = await service.getOrCreate('/page', renderFn);
+			const result2 = await service.getOrCreate('/page', renderFn);
 
 			expect(result1.status).toBe('miss');
 			expect(result2.status).toBe('miss');
@@ -71,7 +80,7 @@ describe('PageCacheService', () => {
 			};
 			await store.set('/stale-page', staleEntry);
 
-			const result = await service.getOrCreate('/stale-page', { revalidate: 60 }, renderFn);
+			const result = await service.getOrCreate('/stale-page', renderFn);
 			expect(result.status).toBe('stale');
 			expect(result.html).toBe('<html>stale</html>');
 		});
@@ -89,7 +98,7 @@ describe('PageCacheService', () => {
 				strategy: { revalidate: 60, tags: ['product:old'] },
 			});
 
-			const result = await service.getOrCreate('/product', { revalidate: 60 }, renderFn);
+			const result = await service.getOrCreate('/product', renderFn);
 			await service.waitForInFlightRegenerations();
 
 			expect(result.status).toBe('stale');
@@ -130,10 +139,10 @@ describe('PageCacheService', () => {
 				return evictedKeys;
 			});
 
-			const firstResult = await service.getOrCreate('/dedup-page', { revalidate: 60 }, renderFn);
+			const firstResult = await service.getOrCreate('/dedup-page', renderFn);
 			const results = await Promise.all([
-				service.getOrCreate('/dedup-page', { revalidate: 60 }, renderFn),
-				service.getOrCreate('/dedup-page', { revalidate: 60 }, renderFn),
+				service.getOrCreate('/dedup-page', renderFn),
+				service.getOrCreate('/dedup-page', renderFn),
 			]);
 
 			for (const result of [firstResult, ...results]) {
@@ -162,7 +171,7 @@ describe('PageCacheService', () => {
 				failRender = reject;
 			});
 
-			const stale = await service.getOrCreate('/failing-regen', revalidateStrategy, () => renderResult);
+			const stale = await service.getOrCreate('/failing-regen', () => renderResult);
 			expect(stale.status).toBe('stale');
 
 			const waiting = service.waitForInFlightRegenerations();
@@ -212,7 +221,7 @@ describe('PageCacheService', () => {
 				sourceDependencyPaths: [newSourcePath],
 			});
 
-			await replacementService.getOrCreate('/page', { revalidate: 60, tags: ['page'] }, async () => ({
+			await replacementService.getOrCreate('/page', async () => ({
 				html: '<html>old</html>',
 				strategy: { revalidate: 60, tags: ['page'] },
 				sourceDependencyPaths: [oldSourcePath],
@@ -220,7 +229,7 @@ describe('PageCacheService', () => {
 
 			const invalidation = replacementService.invalidateByTags(['page']);
 			await invalidationStarted;
-			const replacement = replacementService.getOrCreate('/page', 'static', newRender);
+			const replacement = replacementService.getOrCreate('/page', newRender);
 
 			expect(customGet).toHaveBeenCalledTimes(1);
 			releaseInvalidation();
@@ -249,7 +258,7 @@ describe('PageCacheService', () => {
 			);
 			const oldSourcePath = 'src/pending-old.astro';
 			const newSourcePath = '/src/pending-new.astro';
-			const pendingRender = service.getOrCreate('/pending', 'static', () => {
+			const pendingRender = service.getOrCreate('/pending', () => {
 				signalRenderStarted();
 				return renderResult;
 			});
@@ -261,7 +270,7 @@ describe('PageCacheService', () => {
 				strategy: 'static',
 				sourceDependencyPaths: [newSourcePath],
 			});
-			const freshResult = await service.getOrCreate('/pending', 'static', freshRender);
+			const freshResult = await service.getOrCreate('/pending', freshRender);
 			completeRender?.({
 				html: '<html>rendered before invalidation</html>',
 				strategy: 'static',
@@ -279,12 +288,9 @@ describe('PageCacheService', () => {
 		test('should not cache a background regeneration invalidated through its initial source paths', async () => {
 			const sourcePath = '/src/stale-page.astro';
 			const strategy = { revalidate: 60, tags: [] };
-			await service.getOrCreate(
-				'/stale-page',
-				strategy,
-				async () => ({ html: '<html>initial</html>', strategy }),
-				{ sourceDependencyPaths: [sourcePath] },
-			);
+			await service.getOrCreate('/stale-page', async () => ({ html: '<html>initial</html>', strategy }), {
+				sourceDependencyPaths: [sourcePath],
+			});
 			await store.set('/stale-page', {
 				html: '<html>stale</html>',
 				createdAt: 0,
@@ -303,7 +309,6 @@ describe('PageCacheService', () => {
 			});
 			const staleResult = await service.getOrCreate(
 				'/stale-page',
-				strategy,
 				() => {
 					signalRenderStarted();
 					return renderResult;
@@ -336,7 +341,7 @@ describe('PageCacheService', () => {
 				},
 			);
 			const sourcePath = '/src/unrelated.astro';
-			const pendingRender = service.getOrCreate('/unrelated', 'static', () => {
+			const pendingRender = service.getOrCreate('/unrelated', () => {
 				signalRenderStarted();
 				return renderResult;
 			});
@@ -377,7 +382,7 @@ describe('PageCacheService', () => {
 				completeRender = resolve;
 			});
 			const sourcePath = '/src/self.astro';
-			const pendingRender = service.getOrCreate(key, { revalidate: 60, tags: ['self'] }, () => {
+			const pendingRender = service.getOrCreate(key, () => {
 				signalRenderStarted();
 				return renderResult;
 			});
@@ -411,12 +416,12 @@ describe('PageCacheService', () => {
 			const firstSourcePath = '/src/first.astro';
 			const secondSourcePath = '/src/second.astro';
 
-			await boundedService.getOrCreate('/first', 'static', async () => ({
+			await boundedService.getOrCreate('/first', async () => ({
 				html: '<html>first</html>',
 				strategy: 'static',
 				sourceDependencyPaths: [firstSourcePath],
 			}));
-			await boundedService.getOrCreate('/second', 'static', async () => ({
+			await boundedService.getOrCreate('/second', async () => ({
 				html: '<html>second</html>',
 				strategy: 'static',
 				sourceDependencyPaths: [secondSourcePath],
@@ -441,7 +446,7 @@ describe('PageCacheService', () => {
 			const customService = new PageCacheService({ store: customStore, dependencyIndex: customDependencyIndex });
 			const sourcePath = '/src/custom/1.astro';
 
-			await customService.getOrCreate('/custom/1', { revalidate: 60, tags: ['custom'] }, async () => ({
+			await customService.getOrCreate('/custom/1', async () => ({
 				html: '<html>custom</html>',
 				strategy: { revalidate: 60, tags: ['custom'] },
 				sourceDependencyPaths: [sourcePath],
@@ -482,7 +487,7 @@ describe('PageCacheService', () => {
 				dependencyIndex: delayedDependencyIndex,
 			});
 			const sourcePath = '/src/in-flight.astro';
-			const pendingWrite = delayedService.getOrCreate('/in-flight', 'static', async () => ({
+			const pendingWrite = delayedService.getOrCreate('/in-flight', async () => ({
 				html: '<html>pending write</html>',
 				strategy: 'static',
 				sourceDependencyPaths: [sourcePath],
@@ -509,8 +514,8 @@ describe('PageCacheService', () => {
 				sourceDependencyPaths: [sourcePath],
 			});
 
-			await service.getOrCreate('/blog/1', strategy, renderFn);
-			await service.getOrCreate('/blog/2', strategy, renderFn);
+			await service.getOrCreate('/blog/1', renderFn);
+			await service.getOrCreate('/blog/2', renderFn);
 			expect(dependencyIndex.resolveKeys('html-cache', sourcePath)).toEqual(['/blog/1', '/blog/2']);
 
 			const count = await service.invalidateByTags(['blog']);
@@ -518,7 +523,7 @@ describe('PageCacheService', () => {
 			expect(dependencyIndex.resolveKeys('html-cache', sourcePath)).toEqual([]);
 
 			renderFn.mockClear();
-			const result = await service.getOrCreate('/blog/1', 'static', renderFn);
+			const result = await service.getOrCreate('/blog/1', renderFn);
 			expect(result.status).toBe('miss');
 		});
 
@@ -526,7 +531,7 @@ describe('PageCacheService', () => {
 			const renderFn = vi.fn().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
 			const sourcePath = '/src/blog/1.astro';
 
-			await service.getOrCreate('/blog/1?page=2#__eco_rt=3', 'static', async () => ({
+			await service.getOrCreate('/blog/1?page=2#__eco_rt=3', async () => ({
 				...(await renderFn()),
 				sourceDependencyPaths: [sourcePath],
 			}));
@@ -537,7 +542,7 @@ describe('PageCacheService', () => {
 			expect(dependencyIndex.resolveKeys('html-cache', sourcePath)).toEqual([]);
 
 			renderFn.mockClear();
-			const result = await service.getOrCreate('/blog/1', 'static', renderFn);
+			const result = await service.getOrCreate('/blog/1', renderFn);
 			expect(result.status).toBe('miss');
 		});
 	});
@@ -547,8 +552,8 @@ describe('PageCacheService', () => {
 			const disabledService = new PageCacheService({ store, enabled: false });
 			const renderFn = vi.fn().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
 
-			const result1 = await disabledService.getOrCreate('/page', 'static', renderFn);
-			const result2 = await disabledService.getOrCreate('/page', 'static', renderFn);
+			const result1 = await disabledService.getOrCreate('/page', renderFn);
+			const result2 = await disabledService.getOrCreate('/page', renderFn);
 
 			expect(result1.status).toBe('miss');
 			expect(result2.status).toBe('miss');

@@ -73,8 +73,8 @@ describe('watch-mode page cache admission', () => {
 			return { html: '<html>once</html>', strategy: 'static' as const };
 		});
 
-		const first = cacheService.getOrCreate('/docs/intro', 'static', renderFn);
-		const second = cacheService.getOrCreate('/docs/intro', 'static', renderFn);
+		const first = cacheService.getOrCreate('/docs/intro', renderFn);
+		const second = cacheService.getOrCreate('/docs/intro', renderFn);
 		release();
 
 		const [firstResult, secondResult] = await Promise.all([first, second]);

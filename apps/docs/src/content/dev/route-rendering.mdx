@@ -111,7 +111,7 @@ A failing custom page propagates its error; the request adapter then calls `rend
 
 ## Page cache
 
-`PageCacheService` stores rendered HTML for request-time Pages under their cache strategy. The strategies and their headers are in [Caching](/docs/server/caching). Internally:
+`PageCacheService` stores rendered HTML for request-time Pages under the cache strategy their render result carries: `getOrCreate(key, renderFn)` takes no default, because the matcher applies `cache.defaultStrategy` to a Page that declares none before the result reaches the cache. The strategies and their headers are in [Caching](/docs/server/caching). Internally:
 
 - A stale `revalidate` hit returns the stored HTML and regenerates once in the background, deduplicated per key. App shutdown waits for in-flight regenerations before Integration teardown.
 - Invalidations advance a generation counter before waiting for in-flight writes, so a render that began earlier cannot repopulate an entry after an invalidation.

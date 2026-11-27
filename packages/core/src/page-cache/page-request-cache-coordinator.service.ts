@@ -79,11 +79,7 @@ export class PageRequestCacheCoordinator {
 			return this.createCachedResponse(html, strategy, 'disabled', options.ifNoneMatch);
 		}
 
-		const result = await this.cacheService.getOrCreate(
-			options.cacheKey,
-			this.defaultCacheStrategy,
-			options.renderFn,
-		);
+		const result = await this.cacheService.getOrCreate(options.cacheKey, options.renderFn);
 
 		return this.createCachedResponse(result.html, result.strategy, result.status, options.ifNoneMatch);
 	}

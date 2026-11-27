@@ -236,12 +236,10 @@ export class PageCacheService {
 	/**
 	 * Get cached content or create new content with stale-while-revalidate semantics.
 	 * @param key - Cache key (URL path + query)
-	 * @param defaultStrategy - Default strategy if page doesn't specify one
 	 * @param renderFn - Function that renders the page and returns HTML + strategy
 	 */
 	async getOrCreate(
 		key: string,
-		defaultStrategy: CacheStrategy,
 		renderFn: () => Promise<RenderResult>,
 		options?: { sourceDependencyPaths?: readonly string[] },
 	): Promise<CacheResult> {
@@ -256,7 +254,7 @@ export class PageCacheService {
 			return pendingMiss.promise;
 		}
 
-		const missPromise = this.resolveOrCreate(key, defaultStrategy, renderFn, options).finally(() => {
+		const missPromise = this.resolveOrCreate(key, renderFn, options).finally(() => {
 			if (this.missPromises.get(key)?.promise === missPromise) {
 				this.missPromises.delete(key);
 			}
@@ -268,7 +266,6 @@ export class PageCacheService {
 
 	private async resolveOrCreate(
 		key: string,
-		defaultStrategy: CacheStrategy,
 		renderFn: () => Promise<RenderResult>,
 		options?: { sourceDependencyPaths?: readonly string[] },
 	): Promise<CacheResult> {
@@ -279,13 +276,12 @@ export class PageCacheService {
 
 		if (!entry) {
 			const { html, strategy, sourceDependencyPaths } = await renderFn();
-			const effectiveStrategy = strategy ?? defaultStrategy;
 
-			if (effectiveStrategy === 'dynamic') {
-				return { html, status: 'miss', strategy: effectiveStrategy };
+			if (strategy === 'dynamic') {
+				return { html, status: 'miss', strategy };
 			}
 
-			const newEntry = this.createEntry(html, effectiveStrategy);
+			const newEntry = this.createEntry(html, strategy);
 			const dependencyPaths = [
 				...new Set([...(options?.sourceDependencyPaths ?? []), ...(sourceDependencyPaths ?? [])]),
 			];
@@ -297,14 +293,14 @@ export class PageCacheService {
 					this.registerDependencyPaths(key, dependencyPaths, undefined);
 				},
 			);
-			return { html, status: 'miss', strategy: effectiveStrategy };
+			return { html, status: 'miss', strategy };
 		}
 
 		if (!this.isStale(entry)) {
 			return { html: entry.html, status: 'hit', strategy: entry.strategy };
 		}
 
-		this.regenerateInBackground(key, entry.strategy, renderFn, generation, options?.sourceDependencyPaths);
+		this.regenerateInBackground(key, renderFn, generation, options?.sourceDependencyPaths);
 		return { html: entry.html, status: 'stale', strategy: entry.strategy };
 	}
 
@@ -332,7 +328,6 @@ export class PageCacheService {
 	 */
 	private regenerateInBackground(
 		key: string,
-		fallbackStrategy: CacheStrategy,
 		renderFn: () => Promise<RenderResult>,
 		generation: number,
 		initialSourceDependencyPaths: readonly string[] | undefined,
@@ -344,8 +339,7 @@ export class PageCacheService {
 		const regeneratePromise = (async () => {
 			try {
 				const { html, strategy, sourceDependencyPaths } = await renderFn();
-				const effectiveStrategy = strategy ?? fallbackStrategy;
-				const newEntry = this.createEntry(html, effectiveStrategy);
+				const newEntry = this.createEntry(html, strategy);
 				const dependencyPaths = [
 					...new Set([...(initialSourceDependencyPaths ?? []), ...(sourceDependencyPaths ?? [])]),
 				];

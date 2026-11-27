@@ -12,6 +12,7 @@ import {
 import { lstat as lstatAsync, readdir as readdirAsync, stat as statAsync } from 'node:fs/promises';
 import { path } from '../path.ts';
 import type { FileChange, FileStats, FileWatcher, WatchOptions } from '../types.ts';
+import { hasSameEntryVersion, nextRescanWaitMs, RescanReports, SAFETY_RESCAN_DEFAULT_MS } from './safety-rescan.ts';
 
 type PathScope = 'directory' | 'file' | 'unknown';
 type EntryKind = 'directory' | 'file';
@@ -53,14 +54,6 @@ type NativeWatchOptions = WatchOptionsWithStringEncoding & { ignore?: (relativeP
 const CHANGE_COALESCING_MS = 50;
 const NATIVE_REGISTRATION_PROBE_INTERVAL_MS = 20;
 const NATIVE_REGISTRATION_TIMEOUT_MS = 3_000;
-const SAFETY_RESCAN_DEFAULT_MS = 2_000;
-/** The wait after a rescan, in rescan durations, so a rescan uses about a tenth of the time. */
-const SAFETY_RESCAN_WAIT_PER_DURATION = 10;
-/** The cap on that wait, in intervals, so a slow rescan delays the next report by a bounded time. */
-const SAFETY_RESCAN_MAX_WAIT_INTERVALS = 5;
-/** How long a rescan's report of a file can swallow a late native change for it, in intervals. */
-const SAFETY_RESCAN_REPORT_TTL_INTERVALS = 10;
-
 /**
  * Where a change came from: a native event, or a safety rescan that found what the native watcher dropped.
  */
@@ -110,12 +103,13 @@ export class RecursiveFileWatcher implements FileWatcher {
 	private readonly safetyRescanMs: number;
 	private readonly rescansEnabled: boolean;
 	private lastSafetyRescanError: string | undefined;
-	private readonly rescanReports = new Map<string, { stats: Stats; reportedAt: number }>();
+	private readonly rescanReports: RescanReports;
 	private safetyRescanTimer: ReturnType<typeof setTimeout> | undefined;
 
 	public constructor(paths: readonly string[], options: WatchOptions, internals: RecursiveFileWatcherInternals = {}) {
 		this.options = options;
 		this.safetyRescanMs = internals.safetyRescanMs ?? SAFETY_RESCAN_DEFAULT_MS;
+		this.rescanReports = new RescanReports(this.safetyRescanMs);
 		this.rescansEnabled = internals.rescans ?? dropsNativeEvents();
 		this.ready = new Promise<void>((resolve, reject) => {
 			this.readyResolve = resolve;
@@ -280,23 +274,30 @@ export class RecursiveFileWatcher implements FileWatcher {
 
 	private async runSafetyRescan(): Promise<void> {
 		const startedAt = performance.now();
-		this.pruneRescanReports();
-		if (!this.indexing) {
-			await this.rescanSafely(() => this.followMissingPaths());
-			for (const root of this.getWatchRoots()) {
-				if (this.closed) return;
-				await this.rescanSafely(async () => {
-					if (root.recursive) await this.beginRootReconcile({ root, notifyRescan: false, origin: 'rescan' });
-					else if (!this.indexing && !this.activeRootReconciles.has(rootKey(root)))
-						await this.reconcileWatchedPaths(root);
-				});
-			}
-		}
+		await this.rescanNow();
 		this.safetyRescanTimer = undefined;
-		const dutyWaitMs = (performance.now() - startedAt) * SAFETY_RESCAN_WAIT_PER_DURATION;
-		this.scheduleSafetyRescan(
-			Math.min(Math.max(this.safetyRescanMs, dutyWaitMs), this.safetyRescanMs * SAFETY_RESCAN_MAX_WAIT_INTERVALS),
-		);
+		this.scheduleSafetyRescan(nextRescanWaitMs(performance.now() - startedAt, this.safetyRescanMs));
+	}
+
+	/**
+	 * Checks every watched root against the index once, and reports what differs.
+	 *
+	 * @remarks
+	 * The rescan timer calls this; the safety rescan benchmark does too, to time one rescan of a real tree. It does
+	 * nothing while the index is being built.
+	 */
+	public async rescanNow(): Promise<void> {
+		this.rescanReports.prune();
+		if (this.indexing) return;
+		await this.rescanSafely(() => this.followMissingPaths());
+		for (const root of this.getWatchRoots()) {
+			if (this.closed) return;
+			await this.rescanSafely(async () => {
+				if (root.recursive) await this.beginRootReconcile({ root, notifyRescan: false, origin: 'rescan' });
+				else if (!this.indexing && !this.activeRootReconciles.has(rootKey(root)))
+					await this.reconcileWatchedPaths(root);
+			});
+		}
 	}
 
 	/**
@@ -311,15 +312,6 @@ export class RecursiveFileWatcher implements FileWatcher {
 			if (message !== this.lastSafetyRescanError) this.handleError(error);
 			this.lastSafetyRescanError = message;
 		}
-	}
-
-	/**
-	 * Drops the rescan reports that no native event can still repeat.
-	 */
-	private pruneRescanReports(): void {
-		const expiredBefore = performance.now() - this.safetyRescanMs * SAFETY_RESCAN_REPORT_TTL_INTERVALS;
-		for (const [entryPath, report] of this.rescanReports)
-			if (report.reportedAt < expiredBefore) this.rescanReports.delete(entryPath);
 	}
 
 	private rollbackAddedPaths(paths: readonly WatchedPath[], existingWatchRoots: ReadonlySet<string>): void {
@@ -977,7 +969,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 	}
 
 	private flushRemovedPath(canonicalPath: string, previousKind: EntryKind | undefined, mappedPaths: string[]): void {
-		this.rescanReports.delete(canonicalPath);
+		this.rescanReports.forget(canonicalPath);
 		if (!previousKind) return;
 		this.emitChange(previousKind === 'directory' ? 'unlinkDir' : 'unlink', mappedPaths);
 		this.knownEntries.delete(canonicalPath);
@@ -999,7 +991,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 		const nextKind = getEntryKind(stats);
 		const previousStats = this.knownStats.get(canonicalPath);
 		if (isUnchangedFile(previousKind, nextKind, previousStats, stats, forceChange)) return;
-		if (this.isRepeatOfRescanReport(canonicalPath, previousKind, nextKind, stats, forceChange)) return;
+		if (this.isLateNativeChange(canonicalPath, previousKind, nextKind, stats, forceChange)) return;
 		if (previousKind && previousKind !== nextKind)
 			this.removeReplacedEntry(canonicalPath, previousKind, mappedPaths);
 		this.knownEntries.set(canonicalPath, nextKind);
@@ -1017,32 +1009,25 @@ export class RecursiveFileWatcher implements FileWatcher {
 	}
 
 	/**
-	 * True when a native `change` repeats what a safety rescan reported for the same version of the file.
-	 *
-	 * @remarks
-	 * A native event that is slow, not dropped, arrives after the rescan has reported its change. The report is
-	 * consumed by the first native event for the same size, times and inode, so the change is reported once. A
-	 * newer edit has another version and is reported. A report that no event consumed is dropped when the file is
-	 * removed, and by {@link pruneRescanReports} once ten intervals old.
+	 * True when a native `change` repeats what a safety rescan already reported for the same version of the file.
 	 */
-	private isRepeatOfRescanReport(
+	private isLateNativeChange(
 		canonicalPath: string,
 		previousKind: EntryKind | undefined,
 		nextKind: EntryKind,
 		stats: Stats,
 		forceChange: boolean,
 	): boolean {
-		const report = forceChange ? this.rescanReports.get(canonicalPath) : undefined;
-		if (!report) return false;
-		this.rescanReports.delete(canonicalPath);
-		const isRecent =
-			performance.now() - report.reportedAt < this.safetyRescanMs * SAFETY_RESCAN_REPORT_TTL_INTERVALS;
-		return isRecent && previousKind === 'file' && nextKind === 'file' && hasSameEntryVersion(report.stats, stats);
+		return (
+			forceChange &&
+			previousKind === 'file' &&
+			nextKind === 'file' &&
+			this.rescanReports.consumeIfRepeat(canonicalPath, stats)
+		);
 	}
 
 	private rememberRescanReport(canonicalPath: string, stats: Stats, kind: EntryKind, origin: ChangeOrigin): void {
-		if (origin === 'rescan' && kind === 'file')
-			this.rescanReports.set(canonicalPath, { stats, reportedAt: performance.now() });
+		if (origin === 'rescan' && kind === 'file') this.rescanReports.remember(canonicalPath, stats);
 	}
 
 	private removeReplacedEntry(canonicalPath: string, previousKind: EntryKind, mappedPaths: string[]): void {
@@ -1314,15 +1299,6 @@ function isPermissionError(error: unknown): boolean {
 
 function getEntryKind(stats: Stats): EntryKind {
 	return stats.isDirectory() ? 'directory' : 'file';
-}
-
-function hasSameEntryVersion(previous: Stats, next: Stats): boolean {
-	return (
-		previous.size === next.size &&
-		previous.mtimeMs === next.mtimeMs &&
-		previous.ctimeMs === next.ctimeMs &&
-		previous.ino === next.ino
-	);
 }
 
 function isUnchangedFile(

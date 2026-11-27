@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Cart } from '@/lib/commerce/types';
-import { describeLine, describeShortage, shortageNotice, shortageQuery } from './cart-messages';
+import {
+	describeLine,
+	describeShortage,
+	noticeQuery,
+	refusedNotice,
+	shortageNotice,
+	shortageQuery,
+} from './cart-messages';
 
 const tote = 'gid://ecoshop/ProductVariant/canvas-tote';
 const money = { amount: '36.00', currencyCode: 'USD' };
@@ -28,6 +35,12 @@ function cartWith(quantity: number, variantTitle = 'Default Title'): Cart {
 }
 
 describe('cart messages', () => {
+	it('words the refused notice only for its own code', () => {
+		expect(refusedNotice(Object.fromEntries(new URLSearchParams(noticeQuery('refused'))))).toMatch(/sold out/u);
+		expect(refusedNotice({ notice: 'short' })).toBeNull();
+		expect(refusedNotice({})).toBeNull();
+	});
+
 	it('names a line by its product, and its variant unless it is the only one', () => {
 		expect(describeLine({ productTitle: 'Canvas Tote', variantTitle: 'Default Title' })).toBe('Canvas Tote');
 		expect(describeLine({ productTitle: 'Field Shirt', variantTitle: 'M' })).toBe('Field Shirt (M)');

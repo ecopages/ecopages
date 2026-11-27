@@ -460,25 +460,216 @@ describe('ApiRequestPipeline', () => {
 		expect(response?.status).toBe(499);
 	});
 
-	it('answers unsupported content types with HTTP 415 when a body schema is declared', async () => {
-		const response = await createPipeline().tryHandle(
-			new Request('http://localhost/api/posts', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-				body: 'title=post',
-			}),
-			compileApiRoutes([
-				{
-					path: '/api/posts',
-					method: 'POST',
-					schema: { body: z.object({ title: z.string() }) },
-					handler: () => new Response('unreachable'),
-				},
-			]),
-			undefined,
-		);
+	describe('form bodies', () => {
+		const cartSchema = z.object({ slug: z.string(), quantity: z.string().regex(/^\d+$/) });
+		const cartRoutes = (handler: ApiHandler['handler'] = ({ body }) => Response.json(body)) =>
+			compileApiRoutes([{ path: '/api/cart', method: 'POST', schema: { body: cartSchema }, handler }]);
+		const post = (body: BodyInit, headers?: Record<string, string>) =>
+			new Request('http://localhost/api/cart', { method: 'POST', headers, body });
 
-		expect(response?.status).toBe(415);
+		it('validates an urlencoded form post with the body schema', async () => {
+			const response = await createPipeline().tryHandle(
+				post('slug=chair&quantity=2', { 'Content-Type': 'application/x-www-form-urlencoded' }),
+				cartRoutes(),
+				undefined,
+			);
+
+			expect(response?.status).toBe(200);
+			expect(await response?.json()).toEqual({ slug: 'chair', quantity: '2' });
+		});
+
+		it('answers HTTP 400 naming the field a form post leaves out', async () => {
+			const response = await createPipeline().tryHandle(
+				post('quantity=2', { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }),
+				cartRoutes(),
+				undefined,
+			);
+
+			expect(response?.status).toBe(400);
+			const payload = (await response?.json()) as { issues: Array<{ path?: string[] }> };
+			expect(payload.issues.map((issue) => issue.path)).toContainEqual(['slug']);
+		});
+
+		it('still validates a JSON post with the same schema', async () => {
+			const routes = compileApiRoutes([
+				{
+					path: '/api/cart',
+					method: 'POST',
+					schema: { body: z.object({ slug: z.string(), quantity: z.number() }) },
+					handler: ({ body }) => Response.json(body),
+				},
+			]);
+			const response = await createPipeline().tryHandle(
+				post('{"slug":"chair","quantity":2}', { 'Content-Type': 'application/json' }),
+				routes,
+				undefined,
+			);
+
+			expect(await response?.json()).toEqual({ slug: 'chair', quantity: 2 });
+		});
+
+		it('validates a multipart post, keeping repeated keys as arrays and files as File values', async () => {
+			const form = new FormData();
+			form.append('tag', 'a');
+			form.append('tag', 'b');
+			form.append('upload', new File(['hello'], 'hello.txt', { type: 'text/plain' }));
+			const response = await createPipeline().tryHandle(
+				new Request('http://localhost/api/cart', { method: 'POST', body: form }),
+				compileApiRoutes([
+					{
+						path: '/api/cart',
+						method: 'POST',
+						schema: { body: z.object({ tag: z.array(z.string()), upload: z.instanceof(File) }) },
+						handler: async ({ body }) => {
+							const { tag, upload } = body as { tag: string[]; upload: File };
+							return Response.json({ tag, name: upload.name, text: await upload.text() });
+						},
+					},
+				]),
+				undefined,
+			);
+
+			expect(await response?.json()).toEqual({ tag: ['a', 'b'], name: 'hello.txt', text: 'hello' });
+		});
+
+		it('validates a form with no fields as an empty object', async () => {
+			const response = await createPipeline().tryHandle(
+				post('', { 'Content-Type': 'application/x-www-form-urlencoded' }),
+				compileApiRoutes([
+					{
+						path: '/api/cart',
+						method: 'POST',
+						schema: { body: z.object({ tag: z.string().optional() }) },
+						handler: ({ body }) => Response.json(body),
+					},
+				]),
+				undefined,
+			);
+
+			expect(response?.status).toBe(200);
+			expect(await response?.json()).toEqual({});
+		});
+
+		it('answers HTTP 400 for a multipart body that cannot be parsed', async () => {
+			const response = await createPipeline().tryHandle(
+				post('not a multipart body', { 'Content-Type': 'multipart/form-data; boundary=x' }),
+				cartRoutes(),
+				undefined,
+			);
+
+			expect(response?.status).toBe(400);
+			expect(await response?.json()).toEqual({ error: 'Invalid request body' });
+		});
+
+		it('validates a form post streamed through the Node request bridge', async () => {
+			const incomingRequest = new NodeRequestFixture();
+			incomingRequest.url = '/api/cart';
+			incomingRequest.headers = {
+				'content-type': 'application/x-www-form-urlencoded',
+				'transfer-encoding': 'chunked',
+			};
+			const request = new NodeHttpRequestBridge().createWebRequest(
+				incomingRequest as unknown as IncomingMessage,
+				'http://localhost',
+			);
+			const responsePromise = createPipeline().tryHandle(request, cartRoutes(), undefined);
+
+			incomingRequest.write('slug=chair&');
+			incomingRequest.end('quantity=2');
+			const response = await responsePromise;
+
+			expect(response?.status).toBe(200);
+			expect(await response?.json()).toEqual({ slug: 'chair', quantity: '2' });
+		});
+
+		it('answers a client abort while a form body is read with HTTP 499', async () => {
+			const incomingRequest = new NodeRequestFixture();
+			incomingRequest.url = '/api/cart';
+			incomingRequest.headers = {
+				'content-type': 'application/x-www-form-urlencoded',
+				'transfer-encoding': 'chunked',
+			};
+			const request = new NodeHttpRequestBridge().createWebRequest(
+				incomingRequest as unknown as IncomingMessage,
+				'http://localhost',
+			);
+			const responsePromise = createPipeline().tryHandle(request, cartRoutes(), undefined);
+
+			incomingRequest.write('slug=chair&');
+			incomingRequest.emit('aborted');
+
+			expect((await responsePromise)?.status).toBe(499);
+		});
+
+		it('validates a form post that sends no body as an empty object', async () => {
+			const response = await createPipeline().tryHandle(
+				new Request('http://localhost/api/cart', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				}),
+				compileApiRoutes([
+					{
+						path: '/api/cart',
+						method: 'POST',
+						schema: { body: z.object({ tag: z.string().optional() }) },
+						handler: ({ body }) => Response.json(body),
+					},
+				]),
+				undefined,
+			);
+
+			expect(await response?.json()).toEqual({});
+		});
+
+		it('validates a multipart post that sends no body as an empty object', async () => {
+			const response = await createPipeline().tryHandle(
+				new Request('http://localhost/api/cart', {
+					method: 'POST',
+					headers: { 'Content-Type': 'multipart/form-data; boundary=x' },
+				}),
+				compileApiRoutes([
+					{
+						path: '/api/cart',
+						method: 'POST',
+						schema: { body: z.object({ tag: z.string().optional() }) },
+						handler: ({ body }) => Response.json(body),
+					},
+				]),
+				undefined,
+			);
+
+			expect(await response?.json()).toEqual({});
+		});
+
+		it('validates a bodyless Node form post as an empty object', async () => {
+			const response = await createPipeline().tryHandle(
+				createEmptyNodeRequest({
+					'content-type': 'application/x-www-form-urlencoded',
+					'content-length': '0',
+				}),
+				compileApiRoutes([
+					{
+						path: '/api/posts',
+						method: 'POST',
+						schema: { body: z.object({ tag: z.string().optional() }) },
+						handler: ({ body }) => Response.json(body),
+					},
+				]),
+				undefined,
+			);
+
+			expect(await response?.json()).toEqual({});
+		});
+
+		it('leaves the request body readable by the handler', async () => {
+			const response = await createPipeline().tryHandle(
+				post('slug=chair&quantity=2', { 'Content-Type': 'application/x-www-form-urlencoded' }),
+				cartRoutes(async ({ request }) => Response.json(Object.fromEntries(await request.formData()))),
+				undefined,
+			);
+
+			expect(await response?.json()).toEqual({ slug: 'chair', quantity: '2' });
+		});
 	});
 
 	it('drains a streamed Node request with an unsupported content type', async () => {

@@ -1,7 +1,8 @@
 import { definePost } from '@ecopages/core';
-import { updateCartAction } from '@/lib/storefront/cart-http.server';
+import { updateCartAction, updateCartSchema } from '@/lib/storefront/cart-http.server';
 import { cartHttpDeps } from '@/lib/storefront/deps.server';
 
 export const POST = definePost({
-	handler: async ({ request }) => updateCartAction(request, cartHttpDeps()),
+	schema: { body: updateCartSchema },
+	handler: async ({ request, body }) => updateCartAction(request, body, cartHttpDeps()),
 });

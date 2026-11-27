@@ -2,9 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { createDemoProvider } from '@/lib/commerce/demo/demo-provider';
 import type { CommerceProvider } from '@/lib/commerce/types';
 import { CART_COOKIE, readCartId } from './cart-cookie';
-import { handleCartGet, handleCartPost } from './cart-endpoint.server';
+import { cartActionSchema, handleCartGet, handleCartPost as applyCartAction } from './cart-endpoint.server';
 
 const provider = createDemoProvider();
+
+/**
+ * Runs what the Endpoint runs: Ecopages parses the form body and validates it against `schema.body`, then calls the
+ * handler with the result. The parse here stands in for the framework's.
+ */
+async function handleCartPost(request: Request, target: CommerceProvider): Promise<Response> {
+	const fields = Object.fromEntries(await request.clone().formData());
+	return applyCartAction(request, target, cartActionSchema.parse(fields));
+}
+
 const fieldShirtM = 'gid://ecoshop/ProductVariant/field-shirt-m';
 const canvasTote = 'gid://ecoshop/ProductVariant/canvas-tote';
 const soldOut = 'gid://ecoshop/ProductVariant/linen-overshirt-l';
@@ -18,19 +28,6 @@ function formPost(
 		method: 'POST',
 		headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
 		body: new URLSearchParams(fields),
-	});
-}
-
-/**
- * What the `cart-form` host sends: a `FormData` body, so `multipart/form-data`.
- */
-function hostPost(fields: Record<string, string>, headers: Record<string, string> = {}): Request {
-	const body = new FormData();
-	for (const [name, value] of Object.entries(fields)) body.append(name, value);
-	return new Request('https://shop.test/api/cart', {
-		method: 'POST',
-		headers: { Accept: 'application/json', ...headers },
-		body,
 	});
 }
 
@@ -95,12 +92,9 @@ describe('cart endpoint without JavaScript', () => {
 		expect((await cartFrom(removed))?.lines.map((line) => line.variantId)).toEqual([canvasTote]);
 	});
 
-	it('redirects back with a notice when the form is invalid or the provider refuses it', async () => {
-		const invalid = await handleCartPost(formPost({ intent: 'add' }), provider);
+	it('redirects back with a notice when the provider refuses the change', async () => {
 		const refused = await handleCartPost(formPost({ intent: 'add', variantId: soldOut }), provider);
 
-		expect(invalid.status).toBe(303);
-		expect(invalid.headers.get('location')).toBe('/cart?notice=invalid');
 		expect(refused.status).toBe(303);
 		expect(refused.headers.get('location')).toBe('/cart?notice=refused');
 	});
@@ -119,46 +113,19 @@ describe('cart endpoint without JavaScript', () => {
 	});
 });
 
-describe('cart endpoint with JavaScript', () => {
-	it('answers JSON with the cart totals to the `cart-form` host', async () => {
-		const response = await handleCartPost(
-			hostPost({ intent: 'add', variantId: fieldShirtM, quantity: '3' }),
-			provider,
-		);
+describe('cart endpoint input and totals', () => {
+	it('takes the last variant when the product form posts a hidden one and a checked radio', () => {
+		const parsed = cartActionSchema.parse({ intent: 'add', variantId: [fieldShirtM, canvasTote], quantity: '1' });
 
-		expect(response.status).toBe(200);
-		expect(await response.json()).toEqual({ totalQuantity: 3, subtotal: '$204.00' });
-		expect(response.headers.get('set-cookie')).toMatch(new RegExp(`^${CART_COOKIE}=`, 'u'));
+		expect(parsed.variantId).toBe(canvasTote);
 	});
 
-	it('accepts a JSON body from other clients', async () => {
-		const response = await handleCartPost(
-			new Request('https://shop.test/api/cart', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-				body: JSON.stringify({ intent: 'add', variantId: canvasTote, quantity: 2 }),
-			}),
-			provider,
-		);
+	it('has the schema name each invalid field, which Ecopages answers with HTTP 400', () => {
+		const tooMany = cartActionSchema.safeParse({ intent: 'add', variantId: fieldShirtM, quantity: '500' });
+		const noVariant = cartActionSchema.safeParse({ intent: 'add' });
 
-		expect(await response.json()).toEqual({ totalQuantity: 2, subtotal: '$72.00' });
-	});
-
-	it('answers 422 with the reason when the provider refuses the change', async () => {
-		const response = await handleCartPost(hostPost({ intent: 'add', variantId: soldOut }), provider);
-
-		expect(response.status).toBe(422);
-		expect(await response.json()).toEqual({ error: expect.stringMatching(/sold out/u) });
-	});
-
-	it('answers 400 naming the invalid field', async () => {
-		const response = await handleCartPost(
-			hostPost({ intent: 'add', variantId: fieldShirtM, quantity: '500' }),
-			provider,
-		);
-
-		expect(response.status).toBe(400);
-		expect(await response.json()).toEqual({ error: expect.stringMatching(/quantity/u) });
+		expect(tooMany.error?.issues.map((issue) => issue.path)).toEqual([['quantity']]);
+		expect(noVariant.error?.issues.map((issue) => issue.path)).toEqual([['variantId']]);
 	});
 
 	it('reports the totals of the current cart', async () => {

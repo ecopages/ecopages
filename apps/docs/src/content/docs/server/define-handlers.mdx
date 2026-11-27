@@ -167,7 +167,26 @@ export const createPost = definePost({
 
 Repeated query keys (`?draft=true&draft=false`) reach the schema as arrays, so `z.string()` answers HTTP 400 for them. Use `z.union([z.string(), z.array(z.string())])` to accept both shapes.
 
-When a route declares `schema.body`, core parses `application/json` and `text/plain` bodies and validates the parsed value. Malformed JSON returns HTTP 400. A request with no body and no `Content-Type`, or an empty body with either supported type, passes `undefined` to the body schema: required schemas return HTTP 400, while optional schemas such as `z.object({ title: z.string() }).optional()` accept it. Unsupported content types and nonempty bodies without a `Content-Type` return HTTP 415.
+When a route declares `schema.body`, core parses `application/json`, `text/plain`, `application/x-www-form-urlencoded` and `multipart/form-data` bodies and validates the parsed value. Malformed JSON or a malformed multipart body returns HTTP 400. A request with no body and no `Content-Type`, or an empty body with a JSON or text type, passes `undefined` to the body schema: required schemas return HTTP 400, while optional schemas such as `z.object({ title: z.string() }).optional()` accept it. Other content types and nonempty bodies without a `Content-Type` return HTTP 415.
+
+### Validating an HTML form post
+
+A plain `<form method="post">` sends `application/x-www-form-urlencoded`, or `multipart/form-data` with `enctype="multipart/form-data"`. Core turns either into a plain object before validation, so one `schema.body` serves a JSON client and a form that works without JavaScript:
+
+```typescript
+import { z } from 'zod';
+import { definePost } from '@ecopages/core';
+
+export const addToCart = definePost({
+  path: '/cart/add',
+  schema: {
+    body: z.object({ slug: z.string(), quantity: z.coerce.number().int().min(1) }),
+  },
+  handler: ({ body, response }) => response.redirect(`/products/${body.slug}`, 303),
+});
+```
+
+Posting `slug=chair&quantity=2` gives the handler `{ slug: 'chair', quantity: 2 }`; leaving out `slug` answers HTTP 400 with an issue at path `slug`. A form value is always a string, so coerce numbers in the schema. A checkbox posts its `value` (`on` by default) when checked and nothing when not, so test for presence rather than using `z.coerce.boolean()`, which turns the string `"false"` into `true`. A repeated key (checkboxes sharing a `name`) becomes an array, a key posted once stays a single value, and a multipart file is a `File`. A form with no fields validates as `{}`. The handler can still read `request`, since the body is parsed from a copy.
 
 ### With Middleware
 

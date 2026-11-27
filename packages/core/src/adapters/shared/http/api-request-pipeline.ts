@@ -12,7 +12,7 @@ import {
 import { appLogger } from '../../../global/app-logger.ts';
 import { isNodeClientAbortError } from '../../node/http-request-bridge.ts';
 import { validateRequest } from '../../../validation/validate-request.ts';
-import { parseSearchParams } from '../../../router/server/parse-search-params.ts';
+import { groupRepeatedKeys, parseSearchParams } from '../../../router/server/parse-search-params.ts';
 import type {
 	ApiHandler,
 	ApiHandlerContext,
@@ -25,6 +25,33 @@ import type {
 import type { ApiResponseBuilder as ApiResponseBuilderContract } from '../../../types/api-response.ts';
 
 type ParsedRequestBody = { value: unknown } | { response: Response };
+
+type BodyParser = (request: Request) => Promise<unknown>;
+
+const parseTextBody = async (request: Request): Promise<string | undefined> => {
+	const text = await request.clone().text();
+	return text.length === 0 ? undefined : text;
+};
+
+const parseFormBody: BodyParser = async (request) =>
+	request.body === null ? {} : groupRepeatedKeys(await request.clone().formData());
+
+/**
+ * The content types a body schema reads, each with the parser that turns the request into the value to
+ * validate. Parsers read a clone, so the handler can still read the request.
+ */
+const bodyParsers: ReadonlyMap<string, BodyParser> = new Map([
+	['text/plain', parseTextBody],
+	[
+		'application/json',
+		async (request) => {
+			const text = await parseTextBody(request);
+			return text === undefined ? undefined : JSON.parse(text);
+		},
+	],
+	['application/x-www-form-urlencoded', parseFormBody],
+	['multipart/form-data', parseFormBody],
+]);
 
 /**
  * API handlers with their patterns parsed and ordered from most to least specific.
@@ -243,16 +270,11 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 	): Promise<ParsedRequestBody> {
 		const contentType = request.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase() || '';
 		if (!contentType) return this.parseUntypedSchemaBody(request, responseBuilder);
-		if (contentType !== 'application/json' && contentType !== 'text/plain') {
-			return this.rejectUnsupportedMediaType(request, responseBuilder);
-		}
-		if (request.body === null) return { value: undefined };
+		const parseBody = bodyParsers.get(contentType);
+		if (!parseBody) return this.rejectUnsupportedMediaType(request, responseBuilder);
 
 		try {
-			const text = await request.clone().text();
-			if (text.length === 0) return { value: undefined };
-			const value = contentType === 'application/json' ? JSON.parse(text) : text;
-			return { value };
+			return { value: await parseBody(request) };
 		} catch (error) {
 			if (isNodeClientAbortError(error)) throw error;
 			return { response: responseBuilder.status(400).json({ error: 'Invalid request body' }) };

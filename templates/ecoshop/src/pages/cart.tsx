@@ -5,19 +5,13 @@ import { RuiButton } from '@ecopages/radiant-ui/button';
 import { RuiInput } from '@ecopages/radiant-ui/input';
 import { ProductImage } from '@/components/product-image';
 import { readCartId } from '@/lib/cart/cart-cookie';
-import { shortageNotice } from '@/lib/cart/cart-messages';
-import type { CartNotice } from '@/lib/cart/cart-endpoint.server';
+import { refusedNotice, shortageNotice } from '@/lib/cart/cart-messages';
 import { formatMoney } from '@/lib/commerce/money';
 import { getCommerce } from '@/lib/commerce/provider.server';
 import { type Cart, type CartLine, DEFAULT_VARIANT_TITLE } from '@/lib/commerce/types';
 import { storePaths } from '@/lib/store-urls';
 import { StoreLayout } from '@/layouts/store-layout/store-layout';
 import './cart.css';
-
-const NOTICES: Record<CartNotice, string> = {
-	invalid: 'That cart change was not valid. Choose a variant and a quantity from 1 to 99.',
-	refused: 'That item could not be added. It may be sold out.',
-};
 
 type CartPageProps = { cart: Cart | null; notice: string | null };
 
@@ -70,11 +64,7 @@ export default eco.page<CartPageProps, JsxRenderable>({
 	props: async ({ request, query }) => {
 		const cartId = readCartId(request.headers);
 		const cart = cartId ? await getCommerce().getCart(cartId) : null;
-		const code = typeof query.notice === 'string' ? query.notice : '';
-		return {
-			cart,
-			notice: Object.hasOwn(NOTICES, code) ? NOTICES[code as CartNotice] : shortageNotice(cart, query),
-		};
+		return { cart, notice: refusedNotice(query) ?? shortageNotice(cart, query) };
 	},
 	metadata: () => ({ title: 'Cart', description: 'Your cart.', robots: { index: false } }),
 	render: ({ cart, notice }) => (

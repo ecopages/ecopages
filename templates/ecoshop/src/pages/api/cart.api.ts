@@ -1,5 +1,5 @@
 import { defineGet, definePost } from '@ecopages/core';
-import { handleCartGet, handleCartPost } from '@/lib/cart/cart-endpoint.server';
+import { cartActionSchema, handleCartGet, handleCartPost } from '@/lib/cart/cart-endpoint.server';
 import { getCommerce } from '@/lib/commerce/provider.server';
 
 export const GET = defineGet({
@@ -7,5 +7,6 @@ export const GET = defineGet({
 });
 
 export const POST = definePost({
-	handler: async ({ request }) => handleCartPost(request, getCommerce()),
+	schema: { body: cartActionSchema },
+	handler: async ({ request, body }) => handleCartPost(request, getCommerce(), body),
 });

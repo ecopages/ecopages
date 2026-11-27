@@ -22,7 +22,7 @@ test('llms.txt lists the store, its collections and the MCP endpoint', async ({ 
 	expect(text).toMatch(/\[MCP server\]\(.+\/mcp\)/u);
 });
 
-test('the cart answers a form post with a redirect and the cart-form host with JSON', async ({ request }) => {
+test('the cart answers a form post with a redirect and a failed one with 400', async ({ request }) => {
 	const form = await request.post('/api/cart', {
 		form: { intent: 'add', variantId: fieldShirtM, quantity: '2' },
 		maxRedirects: 0,
@@ -31,11 +31,14 @@ test('the cart answers a form post with a redirect and the cart-form host with J
 	expect(form.headers().location).toBe('/cart');
 	expect(form.headers()['set-cookie']).toMatch(/^ecoshop_cart=.+HttpOnly/u);
 
-	const json = await request.post('/api/cart', {
+	const second = await request.post('/api/cart', {
 		form: { intent: 'add', variantId: fieldShirtM, quantity: '1' },
-		headers: { Accept: 'application/json' },
+		maxRedirects: 0,
 	});
-	expect(await json.json()).toEqual({ totalQuantity: 3, subtotal: '$204.00' });
+	expect(second.status()).toBe(303);
+
+	const invalid = await request.post('/api/cart', { form: { intent: 'add' }, maxRedirects: 0 });
+	expect(invalid.status()).toBe(400);
 
 	const totals = await request.get('/api/cart');
 	expect(await totals.json()).toEqual({ totalQuantity: 3, subtotal: '$204.00' });

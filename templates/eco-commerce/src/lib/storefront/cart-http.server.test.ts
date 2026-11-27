@@ -3,11 +3,13 @@ import type { CommerceBackend } from '../commerce/backend.ts';
 import type { CartUpdate } from '../commerce/types.ts';
 import {
 	addToCartAction,
+	addToCartSchema,
 	CART_COOKIE,
 	cartSummaryAction,
 	readCartToken,
 	serializeCartCookie,
 	updateCartAction,
+	updateCartSchema,
 	type CartHttpDeps,
 } from './cart-http.server.ts';
 import type { CartJson } from './json.ts';
@@ -43,6 +45,12 @@ describe('cart HTTP', () => {
 	let backend: CommerceBackend;
 	let variantId = '';
 	const deps = (): CartHttpDeps => ({ cart: backend.cart, secureCookie: false });
+	type PostInit = Parameters<typeof post>[2];
+	/** Runs the Endpoint's steps: the body is validated by its schema first, as Ecopages does before the handler. */
+	const add = (fields: Record<string, string>, init?: PostInit) =>
+		addToCartAction(post('/cart/add', fields, init), addToCartSchema.parse(fields), deps());
+	const update = (fields: Record<string, string>, init?: PostInit) =>
+		updateCartAction(post('/cart/update', fields, init), updateCartSchema.parse(fields), deps());
 
 	beforeAll(async () => {
 		subject = await openTestBackend();
@@ -53,7 +61,7 @@ describe('cart HTTP', () => {
 	afterAll(() => subject.dispose());
 
 	test('a plain form post adds the variant and redirects to the order page, which holds it once', async () => {
-		const response = await addToCartAction(post('/cart/add', { variantId }), deps());
+		const response = await add({ variantId });
 
 		expect(response.status).toBe(303);
 		expect(response.headers.get('location')).toBe('/order');
@@ -64,31 +72,45 @@ describe('cart HTTP', () => {
 	});
 
 	test('a request that asks for JSON gets the cart instead of a redirect', async () => {
-		const response = await addToCartAction(
-			post('/cart/add', { variantId, quantity: '2' }, { accept: 'application/json' }),
-			deps(),
-		);
+		const response = await add({ variantId, quantity: '2' }, { accept: 'application/json' });
 
 		expect(response.status).toBe(200);
 		expect(((await response.json()) as CartJson).itemCount).toBe(2);
 		expect(response.headers.get('set-cookie')).toContain(`${CART_COOKIE}=`);
 	});
 
-	test.each([
-		['an unknown variant', { variantId: '999999:oak' }, 400],
-		['a missing variant', { quantity: '1' }, 400],
-		['a negative quantity', { variantId, quantity: '-1' }, 400],
-		['a fractional quantity', { variantId, quantity: '1.5' }, 400],
-		['a zero quantity', { variantId, quantity: '0' }, 400],
-	])('refuses %s without setting a cookie', async (_, fields, status) => {
-		const response = await addToCartAction(post('/cart/add', fields as Record<string, string>), deps());
+	test('refuses an unknown variant and an added quantity of zero without setting a cookie', async () => {
+		const refused: Record<string, string>[] = [{ variantId: '999999:oak' }, { variantId, quantity: '0' }];
+		for (const fields of refused) {
+			const response = await add(fields);
 
-		expect(response.status).toBe(status);
-		expect(response.headers.get('set-cookie')).toBeNull();
+			expect(response.status).toBe(400);
+			expect(response.headers.get('set-cookie')).toBeNull();
+		}
+	});
+
+	test('has the schema reject a missing variant and a quantity that is not a whole number', () => {
+		const invalid: Record<string, string>[] = [
+			{ quantity: '1' },
+			{ variantId: '', quantity: '1' },
+			{ variantId, quantity: '-1' },
+			{ variantId, quantity: '1.5' },
+			{ variantId, quantity: 'many' },
+		];
+		for (const fields of invalid) {
+			expect(addToCartSchema.safeParse(fields).success).toBe(false);
+			expect(updateCartSchema.safeParse(fields).success).toBe(false);
+		}
+	});
+
+	test('takes the default quantity of the Endpoint for a missing or empty field', () => {
+		expect(addToCartSchema.parse({ variantId })).toEqual({ variantId, quantity: 1 });
+		expect(addToCartSchema.parse({ variantId, quantity: '' })).toEqual({ variantId, quantity: 1 });
+		expect(updateCartSchema.parse({ variantId })).toEqual({ variantId, quantity: 0 });
 	});
 
 	test('refuses a post a browser sent from another site', async () => {
-		const response = await addToCartAction(post('/cart/add', { variantId }, { fetchSite: 'cross-site' }), deps());
+		const response = await add({ variantId }, { fetchSite: 'cross-site' });
 
 		expect(response.status).toBe(403);
 	});
@@ -97,17 +119,14 @@ describe('cart HTTP', () => {
 		const full = await backend.cart.updateItem(null, { variantId, quantity: 99 });
 		const cookie = `${CART_COOKIE}=${tokenOf(full)}`;
 
-		const response = await addToCartAction(
-			post('/cart/add', { variantId }, { accept: 'application/json', cookie }),
-			deps(),
-		);
+		const response = await add({ variantId }, { accept: 'application/json', cookie });
 
 		expect(response.status).toBe(409);
 		expect(((await response.json()) as { error: string }).error).toMatch(/full/u);
 	});
 
 	test('removing a line without a cart sets no cookie', async () => {
-		const response = await updateCartAction(post('/cart/update', { variantId, quantity: '0' }), deps());
+		const response = await update({ variantId, quantity: '0' });
 
 		expect(response.status).toBe(303);
 		expect(response.headers.get('set-cookie')).toBeNull();
@@ -117,7 +136,7 @@ describe('cart HTTP', () => {
 		const added = await backend.cart.addItem(null, { variantId, quantity: 1 });
 		const cookie = `${CART_COOKIE}=${tokenOf(added)}`;
 
-		const response = await updateCartAction(post('/cart/update', { variantId, quantity: '0' }, { cookie }), deps());
+		const response = await update({ variantId, quantity: '0' }, { cookie });
 
 		expect(response.status).toBe(303);
 		const cart = await backend.cart.getCart(

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { CartBackend } from '../commerce/backend.ts';
 import type { CartToken, CartUpdate } from '../commerce/types.ts';
 import { LIMITS } from '../limits.ts';
@@ -78,42 +79,37 @@ function respond(request: Request, update: CartUpdate, deps: CartHttpDeps): Resp
 	return new Response(null, { status: 303, headers });
 }
 
-function readQuantity(value: FormDataEntryValue | null, fallback: number): number | null {
-	if (value === null || value === '') return fallback;
-	const number = Number(value);
-	return typeof value === 'string' && Number.isSafeInteger(number) && number >= 0 ? number : null;
+/**
+ * The fields of a cart change, from a form post or a JSON body.
+ *
+ * @remarks
+ * A form sends every field as a string, so the quantity is coerced; an empty or missing one takes `fallback`. A
+ * change that fails the schema is answered with HTTP 400 before the Endpoint runs.
+ */
+function cartChangeSchema(fallback: number) {
+	return z.object({
+		variantId: z.string().min(1),
+		quantity: z.union([z.literal('').transform(() => fallback), z.coerce.number().int().min(0)]).default(fallback),
+	});
 }
 
-async function readCartForm(
-	request: Request,
-	defaultQuantity: number,
-): Promise<{ variantId: string; quantity: number } | Response> {
-	if (isCrossSite(request)) return reject(request, 403, 'Cart changes must come from this site.');
-	let form: FormData;
-	try {
-		form = await request.formData();
-	} catch {
-		return reject(request, 400, 'Send the cart change as a form.');
-	}
-	const variantId = form.get('variantId');
-	const quantity = readQuantity(form.get('quantity'), defaultQuantity);
-	if (typeof variantId !== 'string' || !variantId || quantity === null) {
-		return reject(request, 400, 'The product option or quantity is not valid.');
-	}
-	return { variantId, quantity };
-}
+/** The body of `POST /cart/add`: `quantity` defaults to 1. */
+export const addToCartSchema = cartChangeSchema(1);
+
+/** The body of `POST /cart/update`: `quantity` defaults to 0, which removes the line. */
+export const updateCartSchema = cartChangeSchema(0);
+
+export type CartChange = z.output<typeof addToCartSchema>;
 
 /** `POST /cart/add`: adds `quantity` (default 1) units of `variantId`; plain forms are redirected to `/order`. */
-export async function addToCartAction(request: Request, deps: CartHttpDeps): Promise<Response> {
-	const change = await readCartForm(request, 1);
-	if (change instanceof Response) return change;
+export async function addToCartAction(request: Request, change: CartChange, deps: CartHttpDeps): Promise<Response> {
+	if (isCrossSite(request)) return reject(request, 403, 'Cart changes must come from this site.');
 	return respond(request, await deps.cart.addItem(readCartToken(request), change), deps);
 }
 
 /** `POST /cart/update`: sets the quantity of `variantId`; zero removes the line. */
-export async function updateCartAction(request: Request, deps: CartHttpDeps): Promise<Response> {
-	const change = await readCartForm(request, 0);
-	if (change instanceof Response) return change;
+export async function updateCartAction(request: Request, change: CartChange, deps: CartHttpDeps): Promise<Response> {
+	if (isCrossSite(request)) return reject(request, 403, 'Cart changes must come from this site.');
 	return respond(request, await deps.cart.updateItem(readCartToken(request), change), deps);
 }
 

@@ -22,11 +22,39 @@ export function describeShortage(title: string, available: number, wanted: numbe
 }
 
 /**
+ * The codes the cart page reads from `?notice=` after a form post without JavaScript: `refused` when the provider
+ * would not make the change, `short` when it left a line holding fewer than asked. A change that fails validation is
+ * answered with HTTP 400 by the Endpoint and never redirects.
+ */
+export type CartNotice = 'refused' | 'short';
+
+/**
+ * The sentence the cart page shows for `?notice=refused`, or `null` for any other code; `short` words its own with
+ * {@link shortageNotice}.
+ */
+export function refusedNotice(query: Record<string, unknown>): string | null {
+	return query.notice === ('refused' satisfies CartNotice)
+		? 'That item could not be added. It may be sold out.'
+		: null;
+}
+
+/**
+ * The query the cart form's redirect carries for a notice.
+ */
+export function noticeQuery(notice: CartNotice): string {
+	return new URLSearchParams({ notice }).toString();
+}
+
+/**
  * The query the cart form's redirect carries when a change left a line short: which variant, and how many the change
  * asked the cart to hold.
  */
 export function shortageQuery(variantId: string, wanted: number): string {
-	return new URLSearchParams({ notice: 'short', line: variantId, wanted: String(wanted) }).toString();
+	return new URLSearchParams({
+		notice: 'short' satisfies CartNotice,
+		line: variantId,
+		wanted: String(wanted),
+	}).toString();
 }
 
 /**
@@ -37,7 +65,12 @@ export function shortageQuery(variantId: string, wanted: number): string {
  * what the cart really holds, and only for a line that is short.
  */
 export function shortageNotice(cart: Cart | null, query: Record<string, unknown>): string | null {
-	if (query.notice !== 'short' || typeof query.line !== 'string' || typeof query.wanted !== 'string') return null;
+	if (
+		query.notice !== ('short' satisfies CartNotice) ||
+		typeof query.line !== 'string' ||
+		typeof query.wanted !== 'string'
+	)
+		return null;
 	const wanted = Number(query.wanted);
 	if (!Number.isInteger(wanted) || wanted < 1 || wanted > MAX_LINE_QUANTITY) return null;
 	const line = cart?.lines.find((entry) => entry.variantId === query.line);

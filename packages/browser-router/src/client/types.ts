@@ -36,6 +36,19 @@ export interface PrefetchConfig {
 	 * @default true
 	 */
 	respectDataSaver?: boolean;
+
+	/**
+	 * Warm the images a prefetched page marks as critical: `<img fetchpriority="high">` and
+	 * `<link rel="preload" as="image">`, at most two per page, at low priority.
+	 *
+	 * @remarks
+	 * On by default because the page author chose these images as the ones its first paint waits for, and
+	 * the cap holds the cost to two low-priority requests per prefetched page. Set `false` when the
+	 * `viewport` strategy or `data-eco-prefetch="eager"` links prefetch many pages at once and the bandwidth
+	 * matters more than the paint. Data saver and slow connections turn it off like the page prefetch.
+	 * @default true
+	 */
+	images?: boolean;
 }
 
 /**
@@ -84,7 +97,7 @@ export interface EcoRouterOptions {
 	smoothScroll?: boolean;
 	/**
 	 * Prefetch configuration. Set to false to disable prefetching entirely.
-	 * @default { strategy: 'intent', delay: 65, noPrefetchAttribute: 'data-eco-no-prefetch', respectDataSaver: true }
+	 * @default { strategy: 'intent', delay: 65, noPrefetchAttribute: 'data-eco-no-prefetch', respectDataSaver: true, images: true }
 	 */
 	prefetch?: PrefetchConfig | false;
 	/**
@@ -105,6 +118,7 @@ const DEFAULT_PREFETCH_CONFIG: Required<PrefetchConfig> = {
 	delay: 65,
 	noPrefetchAttribute: 'data-eco-no-prefetch',
 	respectDataSaver: true,
+	images: true,
 };
 
 /** Default document-level `<html>` attributes synchronized during navigation swaps. */

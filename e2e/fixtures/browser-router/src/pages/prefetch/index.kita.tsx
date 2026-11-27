@@ -71,6 +71,11 @@ export default eco.page({
 							</a>
 						</li>
 						<li>
+							<a href="/prefetch/product" data-eco-prefetch="hover" id="link-product">
+								Product With Priority Image
+							</a>
+						</li>
+						<li>
 							<a href="/prefetch" id="link-self">
 								Self Link (Current Page)
 							</a>

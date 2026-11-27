@@ -70,20 +70,16 @@ export class PageRequestCacheCoordinator {
 	 */
 	async render(options: {
 		cacheKey: string;
-		pageCacheStrategy: CacheStrategy;
+		bypassCache: boolean;
 		renderFn: () => Promise<RenderResult>;
 		ifNoneMatch?: string | null;
 	}): Promise<Response> {
-		if (!this.cacheService || options.pageCacheStrategy === 'dynamic') {
+		if (!this.cacheService || options.bypassCache) {
 			const { html, strategy } = await options.renderFn();
 			return this.createCachedResponse(html, strategy, 'disabled', options.ifNoneMatch);
 		}
 
-		const result = await this.cacheService.getOrCreate(
-			options.cacheKey,
-			options.pageCacheStrategy,
-			options.renderFn,
-		);
+		const result = await this.cacheService.getOrCreate(options.cacheKey, options.renderFn);
 
 		return this.createCachedResponse(result.html, result.strategy, result.status, options.ifNoneMatch);
 	}

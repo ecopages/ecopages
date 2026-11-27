@@ -22,7 +22,7 @@ import type {
 	PagePropsFor,
 	PageDependenciesInput,
 	DynamicPageDependenciesInput,
-	StaticCacheStrategy,
+	StaticCacheStrategyInput,
 } from './contracts.ts';
 import type { ListLocals, PageMiddlewareEntry } from './middleware-types.ts';
 import type { ComponentIdentity } from './component-identity.ts';
@@ -169,8 +169,10 @@ export interface StaticPageOptions<T, E = EcoPagesElement> extends PageOptionsBa
 	 * Cache configuration for ISR (Incremental Static Regeneration).
 	 * - `'static'`: Reuse until the next deploy (default); HTML is revalidated with ETag
 	 * - `{ revalidate: number, tags?: string[] }`: Cache with time-based revalidation
+	 * - A function of `{ props, params, query }` that returns either of the above, evaluated on every render, so a
+	 *   dynamic route tags each page by its Params: ``({ params }) => ({ revalidate: 3600, tags: [`product:${params.slug}`] })``
 	 */
-	cache?: StaticCacheStrategy;
+	cache?: StaticCacheStrategyInput<T>;
 	middleware?: undefined;
 	/**
 	 * The layout tiers that wrap the Page, outer to inner.

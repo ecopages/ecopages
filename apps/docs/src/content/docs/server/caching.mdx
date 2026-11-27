@@ -65,6 +65,27 @@ export default eco.page({
 
 This strategy uses the **Stale-While-Revalidate** pattern, ensuring visitors always get instant responses.
 
+### Tags from Params
+
+Every page of a dynamic route shares one `cache` object, so they all carry the same tags. Make `cache` a function to tag each page by its own Params. It receives `{ props, params, query }` and returns a `'static'` or `{ revalidate, tags }` strategy:
+
+```tsx
+// src/pages/products/[slug].tsx
+export default eco.page({
+	paths: async () => (await listProducts()).map((product) => ({ params: { slug: product.slug } })),
+	props: async ({ params }) => ({ product: await getProduct(String(params.slug)) }),
+	cache: ({ params }) => ({
+		revalidate: 3600,
+		tags: ['products', `product:${params.slug}`],
+	}),
+	render: ({ product }) => <h1>{product.name}</h1>,
+});
+```
+
+[`services.cache.invalidateByTags(['product:chair-1'])`](#on-demand-invalidation) then drops only `/products/chair-1`, and the next request to it renders again, while `/products/lamp-2` stays cached. The function runs on every render of the page, including a background regeneration, so the stored tags follow the data. `props` is what the page's `props` hook returned, so tags can also come from it. An error the function throws fails the render. It must not return `'dynamic'`, which fails the render too: declare `cache: 'dynamic'` on the page instead.
+
+A page with a `cache` function is cached even when `cache.defaultStrategy` is `'dynamic'`, and a dynamic route still needs `paths` for the build, as with any other non-dynamic page.
+
 ## Global Configuration
 
 You can configure global cache settings in your `eco.config.ts` file using `defineConfig`.

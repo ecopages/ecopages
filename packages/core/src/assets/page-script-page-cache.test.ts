@@ -8,7 +8,7 @@ async function createCachedApp() {
 	const appConfig = await finalizeEcoPagesConfig({ rootDir: '/tmp/eco-runtime-asset-cache' });
 	const pageCache = new PageCacheService();
 	requireAppRuntime(appConfig).pageCache = pageCache;
-	await pageCache.getOrCreate('/', 'static', async () => ({ html: '<html>old</html>', strategy: 'static' }));
+	await pageCache.getOrCreate('/', async () => ({ html: '<html>old</html>', strategy: 'static' }));
 	return { appConfig, pageCache };
 }
 
@@ -19,7 +19,7 @@ describe('clearPageCacheForPageScriptChange', () => {
 
 		await clearPageCacheForPageScriptChange(appConfig);
 
-		const rendered = await pageCache.getOrCreate('/', 'static', async () => ({
+		const rendered = await pageCache.getOrCreate('/', async () => ({
 			html: '<html>new</html>',
 			strategy: 'static',
 		}));
@@ -32,7 +32,7 @@ describe('clearPageCacheForPageScriptChange', () => {
 
 		await clearPageCacheForPageScriptChange(appConfig);
 
-		const rendered = await pageCache.getOrCreate('/', 'static', async () => ({
+		const rendered = await pageCache.getOrCreate('/', async () => ({
 			html: '<html>new</html>',
 			strategy: 'static',
 		}));

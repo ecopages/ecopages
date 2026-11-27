@@ -38,8 +38,14 @@ type FileRouteExecutionPlan = {
 	 * its `props` hook and its layout factories follow its own declaration, so the request and locals do too.
 	 */
 	isDynamic: boolean;
-	/** The strategy the page cache applies: the Page's own, or the app default when it declares none. */
-	pageCacheStrategy: CacheStrategy;
+	/**
+	 * Whether the render skips the page cache: a Dynamic Page, or a Page that declares no `cache` under a `'dynamic'`
+	 * app default.
+	 *
+	 * @remarks
+	 * The strategy a cached render is stored under comes from its render result, which resolves a `cache` function.
+	 */
+	bypassCache: boolean;
 	localsStore: Record<string, unknown>;
 	localsForRender: Record<string, unknown> | undefined;
 	/** The request a Dynamic Page's `props` hook receives; a cached render runs without one. */
@@ -177,7 +183,7 @@ export class FileSystemResponseMatcher {
 			const renderResponse = async (): Promise<Response> => {
 				return this.pageRequestCacheCoordinator.render({
 					cacheKey: executionPlan.cacheKey,
-					pageCacheStrategy: executionPlan.pageCacheStrategy,
+					bypassCache: executionPlan.bypassCache,
 					renderFn,
 					ifNoneMatch: executionPlan.request.headers.get('If-None-Match'),
 				});
@@ -300,9 +306,10 @@ export class FileSystemResponseMatcher {
 			`page ${pageFilePath}`,
 		);
 		const isDynamic = isDynamicPage(pageComponent);
-		const pageCacheStrategy = isDynamic
-			? 'dynamic'
-			: (pageComponent.cache ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy());
+		const bypassCache =
+			isDynamic ||
+			(pageComponent.cache === undefined &&
+				this.pageRequestCacheCoordinator.getDefaultCacheStrategy() === 'dynamic');
 
 		return {
 			cacheKey,
@@ -311,7 +318,7 @@ export class FileSystemResponseMatcher {
 			pageModule,
 			pageMiddleware,
 			isDynamic,
-			pageCacheStrategy,
+			bypassCache,
 			localsStore,
 			localsForRender: isDynamic ? localsStore : undefined,
 			requestForRender: isDynamic ? resolvedRequest : undefined,

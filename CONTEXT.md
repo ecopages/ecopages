@@ -44,7 +44,7 @@ A page that opts into dynamic caching (`cache: 'dynamic'`) or uses middleware. I
 _Avoid_: Runtime page, server page
 
 **Cache Strategy**:
-How long a rendered page is cached and when it can be revalidated. Three strategies exist: `'static'` (reuse HTML until the next deploy; browsers revalidate with ETag), `'dynamic'` (cache nothing), and `{ revalidate: number, tags?: string[] }` (time-based + tag-based revalidation, also called _revalidating cache_ or _ISR_). `immutable` belongs only on content-hashed asset URLs.
+How long a rendered page is cached and when it can be revalidated. Three strategies exist: `'static'` (reuse HTML until the next deploy; browsers revalidate with ETag), `'dynamic'` (cache nothing), and `{ revalidate: number, tags?: string[] }` (time-based + tag-based revalidation, also called _revalidating cache_ or _ISR_). Any Page other than a Dynamic Page may declare a function of its Params, Query and props that returns `'static'` or `{ revalidate, tags? }`, evaluated per render, so each page of a dynamic route carries its own tags. `immutable` belongs only on content-hashed asset URLs.
 _Avoid_: Cache mode, caching behavior
 
 **Static-First Rendering**:

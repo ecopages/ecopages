@@ -34,18 +34,20 @@ Setting the quantities of an existing cart (the cart page, `update_cart`, `cance
 
 ## Revalidation webhook
 
-Catalog pages use `cache: { revalidate: 300, tags }`: the home and collection pages carry the `products` and `collections` tags, product pages `products`, and policy pages `policies`. `POST /api/revalidate` verifies Shopify's `X-Shopify-Hmac-Sha256` signature and invalidates the tags for the topic:
+Catalog pages use `cache: { revalidate: 300, tags }`: the home and collection pages carry the `products`, `product-listings` and `collections` tags, policy pages `policies`, and each product page `products`, `product:<handle>` and `product-id:<id>`, computed from its Params and props by a `cache` function. `POST /api/revalidate` verifies Shopify's `X-Shopify-Hmac-Sha256` signature and invalidates the tags for the topic:
 
-| Topics                                    | Tag invalidated           |
-| ----------------------------------------- | ------------------------- |
-| `products/*`, `product_listings/*`        | `products`                |
-| `inventory_levels/*`, `inventory_items/*` | `products`                |
-| `collections/*`, `collection_listings/*`  | `collections`             |
-| `shop/update`                             | `collections`, `policies` |
+| Topics                                    | Tags invalidated                                          |
+| ----------------------------------------- | --------------------------------------------------------- |
+| `products/create`, `products/update`      | `product-id:<id>`, `product:<handle>`, `product-listings` |
+| `products/delete`                         | `product-id:<id>`, `product-listings`                     |
+| `product_listings/*`                      | `products`                                                |
+| `inventory_levels/*`, `inventory_items/*` | `products`                                                |
+| `collections/*`, `collection_listings/*`  | `collections`                                             |
+| `shop/update`                             | `collections`, `policies`                                 |
 
 In Shopify admin, under **Settings > Notifications > Webhooks** (or in your app's configuration), subscribe the `products/*`, `collections/*`, `inventory_levels/update` and `shop/update` topics to `https://<your-domain>/api/revalidate` in JSON format, and set `SHOPIFY_WEBHOOK_SECRET` to the signing secret shown there. A request with a missing or wrong signature gets `401`.
 
-A tag names a kind of data, not one product, since a Page's Cache Strategy is the same for all its Params; an update re-renders every product page on its next request. A stock change names an inventory item, not a product, so it re-renders every product page too. Shopify sends no webhook for a policy edit: `shop/update`, sent when the shop's settings change, re-renders the policy pages and the home page, and an edited policy otherwise shows within 5 minutes. Without a webhook, pages still refresh every 5 minutes.
+A product update or delete re-renders that product's page and the pages that list products, not the other product pages. The id tag finds the page cached under a product's previous handle after a rename. A stock change names an inventory item, not a product, so it re-renders every page that shows products. Shopify sends no webhook for a policy edit: `shop/update`, sent when the shop's settings change, re-renders the policy pages and the home page, and an edited policy otherwise shows within 5 minutes. Without a webhook, pages still refresh every 5 minutes.
 
 ## For agents
 

@@ -7,7 +7,7 @@ import { AddToCart } from '@/components/add-to-cart/add-to-cart';
 import { ProductGallery } from '@/components/product-gallery/product-gallery';
 import { StoreBreadcrumb } from '@/components/store-breadcrumb';
 import { buildProductJsonLd, serializeJsonLd } from '@/lib/agents/product-json-ld';
-import { CACHE_TAGS, CATALOG_REVALIDATE_SECONDS } from '@/lib/commerce/cache-tags';
+import { CACHE_TAGS, CATALOG_REVALIDATE_SECONDS, productIdTag, productTag } from '@/lib/commerce/cache-tags';
 import { formatMoney, formatPriceRange } from '@/lib/commerce/money';
 import { getCommerce } from '@/lib/commerce/provider.server';
 import type { Product } from '@/lib/commerce/types';
@@ -47,7 +47,10 @@ const DELIVERY_POLICIES = [
 
 export default eco.page<ProductPageProps, JsxRenderable>({
 	layout: StoreLayout,
-	cache: { revalidate: CATALOG_REVALIDATE_SECONDS, tags: [CACHE_TAGS.products] },
+	cache: ({ params, props }) => ({
+		revalidate: CATALOG_REVALIDATE_SECONDS,
+		tags: [CACHE_TAGS.products, productTag(String(params.handle)), productIdTag(props.product.id)],
+	}),
 	paths: async () => {
 		const products = await getCommerce().listProducts({ limit: PRERENDERED_PRODUCTS });
 		return products.map((product) => ({ params: { handle: product.handle } }));

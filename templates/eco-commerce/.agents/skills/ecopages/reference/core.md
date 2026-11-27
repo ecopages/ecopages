@@ -131,7 +131,7 @@ Included URLs: successfully exported static pages whose metadata resolves and `r
 
 **Dynamic routes:** `src/pages/blog/[slug].tsx` sets `paths` returning `[{ params: { slug } }]` and `props` reading `params` and returning the props object. A catch-all `[...path]` captures an array.
 
-**Cache Strategy:** `cache: 'static'` (the default; rendered at build), `cache: 'dynamic'` (rendered per request; `props` receives the request, Params, Query and Locals and returns what `render` receives, `render` never sees Locals, and Page `middleware` needs it), or `cache: { revalidate: seconds, tags }`.
+**Cache Strategy:** `cache: 'static'` (the default; rendered at build), `cache: 'dynamic'` (rendered per request; `props` receives the request, Params, Query and Locals and returns what `render` receives, `render` never sees Locals, and Page `middleware` needs it), or `cache: { revalidate: seconds, tags }`. On any page other than a `cache: 'dynamic'` one, `cache` can be a function of `{ props, params, query }` that returns `'static'` or `{ revalidate, tags }`, evaluated per render, to tag each page of a dynamic route: ``cache: ({ params }) => ({ revalidate: 3600, tags: [`product:${params.slug}`] })``, so `services.cache.invalidateByTags(['product:a'])` drops only that page.
 
 **Data fetching:** Prefer direct function calls in `paths` / `props` over HTTP to your own API during static generation.
 

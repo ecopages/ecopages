@@ -144,6 +144,6 @@ Request locals exist only during request-time rendering of a Page with `cache: '
 | --- | --- |
 | `dynamic` | In `props` and layout factories, on each request |
 | `static` | None; `props` and layout factories have no `locals` |
-| `{ revalidate: seconds }` | None; `props` and layout factories have no `locals` |
+| `{ revalidate: seconds }`, or a `cache` function returning one | None; `props` and layout factories have no `locals` |
 
 Semantic error-page renders bypass the normal Page middleware pipeline; their layout factories receive empty `locals`. Do not rely on Page middleware to provide locals there. See [Routing](/docs/core/routing) for error-page behavior.

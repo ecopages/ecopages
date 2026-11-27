@@ -13,6 +13,7 @@ import { formatMoney } from '@/lib/commerce/money';
 import type { Product, ProductCard } from '@/lib/commerce/types';
 import { pageTitle } from '@/lib/store';
 import { resolveBuildPolicy } from '@/lib/storefront/build-policy';
+import { productCacheTags } from '@/lib/storefront/cache-tags';
 import { productJson } from '@/lib/storefront/to-json';
 import { categoryUrl, collectionUrl, productUrl, subcategoryUrl } from '@/lib/storefront/urls';
 import './product.css';
@@ -28,12 +29,13 @@ const RELATED_COUNT = 12;
  * @remarks
  * `paths` lists the first products of each subcategory, as `resolveBuildPolicy` says; every other product renders
  * on its first request and is then cached like the prebuilt ones. Cached pages are regenerated in the background
- * after `revalidate` seconds, or at once when `POST /api/revalidate` invalidates the `catalog` or `products` tag
- * or the page's path.
+ * after `revalidate` seconds, or at once when `POST /api/revalidate` invalidates the page's `product:<handle>` tag,
+ * the `catalog` or `products` tag of every product page, or the page's path. The `cache` function computes the tags
+ * from the page's Params, so one product's change leaves the other product pages cached.
  */
 export default eco.page<ProductPageProps, JsxRenderable>({
 	layout: BaseLayout,
-	cache: { revalidate: 3600, tags: ['catalog', 'products'] },
+	cache: ({ params }) => ({ revalidate: 3600, tags: productCacheTags(String(params.product)) }),
 	paths: async () => {
 		const handles = await getCommerceBackend().catalog.listFeaturedProductHandles(
 			resolveBuildPolicy().productsPerSubcategory,

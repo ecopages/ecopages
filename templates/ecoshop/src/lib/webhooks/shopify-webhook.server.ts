@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { CACHE_TAGS } from '@/lib/commerce/cache-tags';
+import { CACHE_TAGS, productIdTag, productTag } from '@/lib/commerce/cache-tags';
 
 /**
  * The part of the page cache the webhook needs: Ecopages' `services.cache`.
@@ -56,10 +56,55 @@ const TAGS_BY_RESOURCE = new Map<string, string[]>([
 const TAGS_BY_TOPIC = new Map<string, string[]>([['shop/update', [CACHE_TAGS.collections, CACHE_TAGS.policies]]]);
 
 /**
- * The cache tags a webhook topic affects. Topics outside the catalog affect none.
+ * The topics whose payload is the product, so its `id` and `handle` name the one page that changed. A delete carries
+ * the id alone.
  */
-export function tagsForTopic(topic: string): string[] {
+const PRODUCT_CHANGE_TOPICS = new Set(['products/create', 'products/update', 'products/delete']);
+
+/**
+ * What a product webhook payload names: the product's id and its current handle.
+ */
+export interface ProductReference {
+	id?: string | number;
+	handle?: string;
+}
+
+/**
+ * The cache tags a webhook topic affects. Topics outside the catalog affect none.
+ *
+ * @remarks
+ * A product change that names its product invalidates that product's page and the pages that list products, and no
+ * other product page. The id tag finds a page cached under the product's previous handle, which a rename leaves
+ * serving the old URL. Every other change to products invalidates every page that shows them: a stock change names
+ * an inventory item, not a product.
+ */
+export function tagsForTopic(topic: string, product: ProductReference = {}): string[] {
+	const productTags = [
+		...(product.id === undefined ? [] : [productIdTag(product.id)]),
+		...(product.handle ? [productTag(product.handle)] : []),
+	];
+	if (productTags.length > 0 && PRODUCT_CHANGE_TOPICS.has(topic)) {
+		return [...productTags, CACHE_TAGS.productListings];
+	}
 	return TAGS_BY_TOPIC.get(topic) ?? TAGS_BY_RESOURCE.get(topic.split('/')[0] ?? '') ?? [];
+}
+
+/**
+ * The product a webhook payload names, or an empty reference when the body is not a JSON object.
+ */
+function productReferenceOf(rawBody: Uint8Array): ProductReference {
+	try {
+		const payload: unknown = JSON.parse(new TextDecoder().decode(rawBody));
+		if (typeof payload !== 'object' || payload === null) return {};
+		const id: unknown = Reflect.get(payload, 'id');
+		const handle: unknown = Reflect.get(payload, 'handle');
+		return {
+			id: typeof id === 'string' || typeof id === 'number' ? id : undefined,
+			handle: typeof handle === 'string' && handle ? handle : undefined,
+		};
+	} catch {
+		return {};
+	}
 }
 
 /**
@@ -76,7 +121,8 @@ export async function handleShopifyWebhook(request: Request, options: ShopifyWeb
 		return Response.json({ error: 'Invalid webhook signature' }, { status: 401 });
 	}
 
-	const tags = tagsForTopic(request.headers.get('x-shopify-topic') ?? '');
+	const topic = request.headers.get('x-shopify-topic') ?? '';
+	const tags = tagsForTopic(topic, productReferenceOf(rawBody));
 	if (tags.length && options.cache) {
 		await options.cache.invalidateByTags(tags);
 		return Response.json({ revalidated: true, tags });

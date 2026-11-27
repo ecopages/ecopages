@@ -12,6 +12,7 @@ import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator';
 import type { RouteRegistry } from '../../../router/server/route-registry';
+import type { CacheStrategy } from '../../../types/cache-types.ts';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer';
 import fs from 'node:fs';
 import { path } from '@ecopages/file-system/path';
@@ -547,6 +548,82 @@ describe('ServerStaticBuilder', () => {
 				expect(importHealthModule).toHaveBeenCalledWith('health.api.ts');
 				assert.equal(buildCalls.length, 1);
 				assert.ok(fs.existsSync(path.join(distDir, 'server', 'manifest.json')));
+			});
+
+			describe('a Page that needs a server at run time', () => {
+				async function buildWithPage(
+					name: string,
+					page: unknown,
+					defaultStrategy: CacheStrategy = 'static',
+				): Promise<number> {
+					const { AppConfig, StaticSiteGenerator, ServeOptions, logger } = createMockDependencies();
+					const distDir = setupBundleFixture(name);
+					fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
+					const appConfig = {
+						...createAppConfigWithOutputDirectory(AppConfig, distDir),
+						cache: { defaultStrategy },
+					};
+					const buildCalls = recordServerEntryBuilds(appConfig);
+					const router = {
+						templateRoutes: [
+							{ pathname: '/page', kind: 'exact', role: 'page', filePath: 'src/pages/page.tsx' },
+						],
+					} as unknown as RouteRegistry;
+					const routeRendererFactory = {
+						getPageRenderer: () => ({ loadPageModule: async () => ({ default: page }) }),
+						getExplicitViewRenderer: () => null,
+					} as unknown as StaticGenerationRendererResolver;
+
+					await new ServerStaticBuilder({
+						appConfig,
+						runtime: AppConfig.appRuntime!,
+						staticSiteGenerator: StaticSiteGenerator,
+						serveOptions: ServeOptions,
+						logger,
+					}).build(undefined, { router, routeRendererFactory, importServerModule });
+
+					return buildCalls.length;
+				}
+
+				const withCache = (cache: unknown) => Object.assign(() => '', { cache });
+
+				it.each([
+					['dynamic', withCache('dynamic')],
+					['revalidating', withCache({ revalidate: 60, tags: ['a'] })],
+					['cache function', withCache(() => ({ revalidate: 60 }))],
+					['middleware', Object.assign(() => '', { cache: 'dynamic', middleware: [() => undefined] })],
+				])('bundles the server entry for a %s Page when nothing else needs a server', async (label, page) => {
+					expect(await buildWithPage(`page-${label.replaceAll(' ', '-')}`, page)).toBe(1);
+				});
+
+				it.each([
+					['static', withCache('static')],
+					['without a cache', withCache(undefined)],
+					['an HTML Page', 'plain html'],
+				])('builds static-only for a %s Page', async (label, page) => {
+					expect(await buildWithPage(`static-${label.replaceAll(' ', '-')}`, page)).toBe(0);
+				});
+
+				it.each([
+					['dynamic', 'dynamic' as const],
+					['revalidating', { revalidate: 60 }],
+				])(
+					'bundles the server entry for a Page and an HTML Page that use a %s default strategy',
+					async (label, defaultStrategy) => {
+						expect(
+							await buildWithPage(`default-${label}-page`, withCache(undefined), defaultStrategy),
+						).toBe(1);
+						expect(await buildWithPage(`default-${label}-html`, 'plain html', defaultStrategy)).toBe(1);
+					},
+				);
+
+				it('builds static-only when every Page is static and the default strategy is static', async () => {
+					expect(await buildWithPage('default-static', withCache(undefined), 'static')).toBe(0);
+				});
+
+				it('keeps a Page that declares a static cache static under a dynamic default strategy', async () => {
+					expect(await buildWithPage('default-dynamic-own-static', withCache('static'), 'dynamic')).toBe(0);
+				});
 			});
 
 			it.each([['src/pages/health.api.ts'], ['src/pages/health.api.js']])(

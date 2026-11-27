@@ -21,12 +21,12 @@ describe('watch-mode page cache admission', () => {
 
 		await coordinator.render({
 			cacheKey: '/docs/intro',
-			pageCacheStrategy: 'static',
+			bypassCache: false,
 			renderFn,
 		});
 		const second = await coordinator.render({
 			cacheKey: '/docs/intro',
-			pageCacheStrategy: 'static',
+			bypassCache: false,
 			renderFn,
 		});
 
@@ -46,12 +46,12 @@ describe('watch-mode page cache admission', () => {
 
 		await coordinator.render({
 			cacheKey: '/account',
-			pageCacheStrategy: 'dynamic',
+			bypassCache: true,
 			renderFn,
 		});
 		await coordinator.render({
 			cacheKey: '/account',
-			pageCacheStrategy: 'dynamic',
+			bypassCache: true,
 			renderFn,
 		});
 
@@ -73,8 +73,8 @@ describe('watch-mode page cache admission', () => {
 			return { html: '<html>once</html>', strategy: 'static' as const };
 		});
 
-		const first = cacheService.getOrCreate('/docs/intro', 'static', renderFn);
-		const second = cacheService.getOrCreate('/docs/intro', 'static', renderFn);
+		const first = cacheService.getOrCreate('/docs/intro', renderFn);
+		const second = cacheService.getOrCreate('/docs/intro', renderFn);
 		release();
 
 		const [firstResult, secondResult] = await Promise.all([first, second]);
@@ -106,12 +106,12 @@ describe('watch-mode page cache admission', () => {
 
 		await coordinator.render({
 			cacheKey: '/docs/intro',
-			pageCacheStrategy: 'static',
+			bypassCache: false,
 			renderFn: introRender,
 		});
 		await coordinator.render({
 			cacheKey: '/docs/guide',
-			pageCacheStrategy: 'static',
+			bypassCache: false,
 			renderFn: guideRender,
 		});
 
@@ -119,12 +119,12 @@ describe('watch-mode page cache admission', () => {
 
 		const introAfter = await coordinator.render({
 			cacheKey: '/docs/intro',
-			pageCacheStrategy: 'static',
+			bypassCache: false,
 			renderFn: introRender,
 		});
 		const guideAfter = await coordinator.render({
 			cacheKey: '/docs/guide',
-			pageCacheStrategy: 'static',
+			bypassCache: false,
 			renderFn: guideRender,
 		});
 

@@ -85,6 +85,8 @@ The Cache Strategy decides when the hooks run and what the build does with each 
 | `{ revalidate, tags }` | Same as `'static'`: each entry is rendered at build. | Runs at build for the listed Params, then at run time with the request's Params whenever the page is not cached or is revalidated: the first request after start, after a tag invalidation, or for Params not in `paths`. |
 | `'dynamic'` | Optional. No HTML is written at build; each entry plans one Page Browser Graph, so scripts that depend on its Params are in the build. Without `paths` the page gets one plan with no Params. | Never runs at build. Runs on every request, with the request, its Params, Query and Locals. |
 
+A `cache` function behaves as the `'static'` or `{ revalidate, tags }` strategy it returns. It runs after `props`, on every render, at build and at run time, so the strategy and its tags can depend on the Params and on what `props` returned. See [Tags from Params](/docs/server/caching#tags-from-params).
+
 Production builds emit the Page Browser Graphs used by browser scripts and component dependencies. If those dependencies vary by route params, return every required route instance from `paths`. On a `'dynamic'` page, a function-form `dependencies` receives `{ params, query }` and no props, since props come from the request and the build plans each entry without them:
 
 ```tsx

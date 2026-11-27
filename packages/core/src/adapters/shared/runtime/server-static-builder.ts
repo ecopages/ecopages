@@ -309,7 +309,8 @@ export class ServerStaticBuilder {
 		for (const route of pageRoutes) {
 			try {
 				const renderer = dependencies.routeRendererFactory.getPageRenderer(route.filePath);
-				if (pageNeedsServer((await renderer.loadPageModule(route.filePath)).default)) return true;
+				const page = (await renderer.loadPageModule(route.filePath)).default;
+				if (pageNeedsServer(page, this.appConfig.cache?.defaultStrategy)) return true;
 			} catch {
 				continue;
 			}

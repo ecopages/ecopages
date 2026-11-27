@@ -25,7 +25,7 @@ This command will:
 3. Generate static HTML for all files in `src/pages`.
 4. Write `robots.txt` (and optional `sitemap.xml` when enabled — see [Sitemap](/docs/core/sitemap)).
 5. Process images and CSS.
-6. Bundle the server into `dist/server/` when the app registers API or WebSocket handlers, has endpoint files (`*.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`) in its pages directory, or has a Page with `cache: 'dynamic'`, a revalidating `cache` or middleware. A static-only app has no server bundle. The build first checks each endpoint file's exports and fails, naming the file, on a broken one; see [Endpoint Files](/docs/server/endpoint-files#errors).
+6. Bundle the server into `dist/server/` when the app registers API or WebSocket handlers, has endpoint files (`*.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`) in its pages directory, or has a Page with `cache: 'dynamic'`, a revalidating `cache` or middleware (a Page with no `cache` counts when `cache.defaultStrategy` is dynamic or revalidating). A static-only app has no server bundle. The build first checks each endpoint file's exports and fails, naming the file, on a broken one; see [Endpoint Files](/docs/server/endpoint-files#errors).
 
 ---
 
@@ -60,7 +60,7 @@ If your application uses **API routes** or **dynamic server logic**, you need a 
 
 ### 1. Using `pnpm run start`
 
-After building, you can start the production server. This needs a server bundle, so it works only for apps that register API or WebSocket handlers, have endpoint files, or have a Dynamic, revalidating or middleware Page:
+After building, you can start the production server. This needs a server bundle, so it works only for apps that register API or WebSocket handlers, have endpoint files, or have a Dynamic, revalidating or middleware Page (or a dynamic or revalidating `cache.defaultStrategy`):
 
 ```bash
 pnpm run start

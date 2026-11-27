@@ -12,6 +12,7 @@ import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator';
 import type { RouteRegistry } from '../../../router/server/route-registry';
+import type { CacheStrategy } from '../../../types/cache-types.ts';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer';
 import fs from 'node:fs';
 import { path } from '@ecopages/file-system/path';
@@ -550,11 +551,18 @@ describe('ServerStaticBuilder', () => {
 			});
 
 			describe('a Page that needs a server at run time', () => {
-				async function buildWithPage(name: string, page: unknown): Promise<number> {
+				async function buildWithPage(
+					name: string,
+					page: unknown,
+					defaultStrategy: CacheStrategy = 'static',
+				): Promise<number> {
 					const { AppConfig, StaticSiteGenerator, ServeOptions, logger } = createMockDependencies();
 					const distDir = setupBundleFixture(name);
 					fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
-					const appConfig = createAppConfigWithOutputDirectory(AppConfig, distDir);
+					const appConfig = {
+						...createAppConfigWithOutputDirectory(AppConfig, distDir),
+						cache: { defaultStrategy },
+					};
 					const buildCalls = recordServerEntryBuilds(appConfig);
 					const router = {
 						templateRoutes: [
@@ -594,6 +602,27 @@ describe('ServerStaticBuilder', () => {
 					['an HTML Page', 'plain html'],
 				])('builds static-only for a %s Page', async (label, page) => {
 					expect(await buildWithPage(`static-${label.replaceAll(' ', '-')}`, page)).toBe(0);
+				});
+
+				it.each([
+					['dynamic', 'dynamic' as const],
+					['revalidating', { revalidate: 60 }],
+				])(
+					'bundles the server entry for a Page and an HTML Page that use a %s default strategy',
+					async (label, defaultStrategy) => {
+						expect(
+							await buildWithPage(`default-${label}-page`, withCache(undefined), defaultStrategy),
+						).toBe(1);
+						expect(await buildWithPage(`default-${label}-html`, 'plain html', defaultStrategy)).toBe(1);
+					},
+				);
+
+				it('builds static-only when every Page is static and the default strategy is static', async () => {
+					expect(await buildWithPage('default-static', withCache(undefined), 'static')).toBe(0);
+				});
+
+				it('keeps a Page that declares a static cache static under a dynamic default strategy', async () => {
+					expect(await buildWithPage('default-dynamic-own-static', withCache('static'), 'dynamic')).toBe(0);
 				});
 			});
 

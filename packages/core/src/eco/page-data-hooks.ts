@@ -8,6 +8,7 @@ import type {
 	StaticPageStatics,
 } from '../types/contracts.ts';
 import type { DynamicPageOptions, PageOptions, StaticPageOptions } from '../types/eco-api-types.ts';
+import type { CacheStrategy } from '../types/cache-types.ts';
 
 /**
  * Adds the options `eco.page()` keeps on the Page to its rendered component.
@@ -60,12 +61,13 @@ export function isDynamicPage(page: unknown): page is DynamicEcoPageComponent<an
  * @remarks
  * A Static Page is a file in `dist/`, so a build with only Static Pages needs no server. A Dynamic Page renders on
  * each request, and a revalidating Page regenerates when it goes stale, so `ecopages build` emits the server bundle
- * `ecopages start` runs for either.
+ * `ecopages start` runs for either. A Page that declares no `cache`, an HTML Page included, uses
+ * `defaultStrategy`, the app's `cache.defaultStrategy`, so that default can need a server too.
  */
-export function pageNeedsServer(page: unknown): boolean {
-	if (typeof page !== 'function') return false;
-	const cache = 'cache' in page ? page.cache : undefined;
-	const middleware = 'middleware' in page ? page.middleware : undefined;
+export function pageNeedsServer(page: unknown, defaultStrategy: CacheStrategy = 'static'): boolean {
+	const declared = typeof page === 'function' && 'cache' in page ? page.cache : undefined;
+	const middleware = typeof page === 'function' && 'middleware' in page ? page.middleware : undefined;
+	const cache = declared ?? defaultStrategy;
 	const revalidates = typeof cache === 'function' || (typeof cache === 'object' && cache !== null);
 	return cache === 'dynamic' || revalidates || (Array.isArray(middleware) && middleware.length > 0);
 }

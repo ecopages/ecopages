@@ -68,7 +68,7 @@ flowchart TD
 
 Every build starts from an empty `dist/`. Why: each build renders from source in a fresh process, so nothing in an earlier output is reusable.
 
-Only an app with API handlers, WebSocket handlers, endpoint files or a Page that needs a server bundles a server entry: once the server modules, the route list and the declared server files are written, `hasRequestTimePage` activates the Integrations, loads each page module from that emitted copy and asks `pageNeedsServer()`, which is true for a Dynamic Page, a revalidating `cache` (an object or a function) or a Page with middleware. Publishing the server bundle replaces `dist/server/`, so the build then writes all three again. A static-only app gets `dist/client/` and is served by a static host or `ecopages preview`; `ecopages start` refuses it with a message that says so.
+Only an app with API handlers, WebSocket handlers, endpoint files or a Page that needs a server bundles a server entry: once the server modules, the route list and the declared server files are written, `hasRequestTimePage` activates the Integrations, loads each page module from that emitted copy and asks `pageNeedsServer()`, which is true for a Dynamic Page, a revalidating `cache` (an object or a function) or a Page with middleware; a Page that declares no `cache`, an HTML Page included, counts under `cache.defaultStrategy`, so a dynamic or revalidating default needs the server too. Publishing the server bundle replaces `dist/server/`, so the build then writes all three again. A static-only app gets `dist/client/` and is served by a static host or `ecopages preview`; `ecopages start` refuses it with a message that says so.
 
 ### One build id
 

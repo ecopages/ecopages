@@ -9,6 +9,6 @@ const app = await createApp();
  */
 await app
 	.get('/llms.txt', agents.llmsTxtHandler)
-	.get('/products/:handle/index.md', agents.productMarkdownHandler)
+	.get('/products/:handle.md', agents.productMarkdownHandler)
 	.get('/.well-known/ucp', agents.ucpProfileHandler)
 	.start();

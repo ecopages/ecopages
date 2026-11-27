@@ -765,6 +765,29 @@ describe('RouteRegistry', () => {
 			expect(registry.matchRequest('http://localhost:3000/api/other')?.templateRoute.pathname).toBe('/[...path]');
 		});
 
+		test('serves a suffixed endpoint beside the Page of the same param, and a literal before both', async () => {
+			await writePages([
+				'products/[handle].tsx',
+				'products/[handle].card.api.ts',
+				'products/latest.card.api.ts',
+				'products/[handle]/[variant].card.api.ts',
+			]);
+			const registry = createRegistry({ pagesDir, templatesExt: ['.tsx'] });
+			await registry.init();
+
+			const match = (pathname: string) => {
+				const found = registry.matchRequest(`http://localhost:3000${pathname}`);
+				return found && [found.templateRoute.pathname, found.params];
+			};
+			expect(match('/products/linen-shirt.card')).toEqual(['/products/[handle].card', { handle: 'linen-shirt' }]);
+			expect(match('/products/linen-shirt')).toEqual(['/products/[handle]', { handle: 'linen-shirt' }]);
+			expect(match('/products/latest.card')).toEqual(['/products/latest.card', {}]);
+			expect(match('/products/a/b.card')).toEqual([
+				'/products/[handle]/[variant].card',
+				{ handle: 'a', variant: 'b' },
+			]);
+		});
+
 		test.each([
 			['users.tsx', 'users.api.ts', '.tsx', ['/users']],
 			['users.ts', 'users.api.ts', '.ts', ['/users']],

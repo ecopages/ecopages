@@ -4,7 +4,7 @@
  */
 export const storePaths = {
 	product: (handle: string) => `/products/${encodeURIComponent(handle)}`,
-	productMarkdown: (handle: string) => `/products/${encodeURIComponent(handle)}/index.md`,
+	productMarkdown: (handle: string) => `/products/${encodeURIComponent(handle)}.md`,
 	collection: (handle: string) => `/collections/${encodeURIComponent(handle)}`,
 	search: (query = '') => (query ? `/search?q=${encodeURIComponent(query)}` : '/search'),
 	policy: (handle: string) => `/policies/${encodeURIComponent(handle)}`,
@@ -29,11 +29,11 @@ export const POLICY_HANDLES = {
 } as const;
 
 /**
- * The product handle in a `/products/<handle>` path or URL, or its Markdown view `/products/<handle>/index.md`;
+ * The product handle in a `/products/<handle>` path or URL, or its Markdown view `/products/<handle>.md`;
  * `null` for any other path.
  */
 export function productHandleFromPath(path: string): string | null {
-	const match = /^(?:https?:\/\/[^/]+)?\/products\/([^/?#]+)(?:\/|\/index\.md)?(?:[?#].*)?$/u.exec(path);
+	const match = /^(?:https?:\/\/[^/]+)?\/products\/([^/?#]+?)(?:\.md|\/)?(?:[?#].*)?$/u.exec(path);
 	return match ? decodeURIComponent(match[1] ?? '') : null;
 }
 

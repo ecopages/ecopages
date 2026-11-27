@@ -168,6 +168,34 @@ describe('ApiRequestPipeline', () => {
 		expect(await response?.text()).toBe('literal');
 	});
 
+	it('runs a route with a suffixed param only for its suffix, before the bare param route', async () => {
+		const handlers: ApiHandler[] = [
+			{
+				path: '/products/:handle',
+				method: 'GET',
+				handler: ({ params }) => new Response(`page:${params.handle}`),
+			},
+			{
+				path: '/products/:handle.md',
+				method: 'GET',
+				handler: ({ params }) => new Response(`md:${params.handle}`),
+			},
+		];
+		const routes = compileApiRoutes(handlers);
+		const request = (pathname: string) =>
+			createPipeline().tryHandle(new Request(`http://localhost${pathname}`), routes, undefined);
+
+		expect(await (await request('/products/linen-shirt.md'))?.text()).toBe('md:linen-shirt');
+		expect(await (await request('/products/linen-shirt'))?.text()).toBe('page:linen-shirt');
+		expect(
+			await createPipeline().tryHandle(
+				new Request('http://localhost/products/linen-shirt'),
+				compileApiRoutes([handlers[1]!]),
+				undefined,
+			),
+		).toBeNull();
+	});
+
 	it('decodes path params before the API handler receives them', async () => {
 		const pipeline = createPipeline();
 		const handlers: ApiHandler[] = [

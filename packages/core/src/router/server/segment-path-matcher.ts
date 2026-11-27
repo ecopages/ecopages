@@ -8,7 +8,7 @@ export type ParsedSegmentPath = readonly string[];
 
 type PatternSegment =
 	| { kind: 'literal'; value: string }
-	| { kind: 'parameter'; name: string }
+	| { kind: 'parameter'; name: string; suffix: string }
 	| { kind: 'catch-all'; name: string }
 	| { kind: 'wildcard' };
 
@@ -79,12 +79,36 @@ function parseCatchAllSegment(segment: string, options: SegmentPathSyntaxOptions
 	return colonName ? { kind: 'catch-all', name: colonName } : null;
 }
 
-function parseParameterSegment(segment: string, options: SegmentPathSyntaxOptions): PatternSegment | null {
-	const bracketName = options.bracketParams ? extractName(segment, '[', ']') : null;
-	if (bracketName) return { kind: 'parameter', name: bracketName };
+/**
+ * Reads `[name]` or `[name].suffix`: the name ends at the first `]`, and what follows must be empty or a literal
+ * suffix that starts with a dot.
+ */
+function parseBracketParameter(segment: string): PatternSegment | null {
+	if (!segment.startsWith('[')) return null;
+	const close = segment.indexOf(']');
+	const name = segment.slice(1, close);
+	if (close === -1 || !name || name.startsWith('...')) return null;
+	const suffix = segment.slice(close + 1);
+	if (suffix && !(suffix.startsWith('.') && suffix.length > 1)) return null;
+	return { kind: 'parameter', name, suffix: decodePatternLiteral(suffix) };
+}
 
-	const colonName = options.colonParams ? extractName(segment, ':', '') : null;
-	return colonName ? { kind: 'parameter', name: colonName } : null;
+/**
+ * Reads `:name` or `:name.suffix`: the name ends at the first dot, so a dot in a segment starts a literal suffix.
+ */
+function parseColonParameter(segment: string): PatternSegment | null {
+	if (!segment.startsWith(':')) return null;
+	const dot = segment.indexOf('.');
+	const name = segment.slice(1, dot === -1 ? undefined : dot);
+	if (!name) return null;
+	return { kind: 'parameter', name, suffix: dot === -1 ? '' : decodePatternLiteral(segment.slice(dot)) };
+}
+
+function parseParameterSegment(segment: string, options: SegmentPathSyntaxOptions): PatternSegment | null {
+	return (
+		(options.bracketParams ? parseBracketParameter(segment) : null) ??
+		(options.colonParams ? parseColonParameter(segment) : null)
+	);
 }
 
 function parsePatternSegment(segment: string, options: SegmentPathSyntaxOptions): PatternSegment {
@@ -137,7 +161,7 @@ function scorePatternSegments(segments: readonly PatternSegment[], syntax: Segme
 
 	return segments.reduce((score, segment) => {
 		if (segment.kind === 'literal') return score + 100;
-		if (segment.kind === 'parameter') return score + 50;
+		if (segment.kind === 'parameter') return score + (segment.suffix ? 75 : 50);
 		return score + 10;
 	}, 0);
 }
@@ -192,7 +216,13 @@ export function matchParsedSegmentPath<S extends SegmentPathSyntax>(
 		}
 
 		if (patternSegment.kind === 'parameter') {
-			params[patternSegment.name] = pathSegment;
+			const { suffix } = patternSegment;
+			if (!suffix) {
+				params[patternSegment.name] = pathSegment;
+				continue;
+			}
+			if (pathSegment.length <= suffix.length || !pathSegment.endsWith(suffix)) return null;
+			params[patternSegment.name] = pathSegment.slice(0, -suffix.length);
 			continue;
 		}
 
@@ -261,7 +291,9 @@ export function buildSegmentPath(pattern: string, params: SegmentPathParams, syn
 				return [segment];
 			}
 
-			return Array.isArray(value) ? value : [value];
+			const values = Array.isArray(value) ? value : [value];
+			if (patternSegment.kind !== 'parameter' || !patternSegment.suffix || values.length === 0) return values;
+			return [...values.slice(0, -1), `${values.at(-1)}${patternSegment.suffix}`];
 		})
 		.filter((segment) => segment !== '');
 
@@ -278,7 +310,8 @@ export function buildSegmentPath(pattern: string, params: SegmentPathParams, syn
 export function segmentPathPatternKey(pattern: string, syntax: SegmentPathSyntax): string {
 	const segments = parsePattern(pattern, syntax).map((segment) => {
 		if (segment.kind === 'literal') return encodeURIComponent(segment.value);
-		return segment.kind === 'parameter' ? '[]' : '[...]';
+		if (segment.kind !== 'parameter') return '[...]';
+		return segment.suffix ? `[]${encodeURIComponent(segment.suffix)}` : '[]';
 	});
 	return `/${segments.join('/')}`;
 }

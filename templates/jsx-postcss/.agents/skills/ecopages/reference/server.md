@@ -121,6 +121,8 @@ app.group(adminGroup);
 await app.start();
 ```
 
+A route param can carry a literal suffix that starts with a dot, `app.get('/products/:handle.md', handler)` (or `[handle].md`): it matches only segments that end with the suffix, captures the part before it, and ranks before a bare `:handle` route, so it can sit beside the Page `/products/[handle]`. A dot in a param segment always starts the suffix.
+
 ## Endpoint files
 
 A file under `src/pages` ending in `.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx` is an endpoint file: its path gives the URL (`src/pages/api/users/[id].api.ts` answers `/api/users/42` with `params.id === '42'`; declare `schema.params` to type it), and it needs no `app.add()`. Those endings are reserved; no Integration can register them. Export one handler per method, named exactly `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`, `HEAD` or `QUERY`, built with the matching method helper and no `path`. Other exports are ignored.

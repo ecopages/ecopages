@@ -212,10 +212,10 @@ export class RouteRegistry {
 		const sharedLength = Math.min(leftSegments.length, rightSegments.length);
 
 		for (let index = 0; index < sharedLength; index += 1) {
-			const leftIsDynamic = this.isDynamicRouteSegment(leftSegments[index]);
-			const rightIsDynamic = this.isDynamicRouteSegment(rightSegments[index]);
-			if (leftIsDynamic !== rightIsDynamic) {
-				return leftIsDynamic ? 1 : -1;
+			const leftRank = this.getSegmentRank(leftSegments[index]);
+			const rightRank = this.getSegmentRank(rightSegments[index]);
+			if (leftRank !== rightRank) {
+				return leftRank - rightRank;
 			}
 		}
 
@@ -229,8 +229,13 @@ export class RouteRegistry {
 		return catchAllIndex === -1 ? segments : segments.slice(0, catchAllIndex);
 	}
 
-	private isDynamicRouteSegment(segment: string): boolean {
-		return segment.startsWith('[') && segment.endsWith(']');
+	/**
+	 * How loosely a pattern segment matches: a literal `0`, a param with a literal suffix (`[handle].md`) `1`, a
+	 * bare param `2`. The lower rank wins.
+	 */
+	private getSegmentRank(segment: string | undefined): number {
+		if (!segment?.startsWith('[')) return 0;
+		return segment.endsWith(']') ? 2 : 1;
 	}
 
 	private async expandStaticPaths(

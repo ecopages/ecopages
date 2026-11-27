@@ -8,6 +8,7 @@ import { test } from '../../app-fixture.ts';
  */
 const WEBHOOK_SECRET = 'whsec-ecoshop-e2e';
 const fieldShirtM = 'gid://ecoshop/ProductVariant/field-shirt-m';
+const fieldShirtHandle = 'field-shirt';
 
 const mcpHeaders = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
 
@@ -20,6 +21,18 @@ test('llms.txt lists the store, its collections and the MCP endpoint', async ({ 
 	expect(text).toMatch(/^# Ecoshop/u);
 	expect(text).toMatch(/\[Apparel\]\(.+\/collections\/apparel\)/u);
 	expect(text).toMatch(/\[MCP server\]\(.+\/mcp\)/u);
+	expect(text).toMatch(/\]\(.+\/products\/[a-z0-9-]+\.md\)/u);
+});
+
+test('a product answers as Markdown at <handle>.md and as a page at <handle>', async ({ request }) => {
+	const markdown = await request.get(`/products/${fieldShirtHandle}.md`);
+	expect(markdown.status()).toBe(200);
+	expect(markdown.headers()['content-type']).toContain('text/markdown');
+	expect(await markdown.text()).toContain('Field Shirt');
+
+	const page = await request.get(`/products/${fieldShirtHandle}`);
+	expect(page.status()).toBe(200);
+	expect(page.headers()['content-type']).toContain('text/html');
 });
 
 test('the cart answers a form post with a redirect and a failed one with 400', async ({ request }) => {

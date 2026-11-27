@@ -15,13 +15,14 @@ class NodeRequestFixture extends PassThrough {
 	public headers: Record<string, string> = {};
 }
 
-function createPipeline() {
+function createPipeline(maxRequestBodySize?: number) {
 	return new ApiRequestPipeline({
 		getRenderContext: () =>
 			({
 				render: vi.fn(),
 			}) as unknown as RenderContext,
 		getCacheService: () => null,
+		...(maxRequestBodySize === undefined ? {} : { getMaxRequestBodySize: () => maxRequestBodySize }),
 	});
 }
 
@@ -166,6 +167,34 @@ describe('ApiRequestPipeline', () => {
 
 		expect(response?.status).toBe(200);
 		expect(await response?.text()).toBe('literal');
+	});
+
+	it('runs a route with a suffixed param only for its suffix, before the bare param route', async () => {
+		const handlers: ApiHandler[] = [
+			{
+				path: '/products/:handle',
+				method: 'GET',
+				handler: ({ params }) => new Response(`page:${params.handle}`),
+			},
+			{
+				path: '/products/:handle.md',
+				method: 'GET',
+				handler: ({ params }) => new Response(`md:${params.handle}`),
+			},
+		];
+		const routes = compileApiRoutes(handlers);
+		const request = (pathname: string) =>
+			createPipeline().tryHandle(new Request(`http://localhost${pathname}`), routes, undefined);
+
+		expect(await (await request('/products/linen-shirt.md'))?.text()).toBe('md:linen-shirt');
+		expect(await (await request('/products/linen-shirt'))?.text()).toBe('page:linen-shirt');
+		expect(
+			await createPipeline().tryHandle(
+				new Request('http://localhost/products/linen-shirt'),
+				compileApiRoutes([handlers[1]!]),
+				undefined,
+			),
+		).toBeNull();
 	});
 
 	it('decodes path params before the API handler receives them', async () => {
@@ -460,25 +489,527 @@ describe('ApiRequestPipeline', () => {
 		expect(response?.status).toBe(499);
 	});
 
-	it('answers unsupported content types with HTTP 415 when a body schema is declared', async () => {
-		const response = await createPipeline().tryHandle(
+	describe('schema body limit and order', () => {
+		const bodySchema = z.object({ title: z.string() });
+		const postRoute = (
+			handler = vi.fn<ApiHandler['handler']>(({ body }) => Response.json(body)),
+			middleware: ApiHandler['middleware'] = [],
+		) => ({
+			handler,
+			routes: compileApiRoutes([
+				{ path: '/api/posts', method: 'POST', schema: { body: bodySchema }, middleware, handler },
+			]),
+		});
+		const jsonPost = (title: string, headers: Record<string, string> = {}) =>
 			new Request('http://localhost/api/posts', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-				body: 'title=post',
-			}),
-			compileApiRoutes([
+				headers: { 'Content-Type': 'application/json', ...headers },
+				body: JSON.stringify({ title }),
+			});
+
+		it('answers HTTP 413 for a declared length over the limit without reading the body', async () => {
+			let pulls = 0;
+			const body = new ReadableStream<Uint8Array>({
+				pull(controller) {
+					pulls += 1;
+					controller.enqueue(new Uint8Array(1024));
+				},
+			});
+			const { handler, routes } = postRoute();
+
+			const response = await createPipeline(1024 * 1024).tryHandle(
+				new Request('http://localhost/api/posts', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'multipart/form-data; boundary=x',
+						'Content-Length': String(5 * 1024 * 1024),
+					},
+					body,
+					duplex: 'half',
+				} as RequestInit),
+				routes,
+				undefined,
+			);
+
+			expect(response?.status).toBe(413);
+			expect(response?.headers.get('connection')).toBe('close');
+			expect(await response?.json()).toEqual({ error: 'Payload Too Large' });
+			expect(handler).not.toHaveBeenCalled();
+			expect(pulls).toBeLessThanOrEqual(1);
+		});
+
+		it('answers HTTP 413 as soon as a chunked body passes the limit', async () => {
+			const incomingRequest = new NodeRequestFixture();
+			incomingRequest.headers = { 'content-type': 'application/json', 'transfer-encoding': 'chunked' };
+			const request = new NodeHttpRequestBridge().createWebRequest(
+				incomingRequest as unknown as IncomingMessage,
+				'http://localhost',
+			);
+			const { handler, routes } = postRoute();
+			const responsePromise = createPipeline(16).tryHandle(request, routes, undefined);
+
+			incomingRequest.write('{"title":"');
+			incomingRequest.write('x'.repeat(32));
+			const response = await responsePromise;
+
+			expect(response?.status).toBe(413);
+			expect(handler).not.toHaveBeenCalled();
+			incomingRequest.end('"}');
+		});
+
+		it('reads a body at the limit, refuses one a byte over it, and leaves the request readable', async () => {
+			const payload = JSON.stringify({ title: 'abc' });
+			const limit = Buffer.byteLength(payload);
+			const { routes } = postRoute(
+				vi.fn<ApiHandler['handler']>(({ body, request }) =>
+					request.text().then((text) => Response.json({ body, text })),
+				),
+			);
+
+			const atLimit = await createPipeline(limit).tryHandle(jsonPost('abc'), routes, undefined);
+			const below = await createPipeline(limit - 1).tryHandle(jsonPost('abc'), routes, undefined);
+
+			expect(await atLimit?.json()).toEqual({ body: { title: 'abc' }, text: payload });
+			expect(below?.status).toBe(413);
+		});
+
+		it('limits form and text bodies the same way', async () => {
+			const { routes } = postRoute();
+			const withBody = (type: string) =>
+				new Request('http://localhost/api/posts', {
+					method: 'POST',
+					headers: { 'Content-Type': type },
+					body: `title=${'x'.repeat(64)}`,
+				});
+
+			expect(
+				(await createPipeline(16).tryHandle(withBody('application/x-www-form-urlencoded'), routes, undefined))
+					?.status,
+			).toBe(413);
+			expect((await createPipeline(16).tryHandle(withBody('text/plain'), routes, undefined))?.status).toBe(413);
+		});
+
+		it('sets no limit for Infinity, and leaves the request readable', async () => {
+			const { routes } = postRoute(
+				vi.fn<ApiHandler['handler']>(({ body, request }) =>
+					request.text().then((text) => Response.json({ body, length: text.length })),
+				),
+			);
+
+			const response = await createPipeline(Number.POSITIVE_INFINITY).tryHandle(
+				jsonPost('x'.repeat(4096), { 'Content-Length': String(20 * 1024 * 1024) }),
+				routes,
+				undefined,
+			);
+
+			expect(response?.status).toBe(200);
+			expect(((await response?.json()) as { length: number }).length).toBeGreaterThan(4096);
+		});
+
+		it('applies a default limit of 10 MiB', async () => {
+			const { routes } = postRoute();
+			const declared = (length: number) =>
+				createPipeline().tryHandle(jsonPost('x', { 'Content-Length': String(length) }), routes, undefined);
+
+			expect((await declared(10 * 1024 * 1024))?.status).toBe(200);
+			expect((await declared(10 * 1024 * 1024 + 1))?.status).toBe(413);
+		});
+
+		it('does not limit a route without a body schema', async () => {
+			const routes = compileApiRoutes([
 				{
 					path: '/api/posts',
 					method: 'POST',
-					schema: { body: z.object({ title: z.string() }) },
-					handler: () => new Response('unreachable'),
+					handler: async ({ request }) => new Response(await request.text()),
 				},
-			]),
-			undefined,
-		);
+			]);
 
-		expect(response?.status).toBe(415);
+			const response = await createPipeline(4).tryHandle(jsonPost('x'.repeat(64)), routes, undefined);
+
+			expect(response?.status).toBe(200);
+		});
+
+		it('answers HTTP 500 and names the cause when a middleware read the body first', async () => {
+			const consume = createMiddleware(async (context, next) => {
+				await context.request.text();
+				return next();
+			});
+			const { handler, routes } = postRoute(undefined, [consume]);
+			const logged = vi.spyOn(appLogger, 'error').mockImplementation(() => appLogger);
+
+			const response = await createPipeline().tryHandle(jsonPost('x'), routes, undefined);
+
+			expect(response?.status).toBe(500);
+			expect(handler).not.toHaveBeenCalled();
+			expect(logged.mock.calls.flat().join(' ')).toContain('request.clone()');
+			logged.mockRestore();
+		});
+
+		it('answers HTTP 413 even when a middleware keeps an unread clone of the request', async () => {
+			let kept: Request | undefined;
+			const keep = createMiddleware(async (context, next) => {
+				kept = context.request.clone();
+				return next();
+			});
+			const { routes } = postRoute(undefined, [keep]);
+
+			const response = await createPipeline(8).tryHandle(
+				jsonPost('x'.repeat(64), { 'Content-Length': '4096' }),
+				routes,
+				undefined,
+			);
+
+			expect(kept).toBeDefined();
+			expect(response?.status).toBe(413);
+		});
+
+		it('lets middleware answer before the body is read', async () => {
+			let pulls = 0;
+			const body = new ReadableStream<Uint8Array>({
+				pull(controller) {
+					pulls += 1;
+					controller.enqueue(new TextEncoder().encode('title=x'));
+				},
+			});
+			const deny = createMiddleware(() => new Response('denied', { status: 401 }));
+			const { handler, routes } = postRoute(undefined, [deny]);
+			const request = new Request('http://localhost/api/posts', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body,
+				duplex: 'half',
+			} as RequestInit);
+
+			const response = await createPipeline().tryHandle(request, routes, undefined);
+
+			expect(response?.status).toBe(401);
+			expect(handler).not.toHaveBeenCalled();
+			expect(pulls).toBeLessThanOrEqual(1);
+		});
+
+		it('still validates params and query before middleware and the body after it', async () => {
+			const order: string[] = [];
+			const track = createMiddleware(async (_context, next) => {
+				order.push('middleware');
+				return next();
+			});
+			const routes = compileApiRoutes([
+				{
+					path: '/api/posts/:id',
+					method: 'POST',
+					schema: { body: bodySchema, params: z.object({ id: z.string().regex(/^\d+$/) }) },
+					middleware: [track],
+					handler: () => {
+						order.push('handler');
+						return new Response('ok');
+					},
+				},
+			]);
+			const post = (id: string, title: unknown) =>
+				new Request(`http://localhost/api/posts/${id}`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ title }),
+				});
+
+			expect((await createPipeline().tryHandle(post('x', 'a'), routes, undefined))?.status).toBe(400);
+			expect(order).toEqual([]);
+			expect((await createPipeline().tryHandle(post('1', 5), routes, undefined))?.status).toBe(400);
+			expect(order).toEqual(['middleware']);
+			expect((await createPipeline().tryHandle(post('1', 'a'), routes, undefined))?.status).toBe(200);
+			expect(order).toEqual(['middleware', 'middleware', 'handler']);
+		});
+	});
+
+	describe('onInvalid', () => {
+		const formRoute = (onInvalid?: ApiHandler['onInvalid']) => {
+			const handler = vi.fn<ApiHandler['handler']>(() => new Response('stored'));
+			return {
+				handler,
+				routes: compileApiRoutes([
+					{
+						path: '/api/cart/:id',
+						method: 'POST',
+						schema: {
+							body: z.object({ slug: z.string() }),
+							params: z.object({ id: z.string().regex(/^\d+$/) }),
+						},
+						onInvalid,
+						handler,
+					},
+				]),
+			};
+		};
+		const post = (id: string, body: string) =>
+			new Request(`http://localhost/api/cart/${id}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body,
+			});
+
+		it('turns a body that fails the schema into the response of the hook', async () => {
+			const onInvalid = vi.fn<NonNullable<ApiHandler['onInvalid']>>(
+				() => new Response(null, { status: 303, headers: { Location: '/cart?notice=invalid' } }),
+			);
+			const { handler, routes } = formRoute(onInvalid);
+
+			const response = await createPipeline().tryHandle(post('1', 'quantity=2'), routes, undefined);
+
+			expect(response?.status).toBe(303);
+			expect(response?.headers.get('location')).toBe('/cart?notice=invalid');
+			expect(handler).not.toHaveBeenCalled();
+			const [issues, context] = onInvalid.mock.calls[0]!;
+			expect(issues.map((issue) => issue.path)).toContainEqual(['slug']);
+			expect(context.request.method).toBe('POST');
+		});
+
+		it('also answers a params failure through the hook, before middleware and the body', async () => {
+			const onInvalid = vi.fn<NonNullable<ApiHandler['onInvalid']>>(
+				() => new Response('invalid', { status: 422 }),
+			);
+			const { handler, routes } = formRoute(onInvalid);
+
+			const response = await createPipeline().tryHandle(post('x', 'slug=a'), routes, undefined);
+
+			expect(response?.status).toBe(422);
+			expect(onInvalid.mock.calls[0]![0].map((issue) => issue.path)).toContainEqual(['id']);
+			expect(handler).not.toHaveBeenCalled();
+		});
+
+		it('keeps the HTTP 400 answer without a hook', async () => {
+			const { handler, routes } = formRoute();
+
+			const response = await createPipeline().tryHandle(post('1', 'quantity=2'), routes, undefined);
+
+			expect(response?.status).toBe(400);
+			const payload = (await response?.json()) as { error: string; issues: Array<{ path?: string[] }> };
+			expect(payload.error).toBe('Validation failed');
+			expect(payload.issues.map((issue) => issue.path)).toContainEqual(['slug']);
+			expect(handler).not.toHaveBeenCalled();
+		});
+
+		it('does not call the hook for a body that passes', async () => {
+			const onInvalid = vi.fn<NonNullable<ApiHandler['onInvalid']>>(() => new Response('invalid'));
+			const { handler, routes } = formRoute(onInvalid);
+
+			const response = await createPipeline().tryHandle(post('1', 'slug=chair'), routes, undefined);
+
+			expect(response?.status).toBe(200);
+			expect(onInvalid).not.toHaveBeenCalled();
+			expect(handler).toHaveBeenCalledOnce();
+		});
+	});
+
+	describe('form bodies', () => {
+		const cartSchema = z.object({ slug: z.string(), quantity: z.string().regex(/^\d+$/) });
+		const cartRoutes = (handler: ApiHandler['handler'] = ({ body }) => Response.json(body)) =>
+			compileApiRoutes([{ path: '/api/cart', method: 'POST', schema: { body: cartSchema }, handler }]);
+		const post = (body: BodyInit, headers?: Record<string, string>) =>
+			new Request('http://localhost/api/cart', { method: 'POST', headers, body });
+
+		it('validates an urlencoded form post with the body schema', async () => {
+			const response = await createPipeline().tryHandle(
+				post('slug=chair&quantity=2', { 'Content-Type': 'application/x-www-form-urlencoded' }),
+				cartRoutes(),
+				undefined,
+			);
+
+			expect(response?.status).toBe(200);
+			expect(await response?.json()).toEqual({ slug: 'chair', quantity: '2' });
+		});
+
+		it('answers HTTP 400 naming the field a form post leaves out', async () => {
+			const response = await createPipeline().tryHandle(
+				post('quantity=2', { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }),
+				cartRoutes(),
+				undefined,
+			);
+
+			expect(response?.status).toBe(400);
+			const payload = (await response?.json()) as { issues: Array<{ path?: string[] }> };
+			expect(payload.issues.map((issue) => issue.path)).toContainEqual(['slug']);
+		});
+
+		it('still validates a JSON post with the same schema', async () => {
+			const routes = compileApiRoutes([
+				{
+					path: '/api/cart',
+					method: 'POST',
+					schema: { body: z.object({ slug: z.string(), quantity: z.number() }) },
+					handler: ({ body }) => Response.json(body),
+				},
+			]);
+			const response = await createPipeline().tryHandle(
+				post('{"slug":"chair","quantity":2}', { 'Content-Type': 'application/json' }),
+				routes,
+				undefined,
+			);
+
+			expect(await response?.json()).toEqual({ slug: 'chair', quantity: 2 });
+		});
+
+		it('validates a multipart post, keeping repeated keys as arrays and files as File values', async () => {
+			const form = new FormData();
+			form.append('tag', 'a');
+			form.append('tag', 'b');
+			form.append('upload', new File(['hello'], 'hello.txt', { type: 'text/plain' }));
+			const response = await createPipeline().tryHandle(
+				new Request('http://localhost/api/cart', { method: 'POST', body: form }),
+				compileApiRoutes([
+					{
+						path: '/api/cart',
+						method: 'POST',
+						schema: { body: z.object({ tag: z.array(z.string()), upload: z.instanceof(File) }) },
+						handler: async ({ body }) => {
+							const { tag, upload } = body as { tag: string[]; upload: File };
+							return Response.json({ tag, name: upload.name, text: await upload.text() });
+						},
+					},
+				]),
+				undefined,
+			);
+
+			expect(await response?.json()).toEqual({ tag: ['a', 'b'], name: 'hello.txt', text: 'hello' });
+		});
+
+		it('validates a form with no fields as an empty object', async () => {
+			const response = await createPipeline().tryHandle(
+				post('', { 'Content-Type': 'application/x-www-form-urlencoded' }),
+				compileApiRoutes([
+					{
+						path: '/api/cart',
+						method: 'POST',
+						schema: { body: z.object({ tag: z.string().optional() }) },
+						handler: ({ body }) => Response.json(body),
+					},
+				]),
+				undefined,
+			);
+
+			expect(response?.status).toBe(200);
+			expect(await response?.json()).toEqual({});
+		});
+
+		it('answers HTTP 400 for a multipart body that cannot be parsed', async () => {
+			const response = await createPipeline().tryHandle(
+				post('not a multipart body', { 'Content-Type': 'multipart/form-data; boundary=x' }),
+				cartRoutes(),
+				undefined,
+			);
+
+			expect(response?.status).toBe(400);
+			expect(await response?.json()).toEqual({ error: 'Invalid request body' });
+		});
+
+		it('validates a form post streamed through the Node request bridge', async () => {
+			const incomingRequest = new NodeRequestFixture();
+			incomingRequest.url = '/api/cart';
+			incomingRequest.headers = {
+				'content-type': 'application/x-www-form-urlencoded',
+				'transfer-encoding': 'chunked',
+			};
+			const request = new NodeHttpRequestBridge().createWebRequest(
+				incomingRequest as unknown as IncomingMessage,
+				'http://localhost',
+			);
+			const responsePromise = createPipeline().tryHandle(request, cartRoutes(), undefined);
+
+			incomingRequest.write('slug=chair&');
+			incomingRequest.end('quantity=2');
+			const response = await responsePromise;
+
+			expect(response?.status).toBe(200);
+			expect(await response?.json()).toEqual({ slug: 'chair', quantity: '2' });
+		});
+
+		it('answers a client abort while a form body is read with HTTP 499', async () => {
+			const incomingRequest = new NodeRequestFixture();
+			incomingRequest.url = '/api/cart';
+			incomingRequest.headers = {
+				'content-type': 'application/x-www-form-urlencoded',
+				'transfer-encoding': 'chunked',
+			};
+			const request = new NodeHttpRequestBridge().createWebRequest(
+				incomingRequest as unknown as IncomingMessage,
+				'http://localhost',
+			);
+			const responsePromise = createPipeline().tryHandle(request, cartRoutes(), undefined);
+
+			incomingRequest.write('slug=chair&');
+			incomingRequest.emit('aborted');
+
+			expect((await responsePromise)?.status).toBe(499);
+		});
+
+		it('validates a form post that sends no body as an empty object', async () => {
+			const response = await createPipeline().tryHandle(
+				new Request('http://localhost/api/cart', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				}),
+				compileApiRoutes([
+					{
+						path: '/api/cart',
+						method: 'POST',
+						schema: { body: z.object({ tag: z.string().optional() }) },
+						handler: ({ body }) => Response.json(body),
+					},
+				]),
+				undefined,
+			);
+
+			expect(await response?.json()).toEqual({});
+		});
+
+		it('validates a multipart post that sends no body as an empty object', async () => {
+			const response = await createPipeline().tryHandle(
+				new Request('http://localhost/api/cart', {
+					method: 'POST',
+					headers: { 'Content-Type': 'multipart/form-data; boundary=x' },
+				}),
+				compileApiRoutes([
+					{
+						path: '/api/cart',
+						method: 'POST',
+						schema: { body: z.object({ tag: z.string().optional() }) },
+						handler: ({ body }) => Response.json(body),
+					},
+				]),
+				undefined,
+			);
+
+			expect(await response?.json()).toEqual({});
+		});
+
+		it('validates a bodyless Node form post as an empty object', async () => {
+			const response = await createPipeline().tryHandle(
+				createEmptyNodeRequest({
+					'content-type': 'application/x-www-form-urlencoded',
+					'content-length': '0',
+				}),
+				compileApiRoutes([
+					{
+						path: '/api/posts',
+						method: 'POST',
+						schema: { body: z.object({ tag: z.string().optional() }) },
+						handler: ({ body }) => Response.json(body),
+					},
+				]),
+				undefined,
+			);
+
+			expect(await response?.json()).toEqual({});
+		});
+
+		it('leaves the request body readable by the handler', async () => {
+			const response = await createPipeline().tryHandle(
+				post('slug=chair&quantity=2', { 'Content-Type': 'application/x-www-form-urlencoded' }),
+				cartRoutes(async ({ request }) => Response.json(Object.fromEntries(await request.formData()))),
+				undefined,
+			);
+
+			expect(await response?.json()).toEqual({ slug: 'chair', quantity: '2' });
+		});
 	});
 
 	it('drains a streamed Node request with an unsupported content type', async () => {

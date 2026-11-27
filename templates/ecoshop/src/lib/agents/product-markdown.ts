@@ -5,7 +5,7 @@ import { resolveUrl, storePaths } from '@/lib/store-urls';
 const cell = (value: string) => value.replace(/\|/gu, '\\|').replace(/\n/gu, ' ');
 
 /**
- * Builds the Markdown view of a product, served at `/products/<handle>/index.md` for agents that read text.
+ * Builds the Markdown view of a product, served at `/products/<handle>.md` for agents that read text.
  */
 export function buildProductMarkdown(product: Product, origin: string): string {
 	const facts = [

@@ -2,6 +2,7 @@ import type { Duplex } from 'node:stream';
 import { STATUS_CODES, type Server as NodeHttpServer, type IncomingMessage } from 'node:http';
 import { WebSocketServer, type WebSocket as WsWebSocket } from 'ws';
 import { HttpError } from '../../../errors/http-error.ts';
+import type { TrustProxy } from '../../../config/user-config-types.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { parseSearchParams } from '../../../router/server/parse-search-params.ts';
 import type {
@@ -10,6 +11,7 @@ import type {
 	IncomingWebSocketMessage,
 	PageQuery,
 } from '../../../types/contracts.ts';
+import { resolveRequestOrigin } from '../../node/http-request-bridge.ts';
 import { compileWebSocketRoutes, findWebSocketRoute, type WebSocketRouteMatch } from './ws-pattern-matcher.ts';
 import { createEcopagesSocket, invokeWebSocketHandlerHook, toWebSocketCloseInfo } from './websocket-lifecycle.ts';
 
@@ -17,6 +19,8 @@ export type NodeHttpWebSocketUpgradePreflight = (req: IncomingMessage, socket: D
 
 export type AttachNodeHttpWebSocketUpgradesOptions = {
 	runtimeOrigin: string;
+	/** Which forwarded headers the upgrade request's URL may read. */
+	trustProxy?: TrustProxy;
 	websocketHandlers: Map<string, EcopagesWebSocketHandler<unknown, Record<string, string>>>;
 	preflight?: NodeHttpWebSocketUpgradePreflight;
 };
@@ -39,8 +43,8 @@ function adaptNodeWebSocket<TContext, TParams extends Record<string, string>>(
 	);
 }
 
-function toUpgradeRequest(runtimeOrigin: string, req: IncomingMessage): Request {
-	const upgradeUrl = new URL(req.url ?? '/', runtimeOrigin);
+function toUpgradeRequest(runtimeOrigin: string, req: IncomingMessage, trustProxy: TrustProxy | undefined): Request {
+	const upgradeUrl = new URL(req.url ?? '/', resolveRequestOrigin(req, runtimeOrigin, trustProxy));
 	return new Request(upgradeUrl, {
 		method: req.method,
 		headers: req.headers as HeadersInit,
@@ -170,7 +174,7 @@ export function attachNodeHttpWebSocketUpgrades(
 
 		const search = parseSearchParams(url.searchParams);
 		const handler = wsMatch.handler as EcopagesWebSocketHandler<unknown, Record<string, string>>;
-		const baseRequest = toUpgradeRequest(options.runtimeOrigin, req);
+		const baseRequest = toUpgradeRequest(options.runtimeOrigin, req, options.trustProxy);
 
 		void resolveNodeContext(baseRequest, handler, wsMatch.kind, wsMatch.params, search).then(
 			(context) => {

@@ -1,3 +1,4 @@
+import { createMiddleware } from '@ecopages/core';
 import { z } from 'zod';
 import { CartInputError } from '@/lib/commerce/errors';
 import { formatMoney } from '@/lib/commerce/money';
@@ -6,74 +7,75 @@ import { isSameOriginRequest } from '@/lib/http/same-origin';
 import { siteOrigin } from '@/lib/site-origin';
 import { storePaths } from '@/lib/store-urls';
 import { cartCookieFor, readCartId } from './cart-cookie';
-import { shortageQuery } from './cart-messages';
+import { noticeQuery, shortageQuery } from './cart-messages';
 import type { CartTotals } from './cart-events';
 
 /**
- * A cart change posted by a form or the `cart-form` host. `add` adds to the line; `set` replaces its quantity, and `0`
+ * The variant a form posted. The product form carries a hidden `variantId` for a post without JavaScript and a checked
+ * radio of the same name after it, so a repeated key reaches the schema as an array and the last value wins.
+ */
+const variantIdField = z.preprocess((value) => (Array.isArray(value) ? value.at(-1) : value), z.string().min(1));
+
+/**
+ * A cart change posted by a plain form. `add` adds to the line; `set` replaces its quantity, and `0`
  * removes it.
  */
 export const cartActionSchema = z.discriminatedUnion('intent', [
 	z.object({
 		intent: z.literal('add'),
-		variantId: z.string().min(1),
+		variantId: variantIdField,
 		quantity: z.coerce.number().int().min(1).max(MAX_LINE_QUANTITY).default(1),
 	}),
 	z.object({
 		intent: z.literal('set'),
-		variantId: z.string().min(1),
+		variantId: variantIdField,
 		quantity: z.coerce.number().int().min(0).max(MAX_LINE_QUANTITY),
 	}),
 ]);
 
-/**
- * Codes the cart page turns into a message after a form post without JavaScript.
- */
-export type CartNotice = 'invalid' | 'refused';
+export type CartAction = z.output<typeof cartActionSchema>;
 
 const totals = (cart: Cart | null): CartTotals => ({
 	totalQuantity: cart?.totalQuantity ?? 0,
 	subtotal: cart && cart.totalQuantity > 0 ? formatMoney(cart.subtotal) : null,
 });
 
-const wantsJson = (request: Request) => (request.headers.get('accept') ?? '').includes('application/json');
+/**
+ * The answer to a post that fails {@link cartActionSchema}: back to the cart with the `invalid` notice, so a form
+ * without JavaScript shows a message instead of a JSON error.
+ */
+export function redirectInvalidPost(): Response {
+	return new Response(null, { status: 303, headers: { Location: `${storePaths.cart}?${noticeQuery('invalid')}` } });
+}
 
 /**
- * Reads the posted fields from a form or a JSON body.
+ * Answers 403 to a post from another site, or `null` to go on.
+ */
+export function refuseCrossOrigin(request: Request): Response | null {
+	return isSameOriginRequest(request, siteOrigin)
+		? null
+		: Response.json({ error: 'Origin not allowed' }, { status: 403 });
+}
+
+/**
+ * The cart Endpoint's first stage: it refuses a post from another site before the body is read.
+ */
+export const sameOriginOnly = createMiddleware((context, next) => refuseCrossOrigin(context.request) ?? next());
+
+/**
+ * Applies a cart change the Endpoint already validated against {@link cartActionSchema}, and answers the form with a
+ * 303 back to `/cart`.
  *
  * @remarks
- * The endpoint parses the body itself instead of declaring `schema.body`, because Ecopages validates only JSON and
- * plain-text bodies and answers a form post with 415, and the cart must work without JavaScript.
+ * Ecopages parses the form body after the route's middleware, so {@link sameOriginOnly} has already refused a post
+ * from another site, and answers a change that fails the schema with {@link redirectInvalidPost} before this runs. The product form and
+ * the agent tools add through `/api/agent-tools`, so this Endpoint serves plain form posts only.
  */
-async function readFields(request: Request): Promise<unknown> {
-	const type = request.headers.get('content-type') ?? '';
-	if (type.includes('application/json')) return request.json().catch(() => undefined);
-	if (type.includes('application/x-www-form-urlencoded') || type.includes('multipart/form-data')) {
-		return Object.fromEntries((await request.formData()).entries());
-	}
-	return undefined;
-}
-
-function noticeRedirect(notice: CartNotice): Response {
-	return new Response(null, { status: 303, headers: { Location: `${storePaths.cart}?notice=${notice}` } });
-}
-
-/**
- * Applies a posted cart change and answers the form (303 to `/cart`) or the `cart-form` host (JSON totals).
- */
-export async function handleCartPost(request: Request, provider: CommerceProvider): Promise<Response> {
-	if (!isSameOriginRequest(request, siteOrigin)) {
-		return Response.json({ error: 'Origin not allowed' }, { status: 403 });
-	}
-
-	const json = wantsJson(request);
-	const parsed = cartActionSchema.safeParse(await readFields(request));
-	if (!parsed.success) {
-		const fields = [...new Set(parsed.error.issues.map((issue) => issue.path.join('.') || 'body'))].join(', ');
-		return json ? Response.json({ error: `Invalid ${fields}` }, { status: 400 }) : noticeRedirect('invalid');
-	}
-
-	const { intent, variantId, quantity } = parsed.data;
+export async function handleCartPost(
+	request: Request,
+	provider: CommerceProvider,
+	{ intent, variantId, quantity }: CartAction,
+): Promise<Response> {
 	const cartId = readCartId(request.headers);
 	let cart: Cart;
 	try {
@@ -83,11 +85,13 @@ export async function handleCartPost(request: Request, provider: CommerceProvide
 				: await provider.setCartQuantities(cartId, [{ variantId, quantity }]);
 	} catch (error) {
 		if (!(error instanceof CartInputError)) throw error;
-		return json ? Response.json({ error: error.message }, { status: 422 }) : noticeRedirect('refused');
+		return new Response(null, {
+			status: 303,
+			headers: { Location: `${storePaths.cart}?${noticeQuery('refused')}` },
+		});
 	}
 
 	const headers = new Headers({ 'Set-Cookie': cartCookieFor(cart.id, request), 'Cache-Control': 'no-store' });
-	if (json) return Response.json(totals(cart), { headers });
 	const shortage = cart.messages?.find((message) => message.code === 'quantity_reduced');
 	headers.set(
 		'Location',

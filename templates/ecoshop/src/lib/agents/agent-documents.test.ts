@@ -22,7 +22,7 @@ describe('llms.txt', () => {
 		expect(text).toContain(`[MCP server](${ORIGIN}/mcp)`);
 		expect(text).toContain(`- [Apparel](${ORIGIN}/collections/apparel): Shirts and tees`);
 		expect(text).toContain(`- [Home](${ORIGIN}/collections/home)`);
-		expect(text).toContain(`- [Field Shirt](${ORIGIN}/products/field-shirt/index.md): $68.00`);
+		expect(text).toContain(`- [Field Shirt](${ORIGIN}/products/field-shirt.md): $68.00`);
 	});
 });
 

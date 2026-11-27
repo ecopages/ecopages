@@ -2,6 +2,7 @@ import { createServer, request as httpRequest, type IncomingMessage, type Server
 import type { AddressInfo } from 'node:net';
 import { PassThrough, Writable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
+import type { TrustProxy } from '../../config/user-config-types.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 
 class MockIncomingMessage extends PassThrough {
@@ -62,6 +63,108 @@ describe('NodeHttpRequestBridge', () => {
 		expect(request.headers.get('content-type')).toBe('application/json');
 		expect(request.headers.get('x-test')).toBe('one');
 		await expect(bodyRead).resolves.toBe('{"hello":"world"}');
+	});
+
+	describe('request origin', () => {
+		const requestUrl = (
+			headers: Record<string, string | string[] | undefined>,
+			options?: { trustProxy?: TrustProxy },
+			url = '/submit?ok=1',
+		) => {
+			const req = new MockIncomingMessage();
+			req.method = 'GET';
+			req.url = url;
+			req.headers = headers;
+			return new NodeHttpRequestBridge().createWebRequest(
+				req as unknown as IncomingMessage,
+				'http://127.0.0.1:3000',
+				options,
+			).url;
+		};
+
+		it('uses the Host the visitor sent, with its port', () => {
+			expect(requestUrl({ host: 'shop.example' })).toBe('http://shop.example/submit?ok=1');
+			expect(requestUrl({ host: 'shop.example:8080' })).toBe('http://shop.example:8080/submit?ok=1');
+			expect(requestUrl({ host: '[::1]:3000' })).toBe('http://[::1]:3000/submit?ok=1');
+		});
+
+		it('falls back to the listen origin when Host is missing or not a host', () => {
+			for (const host of [undefined, '', 'evil.example/path', 'user@evil.example', 'a b', 'evil.example#x']) {
+				expect(requestUrl({ host })).toBe('http://127.0.0.1:3000/submit?ok=1');
+			}
+		});
+
+		it('treats a Host that is a list as not a host', () => {
+			expect(requestUrl({ host: 'a.example,evil.example' })).toBe('http://127.0.0.1:3000/submit?ok=1');
+			expect(requestUrl({ host: 'shop.example:99999' })).toBe('http://127.0.0.1:3000/submit?ok=1');
+		});
+
+		it('keeps a forwarded protocol when no host is usable', () => {
+			expect(requestUrl({ 'x-forwarded-proto': 'https' }, { trustProxy: true })).toBe(
+				'https://127.0.0.1:3000/submit?ok=1',
+			);
+		});
+
+		it('ignores forwarded headers unless the app trusts its proxy', () => {
+			const headers = { host: 'internal:3000', 'x-forwarded-host': 'evil.example', 'x-forwarded-proto': 'https' };
+
+			expect(requestUrl(headers)).toBe('http://internal:3000/submit?ok=1');
+			expect(requestUrl(headers, { trustProxy: false })).toBe('http://internal:3000/submit?ok=1');
+		});
+
+		it('trusts only the forwarded protocol, or only the forwarded host, when the app asks for one', () => {
+			const headers = { host: 'app.internal', 'x-forwarded-host': 'evil.example', 'x-forwarded-proto': 'https' };
+
+			expect(requestUrl(headers, { trustProxy: { proto: true } })).toBe('https://app.internal/submit?ok=1');
+			expect(requestUrl(headers, { trustProxy: { host: true } })).toBe('http://evil.example/submit?ok=1');
+			expect(requestUrl(headers, { trustProxy: { host: true, proto: true } })).toBe(
+				'https://evil.example/submit?ok=1',
+			);
+			expect(requestUrl(headers, { trustProxy: {} })).toBe('http://app.internal/submit?ok=1');
+			expect(requestUrl(headers, { trustProxy: { host: false, proto: false } })).toBe(
+				'http://app.internal/submit?ok=1',
+			);
+		});
+
+		it('reads the first forwarded host and a known protocol when the app trusts its proxy', () => {
+			const trust = { trustProxy: true };
+
+			expect(
+				requestUrl(
+					{
+						host: 'internal:3000',
+						'x-forwarded-host': 'shop.example, proxy.local',
+						'x-forwarded-proto': 'https',
+					},
+					trust,
+				),
+			).toBe('https://shop.example/submit?ok=1');
+			expect(requestUrl({ host: 'internal:3000', 'x-forwarded-host': 'shop.example' }, trust)).toBe(
+				'http://shop.example/submit?ok=1',
+			);
+			expect(requestUrl({ host: 'internal:3000', 'x-forwarded-proto': 'ftp' }, trust)).toBe(
+				'http://internal:3000/submit?ok=1',
+			);
+			expect(requestUrl({ host: 'internal:3000', 'x-forwarded-host': 'bad host' }, trust)).toBe(
+				'http://internal:3000/submit?ok=1',
+			);
+		});
+	});
+
+	it('pauses the Node request while no one reads the body, and resumes it as the body is read', async () => {
+		const bridge = new NodeHttpRequestBridge();
+		const req = new MockIncomingMessage();
+		const request = bridge.createWebRequest(req as unknown as IncomingMessage, 'http://localhost:3000');
+
+		req.write('a'.repeat(1024));
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(req.isPaused()).toBe(true);
+
+		const reader = request.body!.getReader();
+		await reader.read();
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(req.isPaused()).toBe(false);
+		await reader.cancel();
 	});
 
 	it('does not attach a body for GET requests', () => {

@@ -2,6 +2,7 @@ import { lookup } from 'node:dns/promises';
 import { createServer, type Server as NodeServerInstance } from 'node:http';
 import type { Socket } from 'node:net';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
+import type { TrustProxy } from '../../config/user-config-types.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
 import { isNodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
@@ -11,6 +12,8 @@ type NodeServerFactory = typeof createServer;
 export type NodeRuntimeServeOptions = {
 	port?: number;
 	hostname?: string;
+	/** Which of `X-Forwarded-Host` and `X-Forwarded-Proto` a request URL may read. */
+	trustProxy?: TrustProxy;
 	handleRequest(request: Request): Promise<Response>;
 };
 
@@ -72,7 +75,9 @@ export class NodeRuntimeHost {
 		server = this.serverFactory(async (req, res) => {
 			try {
 				const runtimeOrigin = this.getOrigin(server, serveOptions);
-				const webRequest = this.requestBridge.createWebRequest(req, runtimeOrigin);
+				const webRequest = this.requestBridge.createWebRequest(req, runtimeOrigin, {
+					trustProxy: serveOptions.trustProxy,
+				});
 				const response = await serveOptions.handleRequest(webRequest);
 				await this.requestBridge.sendNodeResponse(res, response);
 			} catch (error) {

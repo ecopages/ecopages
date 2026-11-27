@@ -144,11 +144,7 @@ describe('store tools: catalog', () => {
 	it('accepts a product GID, URL path or Markdown URL as the id', async () => {
 		const byGid = await call('get_product', { catalog: { id: 'gid://ecoshop/Product/canvas-tote' } }, page());
 		const byPath = await call('get_product', { catalog: { id: '/products/canvas-tote' } }, page());
-		const byMarkdown = await call(
-			'get_product',
-			{ catalog: { id: `${ORIGIN}/products/canvas-tote/index.md` } },
-			page(),
-		);
+		const byMarkdown = await call('get_product', { catalog: { id: `${ORIGIN}/products/canvas-tote.md` } }, page());
 
 		expect(byGid.structured.handle).toBe('canvas-tote');
 		expect(byPath.structured.handle).toBe('canvas-tote');

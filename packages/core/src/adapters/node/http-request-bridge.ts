@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import type { TrustProxy } from '../../config/user-config-types.ts';
 
 /**
  * Signals that the remote client closed the HTTP exchange before the Node
@@ -79,6 +80,60 @@ function toNodeClientAbortError(error: unknown): NodeClientAbortError | null {
 }
 
 /**
+ * The first value of a header that may carry a comma separated list, trimmed, or `undefined` when it is empty.
+ */
+function firstHeaderValue(value: string | string[] | undefined): string | undefined {
+	const first = (Array.isArray(value) ? value[0] : value)?.split(',', 1)[0]?.trim();
+	return first || undefined;
+}
+
+/**
+ * The origin a request's URL carries: the `Host` the visitor sent, or the listen origin when there is none.
+ * Shared by the HTTP bridge and the WebSocket upgrade, so both give a handler the same origin.
+ *
+ * @remarks
+ * A host that is not a plain authority (a path, credentials, whitespace) is ignored rather than refused, so a
+ * malformed header cannot change the origin the app sees. `X-Forwarded-Host` and `X-Forwarded-Proto` replace the
+ * host and the protocol only where `trustProxy` names them: any client can send them, so an app that does not sit behind its
+ * own proxy must not read them. The protocol is `http` or `https`, the listen origin's protocol by default.
+ */
+export function resolveRequestOrigin(
+	req: IncomingMessage,
+	runtimeOrigin: string,
+	trustProxy: TrustProxy | undefined,
+): string {
+	const trusted = typeof trustProxy === 'object' ? trustProxy : { host: trustProxy, proto: trustProxy };
+	const fallback = new URL(runtimeOrigin);
+	const forwardedProto = trusted.proto
+		? firstHeaderValue(req.headers['x-forwarded-proto'])?.toLowerCase()
+		: undefined;
+	const protocol = forwardedProto === 'http' || forwardedProto === 'https' ? `${forwardedProto}:` : fallback.protocol;
+	const hosts = [
+		trusted.host ? firstHeaderValue(req.headers['x-forwarded-host']) : undefined,
+		req.headers.host?.trim(),
+	];
+	for (const host of hosts) {
+		const origin = host ? originOfAuthority(protocol, host) : null;
+		if (origin) return origin;
+	}
+	return `${protocol}//${fallback.host}`;
+}
+
+/**
+ * The origin of `protocol` and `host`, or `null` when `host` is not a plain authority (a hostname or address with an
+ * optional port).
+ */
+function originOfAuthority(protocol: string, host: string): string | null {
+	if (/[\s,/?#@\\]/u.test(host)) return null;
+	try {
+		const candidate = new URL(`${protocol}//${host}`);
+		return candidate.host === '' ? null : candidate.origin;
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Bridges Node's `IncomingMessage` / `ServerResponse` pair to the Web
  * `Request` / `Response` contract used by the shared routing pipeline.
  *
@@ -95,9 +150,18 @@ export class NodeHttpRequestBridge {
 	 * @remarks
 	 * Requests with body framing retain streaming semantics via a `ReadableStream`
 	 * so large request bodies do not need to be buffered before route handling begins.
+	 * The Node request is paused once a chunk is queued and resumed as the body is read, so a handler that waits
+	 * before it reads, such as one behind slow middleware, does not make the server queue the whole upload.
+	 *
+	 * The request URL carries the origin the visitor used: the `Host` header, or the forwarded headers
+	 * when `trustProxy` is set, and `runtimeOrigin` only when neither is usable.
 	 */
-	public createWebRequest(req: IncomingMessage, runtimeOrigin: string): Request {
-		const url = new URL(req.url ?? '/', runtimeOrigin);
+	public createWebRequest(
+		req: IncomingMessage,
+		runtimeOrigin: string,
+		options: { trustProxy?: TrustProxy } = {},
+	): Request {
+		const url = new URL(req.url ?? '/', resolveRequestOrigin(req, runtimeOrigin, options.trustProxy));
 		const headers = new Headers();
 
 		for (const [key, value] of Object.entries(req.headers)) {
@@ -128,7 +192,9 @@ export class NodeHttpRequestBridge {
 			const body = new ReadableStream({
 				start(controller) {
 					const dataListener = (chunk: Buffer) => {
-						if (!cancelled) controller.enqueue(chunk);
+						if (cancelled) return;
+						controller.enqueue(chunk);
+						if ((controller.desiredSize ?? 1) <= 0) req.pause();
 					};
 					const onEnd = () => {
 						cleanup();
@@ -165,6 +231,9 @@ export class NodeHttpRequestBridge {
 					req.once('aborted', onAborted);
 					req.once('error', onError);
 					req.once('close', onClose);
+				},
+				pull() {
+					req.resume();
 				},
 				cancel() {
 					cancelled = true;

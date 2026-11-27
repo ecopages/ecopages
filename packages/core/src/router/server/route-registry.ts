@@ -22,6 +22,7 @@ import {
 	compileSegmentPattern,
 	matchParsedSegmentPath,
 	parseSegmentPath,
+	segmentPathLooseness,
 	segmentPathPatternKey,
 	type ParsedSegmentPath,
 	type SegmentPattern,
@@ -202,35 +203,24 @@ export class RouteRegistry {
 	 *
 	 * @remarks
 	 * Segments are compared from left to right because an earlier literal
-	 * segment constrains a request more strongly than a later one. A longer
+	 * segment constrains a request more strongly than a later one, and a param
+	 * with a literal suffix more strongly than a bare param. A longer
 	 * pattern wins only after the shared segments tie. The pathname tie breaker
 	 * keeps equal patterns deterministic without depending on discovery order.
 	 */
 	private compareSpecificity(left: TemplateRoute, right: TemplateRoute): number {
-		const leftSegments = this.getSpecificitySegments(left.pathname);
-		const rightSegments = this.getSpecificitySegments(right.pathname);
-		const sharedLength = Math.min(leftSegments.length, rightSegments.length);
+		const leftRanks = segmentPathLooseness(left.pathname, 'filesystem');
+		const rightRanks = segmentPathLooseness(right.pathname, 'filesystem');
+		const sharedLength = Math.min(leftRanks.length, rightRanks.length);
 
 		for (let index = 0; index < sharedLength; index += 1) {
-			const leftIsDynamic = this.isDynamicRouteSegment(leftSegments[index]);
-			const rightIsDynamic = this.isDynamicRouteSegment(rightSegments[index]);
-			if (leftIsDynamic !== rightIsDynamic) {
-				return leftIsDynamic ? 1 : -1;
+			if (leftRanks[index] !== rightRanks[index]) {
+				return leftRanks[index]! - rightRanks[index]!;
 			}
 		}
 
-		const lengthDifference = rightSegments.length - leftSegments.length;
+		const lengthDifference = rightRanks.length - leftRanks.length;
 		return lengthDifference !== 0 ? lengthDifference : left.pathname.localeCompare(right.pathname);
-	}
-
-	private getSpecificitySegments(pathname: string): string[] {
-		const segments = pathname.split('/').filter(Boolean);
-		const catchAllIndex = segments.findIndex((segment) => segment.startsWith('[...') && segment.endsWith(']'));
-		return catchAllIndex === -1 ? segments : segments.slice(0, catchAllIndex);
-	}
-
-	private isDynamicRouteSegment(segment: string): boolean {
-		return segment.startsWith('[') && segment.endsWith(']');
 	}
 
 	private async expandStaticPaths(

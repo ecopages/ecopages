@@ -12,6 +12,7 @@ import { createBuildSuccess } from '../../../../__fixtures__/build/build-result.
 function createMockConfig(): EcoPagesAppConfig {
 	return {
 		baseUrl: 'http://localhost:3000',
+		maxRequestBodySize: 1024,
 		rootDir: '/test/project',
 		srcDir: 'src',
 		publicDir: 'public',

@@ -475,3 +475,19 @@ test('the cart page says a line is short of what a form without JavaScript asked
 	await expect(page.locator('.cart-line input[type="number"]')).toHaveValue('3');
 	await context.close();
 });
+
+test('the cart page says a form without JavaScript posted something it cannot add', async ({ browser, baseURL }) => {
+	const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+	const page = await context.newPage();
+
+	await page.goto('/products/canvas-tote');
+	await page.locator('cart-form input[name="quantity"]').evaluate((input: HTMLInputElement) => {
+		input.removeAttribute('max');
+		input.value = '500';
+	});
+	await page.getByRole('button', { name: 'Add to cart' }).click();
+
+	await expect(page).toHaveURL(/\/cart\?notice=invalid/u);
+	await expect(page.getByText('That cart change was not valid.')).toBeVisible();
+	await context.close();
+});

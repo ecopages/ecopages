@@ -1,3 +1,5 @@
+import { createMiddleware } from '@ecopages/core';
+import { z } from 'zod';
 import type { CartBackend } from '../commerce/backend.ts';
 import type { CartToken, CartUpdate } from '../commerce/types.ts';
 import { LIMITS } from '../limits.ts';
@@ -50,8 +52,8 @@ function wantsJson(request: Request): boolean {
  * @remarks
  * `SameSite=Lax` already keeps the cart cookie off cross-site posts, but such a post could still replace the cart
  * with a new one, so it is refused. The check reads `Sec-Fetch-Site`, which every browser in the build targets
- * sends, rather than comparing `Origin` with the request URL: the server builds that URL from the address it
- * listens on, not the one the visitor used, so behind a proxy the two never match. A request without the header,
+ * sends, rather than comparing `Origin` with the request URL: that URL carries the `Host` the proxy passes on, which
+ * is not always the host the visitor used, so the comparison would depend on how the proxy is set up. A request without the header,
  * such as one from a script on the server, passes.
  */
 function isCrossSite(request: Request): boolean {
@@ -78,42 +80,55 @@ function respond(request: Request, update: CartUpdate, deps: CartHttpDeps): Resp
 	return new Response(null, { status: 303, headers });
 }
 
-function readQuantity(value: FormDataEntryValue | null, fallback: number): number | null {
-	if (value === null || value === '') return fallback;
-	const number = Number(value);
-	return typeof value === 'string' && Number.isSafeInteger(number) && number >= 0 ? number : null;
+/**
+ * The fields of a cart change, from a form post or a JSON body.
+ *
+ * @remarks
+ * A form sends every field as a string, so the quantity is coerced; an empty or missing one takes `fallback`. A
+ * change that fails the schema is answered with HTTP 400 before the Endpoint runs.
+ */
+function cartChangeSchema(fallback: number) {
+	return z.object({
+		variantId: z.string().min(1),
+		quantity: z.union([z.literal('').transform(() => fallback), z.coerce.number().int().min(0)]).default(fallback),
+	});
 }
 
-async function readCartForm(
-	request: Request,
-	defaultQuantity: number,
-): Promise<{ variantId: string; quantity: number } | Response> {
-	if (isCrossSite(request)) return reject(request, 403, 'Cart changes must come from this site.');
-	let form: FormData;
-	try {
-		form = await request.formData();
-	} catch {
-		return reject(request, 400, 'Send the cart change as a form.');
-	}
-	const variantId = form.get('variantId');
-	const quantity = readQuantity(form.get('quantity'), defaultQuantity);
-	if (typeof variantId !== 'string' || !variantId || quantity === null) {
-		return reject(request, 400, 'The product option or quantity is not valid.');
-	}
-	return { variantId, quantity };
+/** The body of `POST /cart/add`: `quantity` defaults to 1. */
+export const addToCartSchema = cartChangeSchema(1);
+
+/** The body of `POST /cart/update`: `quantity` defaults to 0, which removes the line. */
+export const updateCartSchema = cartChangeSchema(0);
+
+export type CartChange = z.output<typeof addToCartSchema>;
+
+/**
+ * The answer to a change that fails the schema: HTTP 400 with the reason, as JSON for a request that asks for it
+ * and as plain text for a form without JavaScript.
+ */
+export function refuseInvalidChange(request: Request): Response {
+	return reject(request, 400, 'The product option or quantity is not valid.');
 }
+
+/**
+ * Answers 403 to a post a browser sent from another site, or `null` to go on.
+ */
+export function refuseCrossSite(request: Request): Response | null {
+	return isCrossSite(request) ? reject(request, 403, 'Cart changes must come from this site.') : null;
+}
+
+/**
+ * The first stage of the cart change Endpoints: it refuses a cross-site post before the body is read.
+ */
+export const sameSiteOnly = createMiddleware((context, next) => refuseCrossSite(context.request) ?? next());
 
 /** `POST /cart/add`: adds `quantity` (default 1) units of `variantId`; plain forms are redirected to `/order`. */
-export async function addToCartAction(request: Request, deps: CartHttpDeps): Promise<Response> {
-	const change = await readCartForm(request, 1);
-	if (change instanceof Response) return change;
+export async function addToCartAction(request: Request, change: CartChange, deps: CartHttpDeps): Promise<Response> {
 	return respond(request, await deps.cart.addItem(readCartToken(request), change), deps);
 }
 
 /** `POST /cart/update`: sets the quantity of `variantId`; zero removes the line. */
-export async function updateCartAction(request: Request, deps: CartHttpDeps): Promise<Response> {
-	const change = await readCartForm(request, 0);
-	if (change instanceof Response) return change;
+export async function updateCartAction(request: Request, change: CartChange, deps: CartHttpDeps): Promise<Response> {
 	return respond(request, await deps.cart.updateItem(readCartToken(request), change), deps);
 }
 

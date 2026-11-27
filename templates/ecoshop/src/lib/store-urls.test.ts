@@ -7,7 +7,7 @@ describe('productHandleFromPath', () => {
 		['/products/field-shirt/', 'field-shirt'],
 		['/products/field-shirt?variant=1', 'field-shirt'],
 		['https://shop.test/products/linen%20shirt', 'linen shirt'],
-		['https://shop.test/products/field-shirt/index.md', 'field-shirt'],
+		['https://shop.test/products/field-shirt.md', 'field-shirt'],
 		['/products/field-shirt/reviews', null],
 		['/collections/home', null],
 	])('reads %s as %s', (path, handle) => {

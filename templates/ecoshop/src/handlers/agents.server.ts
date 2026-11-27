@@ -26,7 +26,7 @@ export async function ucpProfileHandler(): Promise<Response> {
 }
 
 /**
- * Serves a product's Markdown view at `/products/:handle/index.md`.
+ * Serves a product's Markdown view at `/products/:handle.md`.
  */
 export async function productMarkdownHandler({ params }: ApiHandlerContext): Promise<Response> {
 	const product = await getCommerce().getProduct(String(params.handle));

@@ -52,6 +52,78 @@ describe('matchSegmentPath', () => {
 		}
 	});
 
+	it('matches a param with a literal suffix only on segments that end with it', () => {
+		expect(matchSegmentPath('/products/:handle.md', '/products/linen-shirt.md', 'explicit')).toEqual({
+			handle: 'linen-shirt',
+		});
+		expect(matchSegmentPath('/products/:handle.md', '/products/linen-shirt', 'explicit')).toBeNull();
+		expect(matchSegmentPath('/products/:handle.md', '/products/linen-shirt.mdx', 'explicit')).toBeNull();
+		expect(matchSegmentPath('/products/:handle.md', '/products/.md', 'explicit')).toBeNull();
+		expect(matchSegmentPath('/products/:handle.md', '/products/a.b.md', 'api')).toEqual({ handle: 'a.b' });
+		expect(matchSegmentPath('/products/:handle.md/raw', '/products/a.md/raw', 'api')).toEqual({ handle: 'a' });
+		expect(matchSegmentPath('/products/:handle.md', '/products/caf%C3%A9.md', 'api')).toEqual({ handle: 'café' });
+	});
+
+	it('accepts the bracket spelling of a suffixed param where brackets are params', () => {
+		expect(matchSegmentPath('/products/[handle].md', '/products/linen-shirt.md', 'api')).toEqual({
+			handle: 'linen-shirt',
+		});
+		expect(matchSegmentPath('/products/[handle].md', '/products/linen-shirt.md', 'filesystem')).toEqual({
+			handle: 'linen-shirt',
+		});
+		expect(matchSegmentPath('/products/[handle].md', '/products/linen-shirt', 'filesystem')).toBeNull();
+		expect(matchSegmentPath('/products/:handle.md', '/products/linen-shirt.md', 'websocket')).toEqual({
+			handle: 'linen-shirt',
+		});
+	});
+
+	it('keeps a dot after a catch-all name as part of that name', () => {
+		expect(matchSegmentPath('/files/:...path.md', '/files/a/b', 'explicit')).toEqual({ 'path.md': 'a/b' });
+	});
+
+	it('reads a dot with nothing after it, and a catch-all with text after it, as literal segments', () => {
+		expect(matchSegmentPath('/x/:a.', '/x/:a.', 'api')).toEqual({});
+		expect(matchSegmentPath('/x/[a].', '/x/[a].', 'api')).toEqual({});
+		expect(matchSegmentPath('/x/[...path].md', '/x/[...path].md', 'api')).toEqual({});
+	});
+
+	it('refuses a suffix that holds another param marker', () => {
+		for (const pattern of ['/x/:name.:ext', '/x/:name.[ext]', '/x/[slug].[format]', '/x/[slug].a]']) {
+			expect(() => compileSegmentPattern(pattern, 'api')).toThrow('literal suffix');
+		}
+	});
+
+	it('builds pathnames from a suffixed param', () => {
+		expect(buildSegmentPath('/products/:handle.md', { handle: 'linen-shirt' }, 'explicit')).toBe(
+			'/products/linen-shirt.md',
+		);
+		expect(buildSegmentPath('/products/[handle].md', { handle: 'linen-shirt' }, 'filesystem')).toBe(
+			'/products/linen-shirt.md',
+		);
+		expect(buildSegmentPath('/products/:handle.md', {}, 'explicit')).toBe('/products/:handle.md');
+	});
+
+	it('ranks a suffixed WebSocket param before a bare one, whatever the registration order', () => {
+		const score = (pattern: string) => compileSegmentPattern(pattern, 'websocket').score;
+
+		expect(score('/ws/:id.json')).toBeGreaterThan(score('/ws/:id'));
+		expect(score('/ws/lobby')).toBeGreaterThan(score('/ws/:id.json'));
+	});
+
+	it('builds a suffix as the pattern wrote it, so an encoded character stays encoded', () => {
+		const built = buildSegmentPath('/posts/[slug].%23raw', { slug: 'hello' }, 'filesystem');
+
+		expect(built).toBe('/posts/hello.%23raw');
+		expect(matchSegmentPath('/posts/[slug].%23raw', built, 'filesystem')).toEqual({ slug: 'hello' });
+	});
+
+	it('ranks a suffixed param between a literal and a bare param', () => {
+		const score = (pattern: string) => compileSegmentPattern(pattern, 'api').score;
+
+		expect(score('/products/latest')).toBeGreaterThan(score('/products/:handle.md'));
+		expect(score('/products/:handle.md')).toBeGreaterThan(score('/products/:handle'));
+	});
+
 	it('builds pathnames from every param and catch-all spelling', () => {
 		expect(buildSegmentPath('/blog/[slug]', { slug: 'hello' }, 'filesystem')).toBe('/blog/hello');
 		expect(buildSegmentPath('/docs/[...path]', { path: ['a', 'b'] }, 'filesystem')).toBe('/docs/a/b');
@@ -85,6 +157,7 @@ describe('segmentPathPatternKey', () => {
 		['/blog/:slug/comments', 'api', '/blog/[slug]/comments', 'filesystem'],
 		['/docs/*', 'api', '/docs/[...path]', 'filesystem'],
 		['/a%20b/:id', 'api', '/a b/[id]', 'filesystem'],
+		['/blog/:slug.md', 'api', '/blog/[post].md', 'filesystem'],
 	] as const)('gives %s and %s the same key', (left, leftSyntax, right, rightSyntax) => {
 		expect(segmentPathPatternKey(left, leftSyntax)).toBe(segmentPathPatternKey(right, rightSyntax));
 	});
@@ -93,6 +166,8 @@ describe('segmentPathPatternKey', () => {
 		['/blog/:slug', '/blog/[...slug]'],
 		['/blog/:slug', '/blog/slug'],
 		['/blog/:slug', '/blog/[slug]/comments'],
+		['/blog/:slug', '/blog/[slug].md'],
+		['/blog/:slug.md', '/blog/[slug].txt'],
 	])('gives %s and %s different keys', (left, right) => {
 		expect(segmentPathPatternKey(left, 'api')).not.toBe(segmentPathPatternKey(right, 'filesystem'));
 	});

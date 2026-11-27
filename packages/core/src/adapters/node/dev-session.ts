@@ -74,6 +74,7 @@ export class DevSession {
 
 		attachNodeHttpWebSocketUpgrades(server, {
 			runtimeOrigin: runtime.origin,
+			trustProxy: appConfig.trustProxy,
 			websocketHandlers,
 			preflight: (request, socket, head) => this.handleHmrUpgrade(request, socket, head),
 		});

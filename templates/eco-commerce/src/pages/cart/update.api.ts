@@ -1,7 +1,15 @@
 import { definePost } from '@ecopages/core';
-import { updateCartAction } from '@/lib/storefront/cart-http.server';
+import {
+	refuseInvalidChange,
+	sameSiteOnly,
+	updateCartAction,
+	updateCartSchema,
+} from '@/lib/storefront/cart-http.server';
 import { cartHttpDeps } from '@/lib/storefront/deps.server';
 
 export const POST = definePost({
-	handler: async ({ request }) => updateCartAction(request, cartHttpDeps()),
+	middleware: [sameSiteOnly],
+	schema: { body: updateCartSchema },
+	onInvalid: (_issues, { request }) => refuseInvalidChange(request),
+	handler: async ({ request, body }) => updateCartAction(request, body, cartHttpDeps()),
 });

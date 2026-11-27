@@ -9,6 +9,8 @@ import {
 	type SegmentPattern,
 	type ParsedSegmentPath,
 } from '../../../router/server/segment-path-matcher.ts';
+import { DEFAULT_MAX_REQUEST_BODY_SIZE } from '../../../constants.ts';
+import { readSchemaBody } from './schema-body.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { isNodeClientAbortError } from '../../node/http-request-bridge.ts';
 import { validateRequest } from '../../../validation/validate-request.ts';
@@ -21,10 +23,8 @@ import type {
 	PageParams,
 	PageQuery,
 	RenderContext,
+	RequestValidationIssue,
 } from '../../../types/contracts.ts';
-import type { ApiResponseBuilder as ApiResponseBuilderContract } from '../../../types/api-response.ts';
-
-type ParsedRequestBody = { value: unknown } | { response: Response };
 
 /**
  * API handlers with their patterns parsed and ordered from most to least specific.
@@ -61,15 +61,22 @@ export function compileApiRoutes<TRequest extends Request = Request, TServer = u
 export type ApiRequestPipelineOptions = {
 	getRenderContext: () => RenderContext;
 	getCacheService: () => CacheInvalidator | null;
+	/**
+	 * The most bytes a `schema.body` reads, {@link DEFAULT_MAX_REQUEST_BODY_SIZE} when omitted. A bigger body
+	 * answers HTTP 413 and `Infinity` sets no limit.
+	 */
+	getMaxRequestBodySize?: () => number;
 };
 
 export class ApiRequestPipeline<TRequest extends Request = Request, TServer = unknown> {
 	private readonly getRenderContext: () => RenderContext;
 	private readonly getCacheService: () => CacheInvalidator | null;
+	private readonly getMaxRequestBodySize: () => number;
 
 	constructor(options: ApiRequestPipelineOptions) {
 		this.getRenderContext = options.getRenderContext;
 		this.getCacheService = options.getCacheService;
+		this.getMaxRequestBodySize = options.getMaxRequestBodySize ?? (() => DEFAULT_MAX_REQUEST_BODY_SIZE);
 	}
 
 	match(
@@ -129,7 +136,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 
 		try {
 			context = this.createContext(request, params, serverInstance);
-			const schemaResponse = await this.applyRequestSchema(context, routeConfig.schema);
+			const schemaResponse = await this.applyRequestSchema(context, routeConfig);
 			if (schemaResponse) {
 				return schemaResponse;
 			}
@@ -200,7 +207,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 
 	private async applyRequestSchema(
 		context: ApiHandlerContext<TRequest, TServer>,
-		schema: ApiHandler<string, TRequest, TServer>['schema'],
+		{ schema, onInvalid }: ApiHandler<string, TRequest, TServer>,
 	): Promise<Response | undefined> {
 		if (!schema) {
 			return undefined;
@@ -210,93 +217,56 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		const queryParams: PageQuery = parseSearchParams(url.searchParams);
 		const headers = Object.fromEntries(context.request.headers);
 
-		let body: unknown;
-		if (schema.body) {
-			const parsedBody = await this.parseSchemaBody(context.request, context.response);
-			if ('response' in parsedBody) return parsedBody.response;
-			body = parsedBody.value;
-		}
-
 		const validationResult = await validateRequest(
-			{ body, query: queryParams, headers, params: context.params },
-			schema,
+			{ query: queryParams, headers, params: context.params },
+			{ query: schema.query, headers: schema.headers, params: schema.params },
 		);
 
-		if (!validationResult.success) {
-			return context.response.status(400).json({
-				error: 'Validation failed',
-				issues: validationResult.errors,
-			});
-		}
+		if (!validationResult.success) return this.validationFailed(context, validationResult.errors!, onInvalid);
 
 		const validated = validationResult.data!;
-		if (validated.body !== undefined) context.body = validated.body;
 		if (validated.query !== undefined) context.query = validated.query as PageQuery;
 		if (validated.headers !== undefined) context.headers = validated.headers;
 		if (validated.params !== undefined) context.params = validated.params as PageParams;
 		return undefined;
 	}
 
-	private async parseSchemaBody(
-		request: TRequest,
-		responseBuilder: ApiResponseBuilderContract,
-	): Promise<ParsedRequestBody> {
-		const contentType = request.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase() || '';
-		if (!contentType) return this.parseUntypedSchemaBody(request, responseBuilder);
-		if (contentType !== 'application/json' && contentType !== 'text/plain') {
-			return this.rejectUnsupportedMediaType(request, responseBuilder);
-		}
-		if (request.body === null) return { value: undefined };
-
-		try {
-			const text = await request.clone().text();
-			if (text.length === 0) return { value: undefined };
-			const value = contentType === 'application/json' ? JSON.parse(text) : text;
-			return { value };
-		} catch (error) {
-			if (isNodeClientAbortError(error)) throw error;
-			return { response: responseBuilder.status(400).json({ error: 'Invalid request body' }) };
-		}
+	private async validationFailed(
+		context: ApiHandlerContext<TRequest, TServer>,
+		issues: RequestValidationIssue[],
+		onInvalid: ApiHandler<string, TRequest, TServer>['onInvalid'],
+	): Promise<Response> {
+		if (onInvalid) return await onInvalid(issues, context);
+		return context.response.status(400).json({ error: 'Validation failed', issues });
 	}
 
-	private async parseUntypedSchemaBody(
-		request: TRequest,
-		responseBuilder: ApiResponseBuilderContract,
-	): Promise<ParsedRequestBody> {
-		try {
-			const hasBody = await this.hasBodyContent(request);
-			return hasBody
-				? { response: responseBuilder.status(415).json({ error: 'Unsupported Media Type' }) }
-				: { value: undefined };
-		} catch (error) {
-			if (isNodeClientAbortError(error)) throw error;
-			return { response: responseBuilder.status(400).json({ error: 'Invalid request body' }) };
-		}
-	}
+	/**
+	 * Parses and validates the body against `schema.body`, when the route declares one.
+	 *
+	 * @remarks
+	 * It runs after the route's middleware, so a middleware that refuses the request answers before any of the
+	 * body is read.
+	 */
+	private async applyBodySchema(
+		context: ApiHandlerContext<TRequest, TServer>,
+		{ schema, onInvalid }: ApiHandler<string, TRequest, TServer>,
+	): Promise<Response | undefined> {
+		if (!schema?.body) return undefined;
 
-	private async rejectUnsupportedMediaType(
-		request: TRequest,
-		responseBuilder: ApiResponseBuilderContract,
-	): Promise<ParsedRequestBody> {
-		await request.body?.cancel();
-		return { response: responseBuilder.status(415).json({ error: 'Unsupported Media Type' }) };
-	}
-
-	private async hasBodyContent(request: TRequest): Promise<boolean> {
-		const body = request.clone().body;
-		if (!body) return false;
-		const reader = body.getReader();
-		try {
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) return false;
-				if (value.byteLength === 0) continue;
-				await Promise.all([reader.cancel(), request.body?.cancel()]);
-				return true;
-			}
-		} finally {
-			reader.releaseLock();
+		const parsedBody = await readSchemaBody(context.request, this.getMaxRequestBodySize());
+		if ('status' in parsedBody) {
+			const refusal = context.response.status(parsedBody.status);
+			return (parsedBody.status === 413 ? refusal.headers({ Connection: 'close' }) : refusal).json({
+				error: parsedBody.error,
+			});
 		}
+
+		const validationResult = await validateRequest({ body: parsedBody.value }, { body: schema.body });
+		if (!validationResult.success) return this.validationFailed(context, validationResult.errors!, onInvalid);
+
+		const { body } = validationResult.data!;
+		if (body !== undefined) context.body = body;
+		return undefined;
 	}
 
 	private async runMiddlewareChain(
@@ -307,6 +277,9 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 			routeConfig.middleware,
 			`route ${routeConfig.method} ${routeConfig.path}`,
 		);
-		return runMiddlewareChain(middleware, context, async () => await routeConfig.handler(context));
+		return runMiddlewareChain(middleware, context, async () => {
+			const bodyResponse = await this.applyBodySchema(context, routeConfig);
+			return bodyResponse ?? (await routeConfig.handler(context));
+		});
 	}
 }

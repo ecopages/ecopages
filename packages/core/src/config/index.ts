@@ -20,5 +20,6 @@ export type {
 	LoadedEcoPagesUserConfig,
 	LoadEcoPagesConfigOptions,
 	ResponseHeaderRule,
+	TrustProxy,
 } from './user-config-types.ts';
 export type { GlobalScriptResolution } from './assembly/app-runtime.ts';

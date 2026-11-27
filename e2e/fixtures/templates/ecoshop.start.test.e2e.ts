@@ -8,6 +8,8 @@ import { test } from '../../app-fixture.ts';
  */
 const WEBHOOK_SECRET = 'whsec-ecoshop-e2e';
 const fieldShirtM = 'gid://ecoshop/ProductVariant/field-shirt-m';
+const canvasTote = 'gid://ecoshop/ProductVariant/canvas-tote';
+const fieldShirtHandle = 'field-shirt';
 
 const mcpHeaders = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
 
@@ -20,9 +22,23 @@ test('llms.txt lists the store, its collections and the MCP endpoint', async ({ 
 	expect(text).toMatch(/^# Ecoshop/u);
 	expect(text).toMatch(/\[Apparel\]\(.+\/collections\/apparel\)/u);
 	expect(text).toMatch(/\[MCP server\]\(.+\/mcp\)/u);
+	expect(text).toMatch(/\]\(.+\/products\/[a-z0-9-]+\.md\)/u);
 });
 
-test('the cart answers a form post with a redirect and the cart-form host with JSON', async ({ request }) => {
+test('a product answers as Markdown at <handle>.md and as a page at <handle>', async ({ request }) => {
+	const markdown = await request.get(`/products/${fieldShirtHandle}.md`);
+	expect(markdown.status()).toBe(200);
+	expect(markdown.headers()['content-type']).toContain('text/markdown');
+	expect(await markdown.text()).toContain('Field Shirt');
+
+	const page = await request.get(`/products/${fieldShirtHandle}`);
+	expect(page.status()).toBe(200);
+	expect(page.headers()['content-type']).toContain('text/html');
+});
+
+test('the cart answers a form post with a redirect, and an invalid one with a redirect to a notice', async ({
+	request,
+}) => {
 	const form = await request.post('/api/cart', {
 		form: { intent: 'add', variantId: fieldShirtM, quantity: '2' },
 		maxRedirects: 0,
@@ -31,17 +47,29 @@ test('the cart answers a form post with a redirect and the cart-form host with J
 	expect(form.headers().location).toBe('/cart');
 	expect(form.headers()['set-cookie']).toMatch(/^ecoshop_cart=.+HttpOnly/u);
 
-	const json = await request.post('/api/cart', {
+	const second = await request.post('/api/cart', {
 		form: { intent: 'add', variantId: fieldShirtM, quantity: '1' },
-		headers: { Accept: 'application/json' },
+		maxRedirects: 0,
 	});
-	expect(await json.json()).toEqual({ totalQuantity: 3, subtotal: '$204.00' });
+	expect(second.status()).toBe(303);
+
+	const invalid = await request.post('/api/cart', { form: { intent: 'add' }, maxRedirects: 0 });
+	expect(invalid.status()).toBe(303);
+	expect(invalid.headers().location).toBe('/cart?notice=invalid');
 
 	const totals = await request.get('/api/cart');
 	expect(await totals.json()).toEqual({ totalQuantity: 3, subtotal: '$204.00' });
 
 	const page = await request.get('/cart');
 	expect(await page.text()).toContain('$204.00');
+
+	const repeated = await request.post('/api/cart', {
+		data: `intent=add&variantId=${encodeURIComponent(canvasTote)}&variantId=${encodeURIComponent(fieldShirtM)}`,
+		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+		maxRedirects: 0,
+	});
+	expect(repeated.status()).toBe(303);
+	expect(await (await request.get('/api/cart')).json()).toEqual({ totalQuantity: 4, subtotal: '$272.00' });
 });
 
 test('the MCP server lists its tools and runs one', async ({ request }) => {

@@ -596,3 +596,36 @@ describe('ServerRequestPipeline endpoint files', () => {
 		assert.equal((errorHandler.mock.calls[0]?.[0] as Error | undefined)?.message, 'prewarm failure');
 	});
 });
+
+describe('ServerRequestPipeline schema body limit', () => {
+	test('answers HTTP 413 for a schema body over the configured maxRequestBodySize', async () => {
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir: createTempRoot('ecopages-body-limit'),
+			maxRequestBodySize: 8,
+		});
+		const pipeline = new ServerRequestPipeline({ appConfig, runtime: appConfig.appRuntime!, watch: false });
+		const apiHandlers: ApiHandler[] = [
+			{
+				path: '/api/notes',
+				method: 'POST',
+				schema: {
+					body: { '~standard': { version: 1, vendor: 'test', validate: (value: unknown) => ({ value }) } },
+				},
+				handler: () => new Response('stored'),
+			},
+		];
+		await pipeline.initializeRouteHandling({ staticRoutes: [], apiHandlers });
+		const post = (body: string) =>
+			pipeline.handleSharedRequest(
+				new Request('http://localhost/api/notes', {
+					method: 'POST',
+					headers: { 'Content-Type': 'text/plain' },
+					body,
+				}),
+				{ apiRoutes: compileApiRoutes(apiHandlers) },
+			);
+
+		assert.equal((await post('12345678')).status, 200);
+		assert.equal((await post('123456789')).status, 413);
+	});
+});

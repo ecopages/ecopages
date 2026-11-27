@@ -100,7 +100,7 @@ await app.start();
 
 Use `app.add(handler)` for handlers created with `defineApiHandler`. See [Define Handlers](/docs/server/define-handlers).
 
-An `app.ts` catch-all keeps each decoded path segment in an array. A request to `/api/files/docs/a` gives `params.path === ['docs', 'a']`. A named segment such as `:id` remains a string. Repeated query keys also stay as arrays on `ctx.query`; schemas receive the same parsed values before validation.
+An `app.ts` catch-all keeps each decoded path segment in an array. A request to `/api/files/docs/a` gives `params.path === ['docs', 'a']`. A named segment such as `:id` remains a string. A param can carry a literal suffix that starts with a dot: `app.get('/products/:handle.md', ...)` matches `/products/linen-shirt.md` with `params.handle === 'linen-shirt'` and does not match `/products/linen-shirt`, so a Markdown twin can sit beside the Page `/products/[handle]`. The bracket spelling `[handle].md` works the same. A suffixed segment ranks after a literal and before a bare param, so it answers before `/products/:handle`. In the colon spelling a dot always starts the suffix, so `:file.json` is the param `file` with the suffix `.json`; name a param without a dot. A suffix is literal text and cannot hold `:`, `[` or `]`. Repeated query keys also stay as arrays on `ctx.query`; schemas receive the same parsed values before validation.
 
 ### Route Priority
 

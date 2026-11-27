@@ -63,7 +63,7 @@ A product update or delete re-renders that product's page and the pages that lis
 | `/mcp`                             | MCP server (Streamable HTTP, stateless) with the same tools, carts named by id                   |
 | `/.well-known/ucp`, `/api/ucp/mcp` | The connected Shopify store's UCP profile and endpoint, forwarded (a Shopify store only)         |
 | `/llms.txt`                        | The store, its collections, its products and how to shop it ([llmstxt.org](https://llmstxt.org)) |
-| `/products/<handle>/index.md`      | A product as Markdown, with its variant ids                                                      |
+| `/products/<handle>.md`            | A product as Markdown, with its variant ids                                                      |
 | `/policies/<handle>`               | Shipping, returns, privacy, terms and FAQ pages, which `ask_business` answers from               |
 | Product pages                      | schema.org `Product` JSON-LD with an `AggregateOffer`                                            |
 

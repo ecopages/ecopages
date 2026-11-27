@@ -15,6 +15,7 @@ import {
 	DEFAULT_ECOPAGES_HOSTNAME,
 	DEFAULT_ECOPAGES_PORT,
 	DEFAULT_ECOPAGES_WORK_DIR,
+	DEFAULT_MAX_REQUEST_BODY_SIZE,
 } from '../../constants.ts';
 import { assertResponseHeaderRules } from '../../adapters/shared/http/response-headers.ts';
 import { collectConfigModuleFiles } from '../config-module-files.ts';
@@ -315,6 +316,16 @@ function createAbsolutePaths(
 }
 
 /**
+ * Fails the load of a `maxRequestBodySize` that is not a number of bytes above 0 (`Infinity` is allowed).
+ */
+function assertMaxRequestBodySize(size: number | undefined): void {
+	if (size === undefined || size > 0) return;
+	throw new Error(
+		`Invalid "maxRequestBodySize" option ${String(size)}: use a number of bytes above 0, or Infinity for no limit.`,
+	);
+}
+
+/**
  * Turns an `eco.config.ts` user config into the app config that every runtime path consumes.
  *
  * @remarks
@@ -360,6 +371,7 @@ export async function finalizeEcoPagesConfig(
 			: path.join(rootDir, DEFAULT_ECO_CONFIG_FILENAME);
 		rootDir = resolveEmittedConfigRootDir(rootDir, configFilePath, directories.distDir, cwd);
 		if (userConfig.headers !== undefined) assertResponseHeaderRules(userConfig.headers);
+		assertMaxRequestBodySize(userConfig.maxRequestBodySize);
 		const integrations = withHtmlPagesIntegration(userConfig.integrations ?? []);
 		const partialConfig: Omit<EcoPagesAppConfig, 'absolutePaths'> = {
 			baseUrl: resolveBaseUrl(userConfig.baseUrl),
@@ -380,6 +392,8 @@ export async function finalizeEcoPagesConfig(
 			devPrewarmPaths: userConfig.devPrewarmPaths ?? [],
 			serverFiles: userConfig.serverFiles,
 			headers: userConfig.headers,
+			trustProxy: userConfig.trustProxy,
+			maxRequestBodySize: userConfig.maxRequestBodySize ?? DEFAULT_MAX_REQUEST_BODY_SIZE,
 			cache: userConfig.cache,
 			devToolbar: userConfig.devToolbar,
 		};

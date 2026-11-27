@@ -78,11 +78,12 @@ flowchart TD
 
 ## Vitest
 
-`vitest.config.ts` at the root defines the projects. `pnpm run test:vitest` runs `shared-core`, `browser`, `docs`, `docs-starter`, `llm-wiki`, `eco-commerce` and `ecoshop` with the browser headless; locally, Vitest uses half the cores so a commit hook leaves room for other checkouts.
+`vitest.config.ts` at the root defines the projects. `pnpm run test:vitest` runs `shared-core`, `native-watchers`, `browser`, `docs`, `docs-starter`, `llm-wiki`, `eco-commerce` and `ecoshop` with the browser headless; locally, Vitest uses half the cores so a commit hook leaves room for other checkouts.
 
 | Project | Environment | What it holds |
 | --- | --- | --- |
 | `shared-core` | Node | Every `*.test.ts(x)` under `packages/core/src`, `codemod`, `ecopages`, `processors`, `integrations`, `file-system`, `react-router`, `dev-toolbar` and `__internals`, plus `scripts/`, `e2e/utils`, `e2e/playwright`, the `e2e/fixtures/*/*.test.ts` build-output tests and the kitchen-sink bench libraries. |
+| `native-watchers` | Node | The tests that watch real directories with the platform's file watcher: the file-system adapter and recursive watcher tests, and the two `ProjectWatcher` tests that use real directories. It runs after the other projects, one file at a time (`sequence.groupOrder` and `fileParallelism`), because on macOS `fseventsd` drops events for a watched directory while other processes write many files, which the other projects' workers do. |
 | `browser` | Chromium through `@vitest/browser-playwright` | `*.test.browser.ts(x)` under `packages` and `apps`, and `templates/docs-starter`. The router packages (`browser-router`, `react-router`) test DOM behavior here. |
 | `docs` | Node | `apps/docs` scripts, lib and includes, with its own `@` alias and the Ecopages JSX runtime. |
 | `docs-starter`, `llm-wiki`, `eco-commerce`, `ecoshop` | Node | The tests of those four templates, each with its own config. |

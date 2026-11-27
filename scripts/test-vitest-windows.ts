@@ -13,6 +13,8 @@ const args = [
 	'--project',
 	'shared-core',
 	'--project',
+	'native-watchers',
+	'--project',
 	'docs',
 	'--project',
 	'docs-starter',

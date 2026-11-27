@@ -5,6 +5,20 @@ import { path } from '../path.ts';
 import { expect, test, vi } from 'vitest';
 import { NodeFileSystem } from './node.ts';
 
+/**
+ * Longest a test waits for the watcher to report a change.
+ *
+ * @remarks
+ * The platform can deliver a native event seconds late on a busy machine. The deadline is longer than any such
+ * delay, so a wait that fails means the event never came. Each test that waits sets a timeout above the sum of its
+ * waits.
+ */
+const EVENT_DEADLINE_MS = 10_000;
+
+function eventually(assertion: () => void): Promise<void> {
+	return vi.waitFor(assertion, { timeout: EVENT_DEADLINE_MS, interval: 25 });
+}
+
 test('NodeFileSystem.glob uses native Node glob semantics with ignore support', async () => {
 	const rootDir = path.fromNative(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-glob-')));
 	const fileSystem = new NodeFileSystem();
@@ -55,7 +69,7 @@ test('NodeFileSystem.watch reports nested changes without initial events', async
 		await watcher.ready;
 		expect(changes).toEqual([]);
 		fs.writeFileSync(existingFile, 'export const existing = 2;', 'utf8');
-		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'change', path: existingFile }));
+		await eventually(() => expect(changes).toContainEqual({ type: 'change', path: existingFile }));
 		await new Promise((resolve) => setTimeout(resolve, 100));
 		expect(changes).toEqual([{ type: 'change', path: existingFile }]);
 
@@ -63,7 +77,7 @@ test('NodeFileSystem.watch reports nested changes without initial events', async
 		fs.mkdirSync(nestedDir);
 		const createdFile = path.join(nestedDir, 'created.ts');
 		fs.writeFileSync(createdFile, 'export const created = 1;', 'utf8');
-		await vi.waitFor(() =>
+		await eventually(() =>
 			expect(changes).toEqual(
 				expect.arrayContaining([
 					{ type: 'addDir', path: nestedDir },
@@ -81,19 +95,17 @@ test('NodeFileSystem.watch reports nested changes without initial events', async
 		const replacement = path.join(sourceDir, 'existing.tmp.ts');
 		fs.writeFileSync(replacement, 'export const existing = 3;', 'utf8');
 		fs.renameSync(replacement, existingFile);
-		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'change', path: existingFile }));
+		await eventually(() => expect(changes).toContainEqual({ type: 'change', path: existingFile }));
 		await new Promise((resolve) => setTimeout(resolve, 100));
 		expect(changes).toEqual([{ type: 'change', path: existingFile }]);
 
 		changes.length = 0;
 		fs.rmSync(existingFile);
-		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'unlink', path: existingFile }), {
-			timeout: 5_000,
-		});
+		await eventually(() => expect(changes).toContainEqual({ type: 'unlink', path: existingFile }));
 
 		changes.length = 0;
 		fs.rmSync(nestedDir, { recursive: true });
-		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'unlinkDir', path: nestedDir }));
+		await eventually(() => expect(changes).toContainEqual({ type: 'unlinkDir', path: nestedDir }));
 		changes.length = 0;
 		fs.writeFileSync(path.join(ignoredDir, 'index.js'), 'module.exports = true;', 'utf8');
 		await new Promise((resolve) => setTimeout(resolve, 100));
@@ -106,7 +118,65 @@ test('NodeFileSystem.watch reports nested changes without initial events', async
 		await watcher.close();
 		fs.rmSync(testRoot, { recursive: true, force: true });
 	}
-}, 20_000);
+}, 60_000);
+
+test.runIf(process.platform === 'darwin')(
+	'NodeFileSystem.watch leaves the modification time of a watched directory as it found it',
+	async () => {
+		const rootDir = path.fromNative(
+			fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-times-'))),
+		);
+		const fileSystem = new NodeFileSystem();
+		fs.utimesSync(rootDir, new Date('2020-01-01T00:00:00.123Z'), new Date('2021-02-03T04:05:06.789Z'));
+		const before = fs.statSync(rootDir, { bigint: true });
+		const watcher = fileSystem.watch([rootDir], {
+			onChange: () => {},
+			onError: (error) => {
+				throw error;
+			},
+		});
+
+		try {
+			await watcher.ready;
+			const after = fs.statSync(rootDir, { bigint: true });
+			expect(after.mtimeNs).toBe(before.mtimeNs);
+			expect(after.mode).toBe(before.mode);
+		} finally {
+			await watcher.close();
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	},
+	20_000,
+);
+
+test.runIf(process.platform === 'darwin')(
+	'NodeFileSystem.watch reports no change for an untouched child named like its directory when another watcher starts',
+	async () => {
+		const parent = path.fromNative(fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-echo-'))));
+		const rootDir = path.join(parent, 'work');
+		fs.mkdirSync(rootDir);
+		fs.writeFileSync(path.join(rootDir, 'work'), 'export {};', 'utf8');
+		const fileSystem = new NodeFileSystem();
+		const changes: Array<{ type: string; path: string }> = [];
+		const onError = (error: unknown) => {
+			throw error;
+		};
+		const first = fileSystem.watch([rootDir], { onChange: (change) => changes.push(change), onError });
+		const second = fileSystem.watch([rootDir], { onChange: () => {}, onError });
+
+		try {
+			await first.ready;
+			await second.ready;
+			await new Promise((resolve) => setTimeout(resolve, 200));
+			expect(changes).toEqual([]);
+		} finally {
+			await first.close();
+			await second.close();
+			fs.rmSync(parent, { recursive: true, force: true });
+		}
+	},
+	20_000,
+);
 
 test('NodeFileSystem.watch maps real paths back to a symlinked root and follows a root created later', async () => {
 	const realRoot = path.fromNative(fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-real-'))));
@@ -127,19 +197,19 @@ test('NodeFileSystem.watch maps real paths back to a symlinked root and follows 
 		await watcher.ready;
 		const newDirectory = path.join(realRoot, 'nested');
 		fs.mkdirSync(newDirectory);
-		await vi.waitFor(() =>
+		await eventually(() =>
 			expect(changes).toContainEqual({ type: 'addDir', path: path.join(requestedRoot, 'nested') }),
 		);
 		const newFile = path.join(newDirectory, 'linked.ts');
 		fs.writeFileSync(newFile, 'export {};', 'utf8');
-		await vi.waitFor(() =>
+		await eventually(() =>
 			expect(changes).toContainEqual({ type: 'add', path: path.join(requestedRoot, 'nested', 'linked.ts') }),
 		);
 		changes.length = 0;
 		fs.mkdirSync(futureRoot, { recursive: true });
 		const futureFile = path.join(futureRoot, 'future.ts');
 		fs.writeFileSync(futureFile, 'export {};', 'utf8');
-		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'add', path: futureFile }));
+		await eventually(() => expect(changes).toContainEqual({ type: 'add', path: futureFile }));
 		await new Promise((resolve) => setTimeout(resolve, 100));
 		expect(changes).toEqual([
 			{ type: 'addDir', path: futureRoot },
@@ -151,7 +221,7 @@ test('NodeFileSystem.watch maps real paths back to a symlinked root and follows 
 		fs.rmSync(futureParent, { recursive: true, force: true });
 		fs.rmSync(realRoot, { recursive: true, force: true });
 	}
-}, 20_000);
+}, 40_000);
 
 test('NodeFileSystem.watch observes an existing file path', async () => {
 	const rootDir = path.fromNative(fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-file-'))));
@@ -169,7 +239,7 @@ test('NodeFileSystem.watch observes an existing file path', async () => {
 	try {
 		await watcher.ready;
 		fs.writeFileSync(watchedFile, 'export const value = 2;', 'utf8');
-		await vi.waitFor(() =>
+		await eventually(() =>
 			expect(
 				changes.some(
 					(change) =>
@@ -213,7 +283,7 @@ test('NodeFileSystem.watch adds existing paths to one running subscription', asy
 		await watcher.add([firstAddedFile, secondAddedFile]);
 		expect(changes).toEqual([]);
 		fs.writeFileSync(secondAddedFile, 'export const second = 2;', 'utf8');
-		await vi.waitFor(() =>
+		await eventually(() =>
 			expect(
 				changes.some(
 					(change) =>

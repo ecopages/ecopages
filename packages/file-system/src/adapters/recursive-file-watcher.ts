@@ -1,4 +1,5 @@
 import {
+	chmodSync,
 	lstatSync,
 	realpathSync,
 	statSync,
@@ -48,6 +49,8 @@ type PendingPathChange = {
 type NativeWatchOptions = WatchOptionsWithStringEncoding & { ignore?: (relativePath: string) => boolean };
 
 const CHANGE_COALESCING_MS = 50;
+const NATIVE_REGISTRATION_PROBE_INTERVAL_MS = 20;
+const NATIVE_REGISTRATION_TIMEOUT_MS = 3_000;
 
 /**
  * Watches requested filesystem paths with native directory watchers.
@@ -71,6 +74,8 @@ export class RecursiveFileWatcher implements FileWatcher {
 	private readonly rootsToReconcileAgain = new Map<string, RootReconcileRequest>();
 	private readonly rootsToReconcileAfterIndex = new Map<string, RootReconcileRequest>();
 	private readonly changesDuringIndex = new Map<string, boolean>();
+	private readonly probedRoots = new Map<string, string>();
+	private readonly echoedRoots = new Set<string>();
 	private pathUpdates: Promise<void> = Promise.resolve();
 	private indexing = false;
 	private readyResolve!: () => void;
@@ -188,7 +193,8 @@ export class RecursiveFileWatcher implements FileWatcher {
 	/**
 	 * @remarks
 	 * `fs.watch` does not expose a registration-ready event. Allow newly opened native roots to settle, then reconcile once
-	 * so an edit in the registration window is not lost before `ready` or `add()` resolves.
+	 * so an edit in the registration window is not lost before `ready` or `add()` resolves. On macOS the settling is
+	 * confirmed, not assumed: see {@link awaitNativeRegistration}.
 	 */
 	private async catchUpNewWatchRoots(
 		existingWatchRoots: ReadonlySet<string>,
@@ -202,7 +208,43 @@ export class RecursiveFileWatcher implements FileWatcher {
 				setTimeout(resolve, remainingWaitMs);
 			});
 		if (this.closed) return;
+		if (needsNativeRegistrationProbe())
+			await Promise.all(newWatchRoots.map((root) => this.awaitNativeRegistration(root)));
+		if (this.closed) return;
 		for (const root of newWatchRoots) await this.reconcileWatchRoot(root, false);
+	}
+
+	/**
+	 * Waits until the native watcher of `root` reports events, by re-applying the root's permissions until it
+	 * hears itself.
+	 *
+	 * @remarks
+	 * On macOS `fs.watch` returns before its event stream is running, and the stream then starts at an unknown
+	 * moment: on a busy machine an edit made in the first moments after the call is never reported, and no fixed
+	 * wait covers it. Setting the root's mode to the value it already has leaves its content and its access and
+	 * modification times as they are, and the native watcher reports it as an event for the root itself, which
+	 * proves the stream is running. Only the status-change time moves. The wait ends when that event arrives, or
+	 * after {@link NATIVE_REGISTRATION_TIMEOUT_MS}, so a root that stays silent delays `ready` and `add()` by that
+	 * long. A root the process cannot change, or one the native watcher ignores, is not waited for.
+	 */
+	private async awaitNativeRegistration(root: WatchRoot): Promise<void> {
+		if (this.isSkippedByNativeWatcher(root.path)) return;
+		const key = rootKey(root);
+		const deadline = performance.now() + NATIVE_REGISTRATION_TIMEOUT_MS;
+		try {
+			this.probedRoots.set(key, path.basename(realpathSync.native(root.path)));
+			while (!this.closed && !this.echoedRoots.has(key) && performance.now() < deadline) {
+				chmodSync(root.path, statSync(root.path).mode & 0o7777);
+				await new Promise<void>((resolve) => {
+					setTimeout(resolve, NATIVE_REGISTRATION_PROBE_INTERVAL_MS);
+				});
+			}
+		} catch {
+			return;
+		} finally {
+			this.probedRoots.delete(key);
+			this.echoedRoots.delete(key);
+		}
 	}
 
 	private closeUnneededWatchers(): void {
@@ -255,6 +297,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 				: undefined,
 		};
 		const watcher = watchFs(root.path, options, (eventType, filename) => {
+			if (this.isRegistrationEcho(root, eventType, filename)) return;
 			if (filename === null) {
 				if (this.indexing) {
 					this.deferRootReconcile(root, eventType === 'change', this.rootsToReconcileAfterIndex);
@@ -264,7 +307,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 				return;
 			}
 			const changedPath = path.resolve(root.path, filename.toString());
-			const forceChange = eventType === 'change';
+			const forceChange = eventType === 'change' && filename.toString() !== path.basename(root.path);
 			if (this.indexing) {
 				this.changesDuringIndex.set(
 					changedPath,
@@ -276,6 +319,26 @@ export class RecursiveFileWatcher implements FileWatcher {
 		});
 		watcher.on('error', (error) => this.handleError(error));
 		this.watchers.set(watcher, root);
+	}
+
+	/**
+	 * True, and recorded, when an event reports the root named by a running probe.
+	 *
+	 * @remarks
+	 * Only a `change` counts: macOS also replays the creation of a root made moments before the watch as a
+	 * `rename` of the root's own name, which says nothing about the stream running.
+	 *
+	 * The event for a child that carries the root's own name looks the same and is taken for the probe while one
+	 * runs; the reconcile that follows the probe still finds that child's change. A probe of another watcher on the
+	 * same root reaches this watcher as the same event, so an event with the root's name never forces a change: the
+	 * child is reported only when its size, times or inode differ from what was indexed.
+	 */
+	private isRegistrationEcho(root: WatchRoot, eventType: string, filename: string | Buffer | null): boolean {
+		const key = rootKey(root);
+		if (eventType !== 'change' || filename === null || filename.toString() !== this.probedRoots.get(key))
+			return false;
+		this.echoedRoots.add(key);
+		return true;
 	}
 
 	/**
@@ -948,6 +1011,16 @@ function minimizeRoots(candidates: readonly string[]): string[] {
 		if (!roots.some((root) => isSameOrInside(candidate, root))) roots.push(candidate);
 	}
 	return roots;
+}
+
+/**
+ * True where `fs.watch` returns before the native event stream runs, which is macOS under Node.
+ *
+ * @remarks
+ * Bun's watcher reports no event for the root itself, so a probe there would only run into its timeout.
+ */
+function needsNativeRegistrationProbe(): boolean {
+	return process.platform === 'darwin' && process.versions.bun === undefined;
 }
 
 function rootKey(root: WatchRoot): string {

@@ -155,6 +155,24 @@ Ecopages now discovers the document shell and error pages semantically:
 	[Dev toolbar](/docs/core/dev-toolbar).
 </ApiField>
 
+## Request URL and proxies
+
+<ApiField name="trustProxy" type="boolean" defaultValue="false">
+	Whether `new URL(request.url)` takes its host and protocol from `X-Forwarded-Host` and `X-Forwarded-Proto`. By
+	default the origin of `request.url` on Node is the `Host` header the visitor sent, so `new URL(request.url).origin`
+	is the address they used even behind a proxy that passes `Host` on; the address the server listens on is used only
+	when `Host` is missing or is not a plain host. Set `trustProxy` only when every request comes through a proxy you
+	control that overwrites both forwarded headers. Any other client can send them, and an app that builds absolute links,
+	redirects or compares `Origin` with the request origin would then trust a value the visitor chose. Only the first
+	value of a comma separated forwarded header is read, and the protocol must be `http` or `https`.
+</ApiField>
+
+```typescript
+export default defineConfig({
+	trustProxy: true,
+});
+```
+
 ## Response headers
 
 <ApiField name="headers" type="{ source: string; headers: Record<string, string> }[]">

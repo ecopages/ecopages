@@ -99,7 +99,7 @@ app.get(
 
 The `ApiHandlerContext` contains:
 
-- `request`: The incoming Fetch `Request` object.
+- `request`: The incoming Fetch `Request` object. On Node its URL carries the `Host` the visitor sent, so `new URL(request.url).origin` is the address they used; see [`trustProxy`](/docs/getting-started/configuration#request-url-and-proxies) for forwarded headers.
 	- Standard `Request` properties like `headers`, `method`, `url`, etc.
 	- Methods like `json()`, `text()`, `formData()` to parse the request body.
 - `params`: Route parameters parsed from the path (e.g., `:id` in `/api/users/:id`).

@@ -52,6 +52,8 @@ A handler written before a middleware list that holds an unannotated inline func
 
 When a route declares `schema.body`, core parses `application/json`, `text/plain`, `application/x-www-form-urlencoded` and `multipart/form-data` bodies before validation. A form post (`<form method="post">`) reaches the schema as a plain object: a repeated key becomes an array, a multipart file stays a `File`, and a form with no fields is `{}`. Form values are strings, so use `z.coerce.number()` or similar for numbers, and accept a single value as well as an array where a field may be posted once. Malformed JSON or a malformed multipart body returns HTTP 400. A request with no body and no `Content-Type`, or an empty body with a JSON or text type, is validated as `undefined`: required schemas return HTTP 400, and optional schemas can accept it. Other content types and nonempty bodies without a `Content-Type` return HTTP 415. The handler can still read `request`.
 
+On Node, `new URL(request.url).origin` is the `Host` the visitor sent (the listen address when `Host` is missing or not a host), so a handler can build absolute links and compare `Origin` with it. `X-Forwarded-Host` and `X-Forwarded-Proto` count only with `trustProxy: true` in `defineConfig`, which is safe only behind a proxy you control that overwrites both.
+
 Method helpers: `defineGet`, `definePost`, `definePut`, `defineDelete`, `definePatch`, `defineOptions`, `defineHead`, `defineQuery`. `defineQuery`, `app.query()` and `api.query` handle the HTTP QUERY method, whose request body carries the query; it is not the context's `query` field (the URL's search parameters). Handlers may set `Accept-Query` themselves.
 
 ## defineGroupHandler

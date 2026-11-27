@@ -51,8 +51,8 @@ function wantsJson(request: Request): boolean {
  * @remarks
  * `SameSite=Lax` already keeps the cart cookie off cross-site posts, but such a post could still replace the cart
  * with a new one, so it is refused. The check reads `Sec-Fetch-Site`, which every browser in the build targets
- * sends, rather than comparing `Origin` with the request URL: the server builds that URL from the address it
- * listens on, not the one the visitor used, so behind a proxy the two never match. A request without the header,
+ * sends, rather than comparing `Origin` with the request URL: that URL carries the `Host` the proxy passes on, which
+ * is not always the host the visitor used, so the comparison would depend on how the proxy is set up. A request without the header,
  * such as one from a script on the server, passes.
  */
 function isCrossSite(request: Request): boolean {

@@ -11,6 +11,8 @@ type NodeServerFactory = typeof createServer;
 export type NodeRuntimeServeOptions = {
 	port?: number;
 	hostname?: string;
+	/** Whether a request URL may take its host and protocol from `X-Forwarded-Host` and `X-Forwarded-Proto`. */
+	trustProxy?: boolean;
 	handleRequest(request: Request): Promise<Response>;
 };
 
@@ -72,7 +74,9 @@ export class NodeRuntimeHost {
 		server = this.serverFactory(async (req, res) => {
 			try {
 				const runtimeOrigin = this.getOrigin(server, serveOptions);
-				const webRequest = this.requestBridge.createWebRequest(req, runtimeOrigin);
+				const webRequest = this.requestBridge.createWebRequest(req, runtimeOrigin, {
+					trustProxy: serveOptions.trustProxy,
+				});
 				const response = await serveOptions.handleRequest(webRequest);
 				await this.requestBridge.sendNodeResponse(res, response);
 			} catch (error) {

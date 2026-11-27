@@ -93,6 +93,13 @@ describe('finalizeEcoPagesConfig headers', () => {
 	});
 });
 
+describe('finalizeEcoPagesConfig trustProxy', () => {
+	test('keeps the option and leaves it unset by default', async () => {
+		expect((await finalize({ trustProxy: true })).trustProxy).toBe(true);
+		expect((await finalize({})).trustProxy).toBeUndefined();
+	});
+});
+
 describe('finalizeEcoPagesConfig', () => {
 	test('does not run processor setup while finalizing config', async () => {
 		const setup = vi.fn(async () => {

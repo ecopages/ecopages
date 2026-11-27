@@ -111,6 +111,8 @@ export type EcoPagesAppConfig = {
 	devPrewarmPaths?: string[];
 	/** Response headers from the user's `headers` option, validated at finalization. */
 	headers?: ResponseHeaderRule[];
+	/** The user's `trustProxy` option. */
+	trustProxy?: boolean;
 	/**
 	 * @default { title: 'Ecopages', description: 'Ecopages' }
 	 */

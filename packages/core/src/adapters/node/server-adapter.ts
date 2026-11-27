@@ -35,6 +35,7 @@ export type NodeServerInstance = NodeHttpServer;
 export type NodeServeAdapterServerOptions = {
 	port?: number;
 	hostname?: string;
+	trustProxy?: boolean;
 };
 
 export interface NodeServerAdapterParams {
@@ -244,6 +245,7 @@ export class NodeServerAdapter {
 	public getServerOptions(): NodeServeAdapterServerOptions {
 		return {
 			...this.serveOptions,
+			trustProxy: this.appConfig.trustProxy,
 		};
 	}
 

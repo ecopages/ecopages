@@ -97,6 +97,47 @@ describe('NodeRuntimeHost', () => {
 		).rejects.toMatchObject({ code: 'EADDRINUSE' });
 	});
 
+	it('gives the handler the host the visitor used, and the forwarded one only when the proxy is trusted', async () => {
+		const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
+		const seen = async (trustProxy: boolean) => {
+			const server = await host.start({
+				hostname: '127.0.0.1',
+				port: 0,
+				trustProxy,
+				handleRequest: async (request) => new Response(request.url),
+			});
+			try {
+				const { port } = server.address() as AddressInfo;
+				return await new Promise<string>((resolve, reject) => {
+					httpRequest(
+						{
+							host: '127.0.0.1',
+							port,
+							path: '/probe',
+							headers: {
+								Host: 'shop.example',
+								'X-Forwarded-Host': 'proxy.example',
+								'X-Forwarded-Proto': 'https',
+							},
+						},
+						(res) => {
+							const chunks: Buffer[] = [];
+							res.on('data', (chunk: Buffer) => chunks.push(chunk));
+							res.on('end', () => resolve(Buffer.concat(chunks).toString()));
+						},
+					)
+						.on('error', reject)
+						.end();
+				});
+			} finally {
+				await host.stop(server);
+			}
+		};
+
+		expect(await seen(false)).toBe('http://shop.example/probe');
+		expect(await seen(true)).toBe('https://proxy.example/probe');
+	});
+
 	it('delivers a QUERY request body to the handler through the bound server', async () => {
 		const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
 		const pipeline = new ApiRequestPipeline({

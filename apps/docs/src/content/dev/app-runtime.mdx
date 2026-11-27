@@ -11,6 +11,7 @@ sources:
   - packages/core/src/adapters/node/server-adapter.ts
   - packages/core/src/adapters/node/dev-session.ts
   - packages/core/src/adapters/node/runtime-host.ts
+  - packages/core/src/adapters/node/http-request-bridge.ts
   - packages/core/src/adapters/shared/runtime/
   - packages/core/src/adapters/shared/http/api-request-pipeline.ts
   - packages/core/src/adapters/shared/http/endpoint-route-handler.ts
@@ -98,6 +99,8 @@ The adapter layer only carries transport. Config finalization, build manifest as
 `ServerRequestPipeline` tries, in order, Explicit Routes (`apiHandlers`), `app.static` routes, then the Route Registry match, a Page or an endpoint file. Endpoint files never join `apiHandlers`; their loading and checks are in [Routing](/dev/routing). Configured `headers` rules apply where responses leave the adapter, on the app server and on preview: a matching rule replaces a same-named header and leaves the rest.
 
 `ApiRequestPipeline.handleError` resolves API handler errors and any error that escapes the request pipeline: a thrown `Response`, then a client abort (499), then `app.onError`, then `HttpError`, then a logged 500. `app.fetch()` therefore always resolves with a `Response`. A Page render failure renders the error page instead and never reaches `app.onError`.
+
+`NodeHttpRequestBridge.createWebRequest()` builds each request's URL on the origin the visitor used: the first valid `Host` header, a plain authority with no path, credentials or whitespace, else the listen origin the host bound. With `trustProxy` (from `eco.config.ts`, through `getServerOptions()` and `NodeRuntimeServeOptions`) the first `X-Forwarded-Host` and an `http` or `https` `X-Forwarded-Proto` win over `Host`, and an invalid forwarded host falls through to `Host`. The listen origin stays the app's `runtime.origin`; only `request.url` changes, so routing, which reads the pathname, is unaffected.
 
 On Node, `attachNodeHttpWebSocketUpgrades` handles `/_hmr` (dev only) and user WebSocket routes and destroys any other upgrade. A user route runs `context()` before completing the upgrade; a rejection answers 403, or the status of a thrown `HttpError`, and the client never sees `open`. A failure after the upgrade, such as in `onConnect`, closes with 1011.
 

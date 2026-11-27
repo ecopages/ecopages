@@ -125,6 +125,19 @@ export type EcoPagesUserConfig = {
 	devPrewarmPaths?: string[];
 
 	/**
+	 * Whether the request URL takes its host and protocol from `X-Forwarded-Host` and `X-Forwarded-Proto`.
+	 *
+	 * @remarks
+	 * By default the origin of `request.url` on Node is the `Host` header the visitor sent, and the address the
+	 * server listens on when that header is missing or not a host. Set this to `true` only when every request comes
+	 * through a proxy you control that overwrites both forwarded headers: any other client can send them, and an app
+	 * that builds absolute links or compares origins would then trust a value the visitor chose.
+	 *
+	 * @default false
+	 */
+	trustProxy?: boolean;
+
+	/**
 	 * Headers added to every response the server sends: rendered pages, explicit routes and endpoints, and files
 	 * from `public/` and `dist/client`, under `ecopages dev`, `start` and `preview`.
 	 *

@@ -380,6 +380,7 @@ export async function finalizeEcoPagesConfig(
 			devPrewarmPaths: userConfig.devPrewarmPaths ?? [],
 			serverFiles: userConfig.serverFiles,
 			headers: userConfig.headers,
+			trustProxy: userConfig.trustProxy,
 			cache: userConfig.cache,
 			devToolbar: userConfig.devToolbar,
 		};

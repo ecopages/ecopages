@@ -36,7 +36,9 @@ test('a product answers as Markdown at <handle>.md and as a page at <handle>', a
 	expect(page.headers()['content-type']).toContain('text/html');
 });
 
-test('the cart answers a form post with a redirect and a failed one with 400', async ({ request }) => {
+test('the cart answers a form post with a redirect, and an invalid one with a redirect to a notice', async ({
+	request,
+}) => {
 	const form = await request.post('/api/cart', {
 		form: { intent: 'add', variantId: fieldShirtM, quantity: '2' },
 		maxRedirects: 0,
@@ -52,7 +54,8 @@ test('the cart answers a form post with a redirect and a failed one with 400', a
 	expect(second.status()).toBe(303);
 
 	const invalid = await request.post('/api/cart', { form: { intent: 'add' }, maxRedirects: 0 });
-	expect(invalid.status()).toBe(400);
+	expect(invalid.status()).toBe(303);
+	expect(invalid.headers().location).toBe('/cart?notice=invalid');
 
 	const totals = await request.get('/api/cart');
 	expect(await totals.json()).toEqual({ totalQuantity: 3, subtotal: '$204.00' });

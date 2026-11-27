@@ -103,6 +103,14 @@ export const updateCartSchema = cartChangeSchema(0);
 export type CartChange = z.output<typeof addToCartSchema>;
 
 /**
+ * The answer to a change that fails the schema: HTTP 400 with the reason, as JSON for a request that asks for it
+ * and as plain text for a form without JavaScript.
+ */
+export function refuseInvalidChange(request: Request): Response {
+	return reject(request, 400, 'The product option or quantity is not valid.');
+}
+
+/**
  * Answers 403 to a post a browser sent from another site, or `null` to go on.
  */
 export function refuseCrossSite(request: Request): Response | null {

@@ -8,6 +8,7 @@ import {
 	cartSummaryAction,
 	readCartToken,
 	refuseCrossSite,
+	refuseInvalidChange,
 	serializeCartCookie,
 	updateCartAction,
 	updateCartSchema,
@@ -108,6 +109,17 @@ describe('cart HTTP', () => {
 		expect(addToCartSchema.parse({ variantId })).toEqual({ variantId, quantity: 1 });
 		expect(addToCartSchema.parse({ variantId, quantity: '' })).toEqual({ variantId, quantity: 1 });
 		expect(updateCartSchema.parse({ variantId })).toEqual({ variantId, quantity: 0 });
+	});
+
+	test('answers a change that fails the schema with the reason, as JSON or as text', async () => {
+		const asJson = refuseInvalidChange(post('/cart/add', {}, { accept: 'application/json' }));
+		const asText = refuseInvalidChange(post('/cart/add', {}));
+
+		expect(asJson.status).toBe(400);
+		expect(await asJson.json()).toEqual({ error: expect.stringMatching(/option or quantity/u) });
+		expect(asText.status).toBe(400);
+		expect(await asText.text()).toMatch(/option or quantity/u);
+		expect(asText.headers.get('content-type')).toContain('text/plain');
 	});
 
 	test('refuses a post a browser sent from another site, and lets the others go on', () => {

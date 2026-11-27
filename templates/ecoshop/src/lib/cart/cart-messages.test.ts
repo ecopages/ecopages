@@ -4,7 +4,7 @@ import {
 	describeLine,
 	describeShortage,
 	noticeQuery,
-	refusedNotice,
+	statusNotice,
 	shortageNotice,
 	shortageQuery,
 } from './cart-messages';
@@ -35,10 +35,11 @@ function cartWith(quantity: number, variantTitle = 'Default Title'): Cart {
 }
 
 describe('cart messages', () => {
-	it('words the refused notice only for its own code', () => {
-		expect(refusedNotice(Object.fromEntries(new URLSearchParams(noticeQuery('refused'))))).toMatch(/sold out/u);
-		expect(refusedNotice({ notice: 'short' })).toBeNull();
-		expect(refusedNotice({})).toBeNull();
+	it('words the invalid and refused notices only for their own codes', () => {
+		expect(statusNotice(Object.fromEntries(new URLSearchParams(noticeQuery('invalid'))))).toMatch(/not valid/u);
+		expect(statusNotice(Object.fromEntries(new URLSearchParams(noticeQuery('refused'))))).toMatch(/sold out/u);
+		expect(statusNotice({ notice: 'short' })).toBeNull();
+		expect(statusNotice({})).toBeNull();
 	});
 
 	it('names a line by its product, and its variant unless it is the only one', () => {

@@ -5,7 +5,7 @@ import { RuiButton } from '@ecopages/radiant-ui/button';
 import { RuiInput } from '@ecopages/radiant-ui/input';
 import { ProductImage } from '@/components/product-image';
 import { readCartId } from '@/lib/cart/cart-cookie';
-import { refusedNotice, shortageNotice } from '@/lib/cart/cart-messages';
+import { shortageNotice, statusNotice } from '@/lib/cart/cart-messages';
 import { formatMoney } from '@/lib/commerce/money';
 import { getCommerce } from '@/lib/commerce/provider.server';
 import { type Cart, type CartLine, DEFAULT_VARIANT_TITLE } from '@/lib/commerce/types';
@@ -64,7 +64,7 @@ export default eco.page<CartPageProps, JsxRenderable>({
 	props: async ({ request, query }) => {
 		const cartId = readCartId(request.headers);
 		const cart = cartId ? await getCommerce().getCart(cartId) : null;
-		return { cart, notice: refusedNotice(query) ?? shortageNotice(cart, query) };
+		return { cart, notice: statusNotice(query) ?? shortageNotice(cart, query) };
 	},
 	metadata: () => ({ title: 'Cart', description: 'Your cart.', robots: { index: false } }),
 	render: ({ cart, notice }) => (

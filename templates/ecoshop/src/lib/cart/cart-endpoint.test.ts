@@ -6,6 +6,7 @@ import {
 	cartActionSchema,
 	handleCartGet,
 	handleCartPost as applyCartAction,
+	redirectInvalidPost,
 	refuseCrossOrigin,
 } from './cart-endpoint.server';
 
@@ -125,7 +126,14 @@ describe('cart endpoint input and totals', () => {
 		expect(parsed.variantId).toBe(canvasTote);
 	});
 
-	it('has the schema name each invalid field, which Ecopages answers with HTTP 400', () => {
+	it('sends a post that fails the schema back to the cart with the invalid notice', () => {
+		const response = redirectInvalidPost();
+
+		expect(response.status).toBe(303);
+		expect(response.headers.get('location')).toBe('/cart?notice=invalid');
+	});
+
+	it('has the schema name each invalid field', () => {
 		const tooMany = cartActionSchema.safeParse({ intent: 'add', variantId: fieldShirtM, quantity: '500' });
 		const noVariant = cartActionSchema.safeParse({ intent: 'add' });
 

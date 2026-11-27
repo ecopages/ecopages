@@ -41,6 +41,14 @@ const totals = (cart: Cart | null): CartTotals => ({
 });
 
 /**
+ * The answer to a post that fails {@link cartActionSchema}: back to the cart with the `invalid` notice, so a form
+ * without JavaScript shows a message instead of a JSON error.
+ */
+export function redirectInvalidPost(): Response {
+	return new Response(null, { status: 303, headers: { Location: `${storePaths.cart}?${noticeQuery('invalid')}` } });
+}
+
+/**
  * Answers 403 to a post from another site, or `null` to go on.
  */
 export function refuseCrossOrigin(request: Request): Response | null {
@@ -60,7 +68,7 @@ export const sameOriginOnly = createMiddleware((context, next) => refuseCrossOri
  *
  * @remarks
  * Ecopages parses the form body after the route's middleware, so {@link sameOriginOnly} has already refused a post
- * from another site, and answers a change that fails the schema with HTTP 400 before this runs. The product form and
+ * from another site, and answers a change that fails the schema with {@link redirectInvalidPost} before this runs. The product form and
  * the agent tools add through `/api/agent-tools`, so this Endpoint serves plain form posts only.
  */
 export async function handleCartPost(

@@ -22,19 +22,25 @@ export function describeShortage(title: string, available: number, wanted: numbe
 }
 
 /**
- * The codes the cart page reads from `?notice=` after a form post without JavaScript: `refused` when the provider
- * would not make the change, `short` when it left a line holding fewer than asked. A change that fails validation is
- * answered with HTTP 400 by the Endpoint and never redirects.
+ * The codes the cart page reads from `?notice=` after a form post without JavaScript: `invalid` when the post failed
+ * its schema, `refused` when the provider would not make the change, `short` when it left a line holding fewer than
+ * asked.
  */
-export type CartNotice = 'refused' | 'short';
+export type CartNotice = 'invalid' | 'refused' | 'short';
+
+const STATUS_NOTICES = {
+	invalid: `That cart change was not valid. Choose a variant and a quantity from 1 to ${MAX_LINE_QUANTITY}.`,
+	refused: 'That item could not be added. It may be sold out.',
+} as const satisfies Partial<Record<CartNotice, string>>;
 
 /**
- * The sentence the cart page shows for `?notice=refused`, or `null` for any other code; `short` words its own with
- * {@link shortageNotice}.
+ * The sentence the cart page shows for `?notice=invalid` and `?notice=refused`, or `null` for any other code;
+ * `short` words its own with {@link shortageNotice}.
  */
-export function refusedNotice(query: Record<string, unknown>): string | null {
-	return query.notice === ('refused' satisfies CartNotice)
-		? 'That item could not be added. It may be sold out.'
+export function statusNotice(query: Record<string, unknown>): string | null {
+	const code = query.notice;
+	return typeof code === 'string' && Object.hasOwn(STATUS_NOTICES, code)
+		? STATUS_NOTICES[code as keyof typeof STATUS_NOTICES]
 		: null;
 }
 

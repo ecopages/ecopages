@@ -1,0 +1,4 @@
+.product-grid {
+	@apply m-0 grid list-none gap-3 p-0;
+	grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+}

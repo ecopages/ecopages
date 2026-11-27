@@ -1,0 +1,70 @@
+.page-header {
+	@apply mb-8 flex flex-col gap-2;
+
+	h1 {
+		@apply m-0 text-3xl font-semibold tracking-tight;
+	}
+
+	p {
+		@apply m-0 max-w-2xl text-on-surface-container;
+	}
+}
+
+.breadcrumbs {
+	@apply mb-4 text-sm;
+}
+
+.catalog-section {
+	@apply mb-10;
+}
+
+.catalog-section__header {
+	@apply mb-3 flex items-baseline justify-between gap-4;
+
+	h2 {
+		@apply m-0 text-xl font-semibold tracking-tight;
+	}
+
+	a {
+		@apply text-sm font-medium text-primary;
+	}
+}
+
+.tile-list {
+	@apply m-0 grid list-none gap-3 p-0;
+	grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+}
+
+.tile {
+	@apply flex h-full flex-col gap-1 rounded-lg border border-border bg-surface-container-lowest p-4 no-underline;
+
+	&:hover,
+	&:focus-visible {
+		@apply border-primary bg-surface-container-low;
+	}
+}
+
+.tile__title {
+	@apply font-semibold;
+}
+
+.tile__meta {
+	@apply text-sm text-on-surface-container;
+}
+
+.chip-list {
+	@apply m-0 flex list-none flex-wrap gap-2 p-0;
+}
+
+.chip-link {
+	@apply inline-flex rounded-full border border-border px-3 py-1 text-sm no-underline;
+
+	&:hover,
+	&:focus-visible {
+		@apply border-primary text-primary;
+	}
+}
+
+.empty-state {
+	@apply rounded-lg border border-dashed border-border p-8 text-center text-on-surface-container;
+}

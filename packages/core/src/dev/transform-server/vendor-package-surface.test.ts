@@ -119,6 +119,8 @@ describe('inspectModuleClosure', () => {
 			{
 				'socket.js': "export const socket = new WebSocket('ws://localhost');\n",
 				'page.js': 'const title = document.title;\nexport { title };\n',
+				'default.js': "export default new WebSocket('ws://localhost');\n",
+				'default-pure.js': "export default function view() { return new WebSocket('ws://localhost'); }\n",
 				'lazy.js':
 					"export const open = () => new WebSocket('ws://localhost');\nexport class Client { start() { return fetch('/x'); } }\n",
 				'values.js':
@@ -129,6 +131,8 @@ describe('inspectModuleClosure', () => {
 
 		expect(effects('socket.js')).toBe(true);
 		expect(effects('page.js')).toBe(true);
+		expect(effects('default.js')).toBe(true);
+		expect(effects('default-pure.js')).toBe(false);
 		expect(effects('lazy.js')).toBe(false);
 		expect(effects('values.js')).toBe(false);
 	});

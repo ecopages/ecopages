@@ -119,8 +119,9 @@ function expressionHasEffects(node: unknown): boolean {
 	);
 }
 
-/** Whether a top-level declaration, possibly exported, initializes a binding with an effectful call. */
+/** Whether a top-level declaration, possibly exported, initializes a binding with an effectful call, or default-exports one. */
 function declarationHasEffects(statement: AstNode): boolean {
+	if (statement.type === 'ExportDefaultDeclaration') return expressionHasEffects(statement.declaration);
 	const declaration = (statement.declaration ?? statement) as { type?: string; declarations?: { init?: unknown }[] };
 	return (
 		declaration.type === 'VariableDeclaration' &&

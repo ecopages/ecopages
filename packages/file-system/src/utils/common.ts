@@ -84,12 +84,15 @@ const COPY_CHUNK_BYTES = 64 * 1024;
  * @remarks
  * `copyFile` with `COPYFILE_EXCL` unlinks the destination by path when the copy fails, which would delete another
  * process's file if that process replaced the half-written destination meanwhile. Here a failed copy removes the
- * destination only while it is still the file this call created. A missing source fails before anything is created.
+ * destination only while it is still the file this call created. A missing source fails before anything is created. A destination that is already there, a dangling
+ * symlink included, is found by `lstat` first, because Windows opens the target of a dangling symlink for
+ * exclusive create instead of failing.
  * The check and the removal are two calls, because no portable call removes a path by inode, so a file renamed over
  * the destination in the instants between them is still lost; that needs a failed write and a rename inside one
  * window, on a volume without hard links.
  */
 function copyExclusiveSync(source: string, destination: string): boolean {
+	if (lstatSync(destination, { throwIfNoEntry: false })) return false;
 	const sourceFd = openSync(source, 'r');
 	try {
 		let destinationFd: number;
@@ -122,6 +125,13 @@ function copyExclusiveSync(source: string, destination: string): boolean {
 
 /** Asynchronous {@link copyExclusiveSync}. */
 async function copyExclusive(source: string, destination: string): Promise<boolean> {
+	if (
+		await lstatAsync(destination).then(
+			() => true,
+			() => false,
+		)
+	)
+		return false;
 	const sourceHandle = await openAsync(source, 'r');
 	try {
 		let destinationHandle: FileHandle;

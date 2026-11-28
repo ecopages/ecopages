@@ -14,6 +14,7 @@ import { startDevStaticRoutePrewarm } from '../shared/runtime/dev-static-route-p
 import type { ServerRequestPipeline } from '../shared/runtime/server-request-pipeline.ts';
 import type { NodeServerInstance } from './server-adapter.ts';
 import type { HostPolicy } from '../shared/http/host-policy.ts';
+import { requestUrlOnOrigin } from './http-request-bridge.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
 import { HmrManager } from '../shared/hmr/hmr-manager.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
@@ -142,7 +143,7 @@ export class DevSession {
 
 	private handleHmrUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): boolean {
 		const { runtime } = this.options;
-		const url = new URL(request.url ?? '/', runtime.origin);
+		const url = requestUrlOnOrigin(request.url, runtime.origin);
 		if (url.pathname !== '/_hmr') return false;
 
 		this.websocketServer.handleUpgrade(request, socket, head, (ws) => {

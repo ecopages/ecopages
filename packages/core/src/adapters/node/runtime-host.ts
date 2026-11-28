@@ -20,8 +20,8 @@ export type NodeRuntimeServeOptions = {
 	 * The hosts this server answers. A request for any other host gets HTTP 400 before `handleRequest`.
 	 *
 	 * @remarks
-	 * `NodeServerAdapter` always sets it. Without one every host is served, which only tests that bind the host
-	 * directly should rely on.
+	 * `NodeServerAdapter` sets it for the app server. Without one every host is served, which the static `ecopages
+	 * preview` server and tests that bind the host directly rely on.
 	 */
 	hostPolicy?: HostPolicy;
 	handleRequest(request: Request): Promise<Response>;

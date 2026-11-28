@@ -128,12 +128,18 @@ function notConnected(): Response {
 
 /**
  * Serves `/.well-known/ucp`: the connected store's UCP profile, with its endpoint on the origin of the request.
+ *
+ * @remarks
+ * The answer depends on the host, so a shared cache keeps one copy per `Host` (and `X-Forwarded-Host`, which a
+ * proxy that `trustProxy` trusts may set) instead of serving one host's endpoint to another.
  */
 export async function handleUcpProfile(request: Request, options: UcpOptions): Promise<Response> {
 	try {
 		const profile = await readUcpProfile(new URL(request.url).origin, options);
 		if (!profile) return notConnected();
-		return Response.json(profile, { headers: { 'Cache-Control': 'public, max-age=300' } });
+		return Response.json(profile, {
+			headers: { 'Cache-Control': 'public, max-age=300', Vary: 'Host, X-Forwarded-Host' },
+		});
 	} catch (error) {
 		if (error instanceof CommerceBackendError) return Response.json({ error: error.message }, { status: 502 });
 		throw error;

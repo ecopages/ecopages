@@ -159,6 +159,8 @@ describe('NodeHttpRequestBridge', () => {
 			expect(requestUrl(headers, undefined, 'http://evil.example/x?a=1')).toBe('http://shop.example/x?a=1');
 			expect(requestUrl(headers, undefined, 'https://evil.example')).toBe('http://shop.example/');
 			expect(requestUrl(headers, undefined, '*')).toBe('http://shop.example/');
+			expect(requestUrl(headers, undefined, 'foo:@evil.example/x')).toBe('http://shop.example/');
+			expect(requestUrl(headers, undefined, 'x:.evil.example/')).toBe('http://shop.example/');
 		});
 	});
 

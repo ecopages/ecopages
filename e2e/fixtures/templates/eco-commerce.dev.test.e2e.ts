@@ -54,6 +54,18 @@ test.describe('eco-commerce template', () => {
 		];
 
 		expect(posts.map((response) => response.status())).toEqual([403, 403, 403, 403, 403]);
+		expect(await posts[3]!.text()).toBe('Cart changes must come from this site.');
+	});
+
+	test('revalidation lets a request without browser headers reach its token check, which runs before the body is read', async ({
+		request,
+	}) => {
+		const withoutToken = await request.post('/api/revalidate', {
+			data: 'not json',
+			headers: { 'Content-Type': 'application/json' },
+		});
+
+		expect(withoutToken.status()).toBe(404);
 	});
 
 	test('a visitor browses from a collection down to a product, each page listing its children', async ({ page }) => {

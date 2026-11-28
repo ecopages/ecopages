@@ -116,7 +116,7 @@ The database records the preset and the generator version. When either differs f
 
 Product images come from `src/lib/images/placeholder.ts`, a few hundred bytes of SVG drawn from the product handle. To use real photos, replace `src/pages/images/products/[slug].api.ts` and `thumbnailUrl` in `src/lib/commerce/drizzle/mappers.ts`.
 
-To use your own data, pass a `generate` function to `openCatalogDatabase` in `getCatalogDb` (`src/lib/commerce/drizzle/database.server.ts`) that returns your rows in the generator's shape, or write another adapter.
+To use your own data, make `seed` in `src/lib/commerce/drizzle/database.server.ts` insert your rows in the generator's shape instead of calling `generateCatalog`, or write another adapter.
 
 ## The cart
 
@@ -170,7 +170,7 @@ Copy `.env.example` to `.env`.
 
 ## Host and origin checks
 
-One policy, both from Ecopages core. First, the server answers only the hosts it serves: in `ecopages dev`, `localhost` and IP addresses plus the host of `ECOPAGES_BASE_URL`; in production, only the host of `ECOPAGES_BASE_URL` (add more in `allowedHosts` in `eco.config.ts`, such as `localhost` for a health check). A request for another `Host` gets HTTP 400, which stops a DNS rebinding page from reaching a store running on a shopper's machine, and means `request.url` is the address the visitor used. Second, every state-changing route lists `sameOrigin()` and answers HTTP 403, before it reads the body, to a request another site started: `Sec-Fetch-Site` decides when the browser sends it (`same-origin` or `none` pass), otherwise `Origin` must equal the request origin.
+One policy, both from Ecopages core. First, the server answers only the hosts it serves: in `ecopages dev`, `localhost` and IP addresses plus the host of `ECOPAGES_BASE_URL`; in production, only the host of `ECOPAGES_BASE_URL` (a list in `allowedHosts` in `eco.config.ts` replaces it, so name the public host there too, and `localhost` for a health check). A request for another `Host` gets HTTP 400, which stops a DNS rebinding page from reaching a store running on a shopper's machine, and means `request.url` is the address the visitor used. Second, every state-changing route lists `sameOrigin()` and answers HTTP 403, before it reads the body, to a request another site started: `Sec-Fetch-Site` decides when the browser sends it (`same-origin` or `none` pass), otherwise `Origin` must equal the request origin.
 
 - `POST /cart/add` and `POST /cart/update` are posted by the store's own pages, so a request with neither header is refused too.
 - `POST /api/revalidate` is called by servers and scripts with a bearer token, which send neither header, so it uses `sameOrigin({ allowNonBrowser: true })`: those pass and a browser request from another site is still refused.

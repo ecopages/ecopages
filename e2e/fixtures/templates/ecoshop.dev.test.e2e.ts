@@ -1,3 +1,4 @@
+import { connect } from 'node:net';
 import { expect, type Page } from '@playwright/test';
 import { test } from '../../app-fixture.ts';
 
@@ -405,6 +406,39 @@ test.describe('ecoshop WebMCP tools', () => {
 			expect(Object.keys(schema?.properties ?? {})).toEqual(Object.keys(tool.inputSchema.properties));
 		}
 	});
+});
+
+/** The first line of the answer to a raw request with the given `Host`, sent to the running server's port. */
+function firstLineFor(appUrl: string, host: string, upgrade: boolean): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const socket = connect({ host: 'localhost', port: Number(new URL(appUrl).port) }, () => {
+			const upgradeHeaders = upgrade
+				? 'Connection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n'
+				: 'Connection: close\r\n';
+			socket.write(`GET /${upgrade ? '_hmr' : ''} HTTP/1.1\r\nHost: ${host}\r\n${upgradeHeaders}\r\n`);
+		});
+		let answer = '';
+		socket.on('data', (chunk) => {
+			answer += chunk.toString();
+			if (answer.includes('\r\n')) {
+				resolve(answer.split('\r\n')[0] ?? '');
+				socket.destroy();
+			}
+		});
+		socket.on('error', reject);
+	});
+}
+
+test('the dev server refuses a request and the HMR socket for a host it does not serve, and allows loopback names', async ({
+	app,
+}) => {
+	const { port } = new URL(app.url);
+
+	expect(await firstLineFor(app.url, `evil.example:${port}`, false)).toMatch(/ 400 /u);
+	expect(await firstLineFor(app.url, `evil.example:${port}`, true)).toMatch(/ 400 /u);
+	expect(await firstLineFor(app.url, `localhost:${port}`, false)).toMatch(/ 200 /u);
+	expect(await firstLineFor(app.url, `127.0.0.1:${port}`, false)).toMatch(/ 200 /u);
+	expect(await firstLineFor(app.url, `localhost:${port}`, true)).toMatch(/ 101 /u);
 });
 
 test('without WebMCP, no tool is registered and nothing is logged', async ({ page }) => {

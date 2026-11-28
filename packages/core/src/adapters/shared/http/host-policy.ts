@@ -12,7 +12,6 @@ export type HostPolicy = {
 };
 
 const IPV4_LITERAL = /^\d{1,3}(?:\.\d{1,3}){3}$/u;
-const HOSTNAME_ENTRY = /^[a-z0-9_](?:[a-z0-9_.-]*[a-z0-9_])?$/u;
 const OPTION_HELP = 'Use a list of hostnames and "*.example.com" wildcards, or true to allow any host (unsafe).';
 
 function normalizeHostname(hostname: string): string {
@@ -40,11 +39,31 @@ function hostnameOfBaseUrl(baseUrl: string): string | undefined {
 	}
 }
 
-function isValidEntry(entry: unknown): boolean {
-	if (typeof entry !== 'string') return false;
-	const hostname = entry.toLowerCase();
-	if (hostname.startsWith('*.')) return HOSTNAME_ENTRY.test(hostname.slice(2));
-	return HOSTNAME_ENTRY.test(hostname) || isBracketedIp(hostname);
+/**
+ * The form of an `allowedHosts` entry that a request host is compared with, or `null` when it is not a hostname.
+ *
+ * @remarks
+ * The entry goes through the same `URL` parser as the request host, so `127.1`, `[0:0:0:0:0:0:0:1]` and
+ * `bücher.example` match the `127.0.0.1`, `[::1]` and `xn--bcher-kva.example` a request reports. A port, scheme,
+ * path, credentials or a `*` anywhere but the first label is refused.
+ */
+function canonicalEntry(entry: unknown): string | null {
+	if (typeof entry !== 'string') return null;
+	const wildcard = entry.startsWith('*.');
+	const name = wildcard ? entry.slice(2) : entry;
+	if (name === '' || /[\s/?#@\\*]/u.test(name)) return null;
+	if (name.includes(':') && !isBracketedIp(name)) return null;
+	let hostname: string;
+	try {
+		const url = new URL(`http://${name}`);
+		if (url.host !== url.hostname) return null;
+		hostname = normalizeHostname(url.hostname);
+	} catch {
+		return null;
+	}
+	if (hostname === '') return null;
+	if (wildcard) return isIpLiteral(hostname) ? null : `*.${hostname}`;
+	return hostname;
 }
 
 /**
@@ -60,7 +79,7 @@ export function assertAllowedHosts(allowedHosts: unknown): asserts allowedHosts 
 		throw new Error(`Invalid "allowedHosts" option ${JSON.stringify(allowedHosts)}. ${OPTION_HELP}`);
 	}
 	for (const entry of allowedHosts) {
-		if (!isValidEntry(entry)) {
+		if (canonicalEntry(entry) === null) {
 			throw new Error(
 				`Invalid "allowedHosts" entry ${JSON.stringify(entry)}: it is not a hostname. ${OPTION_HELP}`,
 			);
@@ -72,10 +91,10 @@ export function assertAllowedHosts(allowedHosts: unknown): asserts allowedHosts 
  * Builds the host policy of a server from the `allowedHosts` and `baseUrl` options.
  *
  * @remarks
- * Production allows `allowedHosts` when it is set, and the host of `baseUrl` otherwise, so loopback is refused
- * unless one of them names it. Development always allows `localhost`, its subdomains and IP literals, then the
- * `baseUrl` host or `allowedHosts` the same way. An IP literal is safe to allow because DNS rebinding needs a name
- * that resolves to the server, which an IP address is not. `true` allows every host.
+ * The list is `allowedHosts` when it is set, and the host of `baseUrl` otherwise, so in production loopback is
+ * refused unless one of them names it, and a list that leaves out the `baseUrl` host refuses it. Development also
+ * allows `localhost`, its subdomains and IP literals. An IP literal is safe to allow because DNS rebinding needs a
+ * name that resolves to the server, which an IP address is not. `true` allows every named host.
  *
  * A `*.example.com` entry matches a subdomain of any depth but not `example.com`. Ports are not compared; a
  * handler that needs the port compares the full origin.
@@ -91,8 +110,8 @@ export function createHostPolicy(input: {
 	const suffixes: string[] = [];
 	const entries = input.allowedHosts ?? [hostnameOfBaseUrl(input.baseUrl)];
 	for (const entry of entries) {
-		if (entry === undefined) continue;
-		const hostname = normalizeHostname(entry);
+		const hostname = canonicalEntry(entry);
+		if (hostname === null) continue;
 		if (hostname.startsWith('*.')) suffixes.push(hostname.slice(1));
 		else exact.add(hostname);
 	}

@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer, request as httpRequest, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { connect, type AddressInfo } from 'node:net';
 import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
@@ -150,6 +150,7 @@ describe('NodeRuntimeHost', () => {
 			options: { trustProxy?: boolean; hostPolicy?: typeof hostPolicy },
 			run: (
 				send: (headers: Record<string, string>, path?: string) => Promise<{ status: number; body: string }>,
+				sendRaw: (text: string) => Promise<string>,
 			) => Promise<T>,
 		): Promise<{ result: T; handled: string[] }> {
 			const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
@@ -176,8 +177,16 @@ describe('NodeRuntimeHost', () => {
 						.on('error', reject)
 						.end();
 				});
+			const sendRaw = (text: string) =>
+				new Promise<string>((resolve, reject) => {
+					const socket = connect({ host: '127.0.0.1', port }, () => socket.write(text));
+					const chunks: Buffer[] = [];
+					socket.on('data', (chunk: Buffer) => chunks.push(chunk));
+					socket.on('close', () => resolve(Buffer.concat(chunks).toString()));
+					socket.on('error', reject);
+				});
 			try {
-				return { result: await run(send), handled };
+				return { result: await run(send, sendRaw), handled };
 			} finally {
 				await host.stop(server);
 			}
@@ -210,12 +219,13 @@ describe('NodeRuntimeHost', () => {
 		});
 
 		it('refuses a request without a usable Host', async () => {
-			const { result, handled } = await withServer({ hostPolicy }, async (send) => [
-				await send({ Host: '' }),
-				await send({ Host: 'shop.example/evil' }),
-			]);
+			const { result, handled } = await withServer({ hostPolicy }, async (send, sendRaw) => ({
+				malformed: await send({ Host: 'shop.example/evil' }),
+				missing: await sendRaw('GET /probe HTTP/1.0\r\n\r\n'),
+			}));
 
-			expect(result.map((response) => response.status)).toEqual([400, 400]);
+			expect(result.malformed.status).toBe(400);
+			expect(result.missing).toMatch(/^HTTP\/1\.1 400 /u);
 			expect(handled).toEqual([]);
 		});
 

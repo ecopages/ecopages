@@ -132,11 +132,11 @@ Deploy `dist/` and `node_modules/` as listed above. Point the platform at `dist/
 
 ### 5. Hosts and reverse proxies
 
-The production server answers only the host of `ECOPAGES_BASE_URL` (or `baseUrl`). A request for any other `Host` gets HTTP 400 before routing, and so does a WebSocket upgrade, which stops a DNS rebinding attacker who points their own domain at your server. Three things follow:
+The production server answers only the host of `baseUrl` (`ECOPAGES_BASE_URL` when `baseUrl` is unset). A request for any other `Host` gets HTTP 400 before routing, and so does a WebSocket upgrade, which stops a DNS rebinding attacker who points their own domain at your server. Three things follow:
 
-- Set `ECOPAGES_BASE_URL` on the server, not only at build time. With the default `http://localhost:3000`, every public request is refused.
-- A health check that calls the server by IP address or `localhost` is refused too. List the hosts in `allowedHosts` in `eco.config.ts`, which replaces the `baseUrl` host in production: `allowedHosts: ['shop.example.com', 'localhost']`. Entries may be wildcards such as `*.example.com`.
-- Behind a reverse proxy, the check reads the `Host` the proxy forwards. A proxy that rewrites `Host` to an internal name (`app:3000`) needs that name in `allowedHosts`, or must pass the original `Host` on (`proxy_set_header Host $host;` in nginx). With [`trustProxy`](/docs/getting-started/configuration#request-url-and-proxies) the `X-Forwarded-Host` the proxy sets is checked instead, so the proxy must overwrite it.
+- Set `ECOPAGES_BASE_URL` on the server (or `baseUrl` in `eco.config.ts`), not only at build time. With the default `http://localhost:3000`, every public request is refused.
+- A health check that calls the server by IP address or `localhost` is refused too. List the hosts in `allowedHosts` in `eco.config.ts`, which replaces the `baseUrl` host, so name the public host again: `allowedHosts: ['shop.example.com', 'localhost']`. Entries may be wildcards such as `*.example.com`.
+- Behind a reverse proxy, the check reads the `Host` the proxy forwards. Pass the original `Host` on (`proxy_set_header Host $host;` in nginx). A proxy that rewrites `Host` to an internal name (`app:3000`) would need that name in `allowedHosts`, and `request.url` would then carry it, so absolute links and the `Origin` comparison of `sameOrigin()` would use the internal name; avoid it. With [`trustProxy`](/docs/getting-started/configuration#request-url-and-proxies) set to `true` or `{ host: true }`, the `X-Forwarded-Host` the proxy sets is checked instead, so the proxy must overwrite it; with `{ proto: true }` the check still reads `Host`. To keep the cart-style `Secure` cookies and `https` origins right behind a proxy that terminates TLS, set `trustProxy: { proto: true }`.
 
 `allowedHosts: true` turns the check off. Use it only when the proxy already refuses unknown hosts. See [`allowedHosts`](/docs/getting-started/configuration#allowed-hosts).
 

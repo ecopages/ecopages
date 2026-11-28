@@ -108,6 +108,23 @@ describe('createHostPolicy', () => {
 	});
 });
 
+describe('allowedHosts entries are matched in the form a request host takes', () => {
+	it.each([
+		['127.1', '127.0.0.1'],
+		['0177.0.0.1', '127.0.0.1'],
+		['[0:0:0:0:0:0:0:1]', '[::1]'],
+		['[::FFFF:127.0.0.1]', '[::ffff:7f00:1]'],
+		['bücher.example', 'xn--bcher-kva.example'],
+		['Shop.Example.COM.', 'shop.example.com'],
+	])('%s matches %s', (entry, hostname) => {
+		expect(policy({ allowedHosts: [entry] }).allows(hostname)).toBe(true);
+	});
+
+	it('matches a wildcard written with an internationalized domain', () => {
+		expect(policy({ allowedHosts: ['*.bücher.example'] }).allows('shop.xn--bcher-kva.example')).toBe(true);
+	});
+});
+
 describe('assertAllowedHosts', () => {
 	it('accepts undefined, true, hostnames, IP addresses and leading wildcards', () => {
 		expect(() => assertAllowedHosts(undefined)).not.toThrow();
@@ -130,6 +147,9 @@ describe('assertAllowedHosts', () => {
 		['a port', ['example.com:3000']],
 		['a path', ['example.com/path']],
 		['whitespace', ['exam ple.com']],
+		['a bracketed name that is not an address', ['[foo]']],
+		['a wildcard on an address', ['*.127.0.0.1']],
+		['credentials', ['user@example.com']],
 	])('rejects %s', (_label, value) => {
 		expect(() => assertAllowedHosts(value as never)).toThrow(/allowedHosts/);
 	});

@@ -116,11 +116,12 @@ A route that changes state for a browser, such as a cart form, should refuse a r
 
 ```typescript
 import { definePost, sameOrigin } from '@ecopages/core';
+import { z } from 'zod';
 
 export const POST = definePost({
 	middleware: [sameOrigin()],
-	schema: { body: cartSchema },
-	handler: async ({ body, response }) => response.json(await addToCart(body)),
+	schema: { body: z.object({ variantId: z.string() }) },
+	handler: async ({ body, response }) => response.json(await addToCart(body.variantId)),
 });
 ```
 

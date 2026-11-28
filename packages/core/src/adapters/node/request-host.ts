@@ -6,10 +6,22 @@ import type { HostPolicy } from '../shared/http/host-policy.ts';
 import { resolveRequestHostname } from './http-request-bridge.ts';
 
 const MAX_LOGGED_HOSTS = 50;
+const LOG_WINDOW_MS = 10 * 60 * 1000;
 const loggedHosts = new Set<string>();
+let windowStartedAt = 0;
 
+/**
+ * Warns once per refused host, up to {@link MAX_LOGGED_HOSTS} in a ten minute window, so a client that sends many
+ * invented hosts cannot flood the log or use up the warnings for good: a later misconfiguration is logged in the
+ * next window.
+ */
 function logRefusedHost(hostname: string | null): void {
 	const label = hostname === null ? 'without a usable Host' : `for host ${JSON.stringify(hostname.slice(0, 100))}`;
+	const now = Date.now();
+	if (now - windowStartedAt > LOG_WINDOW_MS) {
+		loggedHosts.clear();
+		windowStartedAt = now;
+	}
 	if (loggedHosts.size >= MAX_LOGGED_HOSTS || loggedHosts.has(label)) return;
 	loggedHosts.add(label);
 	appLogger.warn(

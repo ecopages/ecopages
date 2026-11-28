@@ -128,14 +128,17 @@ export function resolveRequestHostname(
  * @remarks
  * The target is not resolved with `new URL(target, origin)`: a target such as `//evil.example/x` or the absolute
  * form `http://evil.example/x` would replace the host the policy checked. The path and query are appended to the
- * origin instead, so the URL always carries the host that was checked.
+ * origin instead, so the URL always carries the host that was checked. A target that is neither an origin-form path
+ * nor an absolute URL with a path, such as `*` or `foo:@evil.example/x`, becomes `/`, so the answer does not depend
+ * on how the parser reads it.
  */
 export function requestUrlOnOrigin(target: string | undefined, origin: string): URL {
 	const value = target ?? '/';
 	if (value.startsWith('/')) return new URL(`${origin}${value}`);
 	try {
 		const absolute = new URL(value);
-		return new URL(`${origin}${absolute.pathname}${absolute.search}`);
+		const path = absolute.pathname.startsWith('/') ? `${absolute.pathname}${absolute.search}` : '/';
+		return new URL(`${origin}${path}`);
 	} catch {
 		return new URL(`${origin}/`);
 	}

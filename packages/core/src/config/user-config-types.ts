@@ -153,8 +153,8 @@ export type EcoPagesUserConfig = {
 	 * for both, or `{ host?: boolean; proto?: boolean }` for one of them.
 	 *
 	 * @remarks
-	 * By default the origin of `request.url` on the Ecopages server (Node or Bun) is the `Host` header the visitor sent, and the address the
-	 * server listens on when that header is missing or not a host. Set this to `true` only when every request comes
+	 * By default the origin of `request.url` on the Ecopages server (Node or Bun) is the `Host` header the visitor sent; a request whose
+	 * `Host` is missing or not a host is refused with HTTP 400 (see `allowedHosts`). Set this to `true` only when every request comes
 	 * through a proxy you control that overwrites each forwarded header you trust: any other client can send them, and
 	 * an app that builds absolute links or compares origins would then trust a value the visitor chose. Trust only
 	 * `proto` when the proxy sets the protocol but passes `X-Forwarded-Host` through.
@@ -173,16 +173,18 @@ export type EcoPagesUserConfig = {
 	 * the browser sends the attacker's name as `Host` and `Origin`. Once a host is allowed, `request.url` is the address the visitor
 	 * used, so `sameOrigin()` and any handler comparing `Origin` with it are sound.
 	 *
-	 * Without it, `ecopages dev` allows `localhost`, its subdomains and IP addresses, plus the host of `baseUrl`.
-	 * `ecopages start` allows only the host of `baseUrl` (or `ECOPAGES_BASE_URL`), so set `baseUrl` to the public
-	 * address, or list every host the server answers here, `localhost` included when a health check calls it by that
-	 * name. In development the list adds to the defaults; in production it replaces the `baseUrl` host. Ports are
-	 * not compared. `*.example.com` matches a subdomain of any depth, not `example.com`.
+	 * The list is `allowedHosts` when it is set, and the host of `baseUrl` (`ECOPAGES_BASE_URL` when `baseUrl` is
+	 * unset) otherwise. A list replaces the `baseUrl` host, so name the public host in it, and `localhost` when a
+	 * health check calls the server by that name. `ecopages dev` also allows `localhost`, its subdomains and IP
+	 * addresses; `ecopages start` allows only the list. Ports are not compared. `*.example.com` matches a subdomain
+	 * of any depth, not `example.com`. A value that is not `true` or a list of hostnames fails the config load.
 	 *
-	 * `true` turns the check off, so a rebinding attacker can reach the server by name. Use it only when a proxy in
-	 * front of the server already refuses unknown hosts. `app.fetch()` is not checked: it takes the URL it is given.
+	 * `true` turns the host check off, so a rebinding attacker can reach the server by name; a request that names no
+	 * usable `Host` is still refused. Use it only when a proxy in front of the server already refuses unknown
+	 * hosts. `app.fetch()` and `ecopages preview` are not checked: the first takes the URL it is given, the second
+	 * serves only static files.
 	 *
-	 * @default the host of `baseUrl` in production, plus `localhost` and IP addresses in development
+	 * @default the host of `baseUrl`, plus `localhost` and IP addresses in development
 	 */
 	allowedHosts?: AllowedHosts;
 

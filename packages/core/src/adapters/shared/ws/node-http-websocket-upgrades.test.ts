@@ -137,11 +137,18 @@ describe('attachNodeHttpWebSocketUpgrades host policy', () => {
 		expect(upgrade(headers, { trustProxy: true }).socket.end).toHaveBeenCalledWith(refusal);
 	});
 
-	it('matches the route on the checked host, not on a host in the request target', async () => {
-		const { context } = upgrade({ host: 'shop.example' }, { url: '//evil.example/ws/lobby' });
+	it('does not match a route on a host named in the request target', () => {
+		const { socket, context } = upgrade({ host: 'shop.example' }, { url: '//evil.example/ws/lobby' });
 
-		await Promise.resolve();
+		expect(socket.destroy).toHaveBeenCalledOnce();
 		expect(context).not.toHaveBeenCalled();
+	});
+
+	it('gives context() the checked host when the request target is an absolute URL on another host', async () => {
+		const { context } = upgrade({ host: 'shop.example' }, { url: 'http://evil.example/ws/lobby' });
+
+		await vi.waitFor(() => expect(context).toHaveBeenCalledOnce());
+		expect(context.mock.calls[0]?.[0].request.url).toBe('http://shop.example/ws/lobby');
 	});
 });
 

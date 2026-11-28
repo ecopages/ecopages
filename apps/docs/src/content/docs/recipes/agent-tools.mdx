@@ -1,0 +1,77 @@
+---
+title: "Agent tools"
+description: "Define a tool once and serve it to an agent in the visitor's browser through WebMCP and to any MCP client at /mcp, with the schema library kept out of the browser."
+order: 7
+---
+
+# Agent tools
+
+Use this when a site should offer the same actions to an agent twice: in the visitor's browser, where [WebMCP](https://webmachinelearning.github.io/webmcp) lets the agent act on the page the visitor sees, and over MCP, where a client with no browser calls the site's own `/mcp` Endpoint. The [ecoshop template](https://github.com/ecopages/ecopages/tree/main/templates/ecoshop) does both for a store, and the files below are its.
+
+A tool is defined once. Three places read the definition, and none can disagree with another about a name or an argument:
+
+- the Radiant host that registers the tool with WebMCP,
+- the Endpoint that runs it for the page,
+- the MCP server that runs it for `/mcp`.
+
+## Define the tool once
+
+A definition has two halves. The first is data: the name, the title, the description and the annotations an agent reads, with no import. The browser imports it.
+
+```ts file="templates/ecoshop/src/lib/agents/store-tool-info.ts" region="cancel-cart"
+```
+
+The second adds the input schema, written with Zod, and is imported by the server only. A schema describes each field to the agent, so the descriptions are part of the tool.
+
+```ts file="templates/ecoshop/src/lib/agents/store-tool-definitions.ts" region="line-item"
+```
+
+What a tool does lives in a `.server` module, so the build refuses to bundle it into a page.
+
+## Ship static JSON Schema to the browser
+
+WebMCP needs the input schema as JSON Schema. Radiant takes plain values only, so the schema reaches the browser as data, written at development time from the Zod definitions: the browser downloads no schema library, with WebMCP or without it.
+
+The template commits the written file, `store-tool-schemas.ts`, so it reads in a diff and the template stands alone after `ecopages init`. A test writes it again from the definitions with `pnpm schemas` and fails when the committed file differs, so a changed schema cannot ship unnoticed:
+
+```ts file="templates/ecoshop/src/lib/agents/store-tool-schemas.test.ts"
+```
+
+A build step that writes the file is as good. What matters is that the schema library is imported by the server and by the test, never by a page.
+
+## Register it on the host that owns the behavior
+
+`agentToolConfig` turns a tool's data and its static schema into the config `@agentTool` takes. It has no `parse`, since a Zod `parse` would ship Zod, and no getter or promise, which Radiant 0.14 no longer reads.
+
+```ts file="templates/ecoshop/src/lib/agents/agent-tool-config.ts"
+```
+
+A host decorates the method that does the work, so the interface and the agent call the same method. The method sends the input to the server and returns the result:
+
+```ts file="templates/ecoshop/src/components/agent-tools/store-agent-tools.script.ts"
+```
+
+Radiant registers a tool only where `document.modelContext` exists, so a browser without WebMCP makes no request and logs nothing.
+
+## Validate on the server
+
+The browser does not check an agent's input, because a check with Zod would ship Zod and a request can skip the browser anyway. The Endpoint the tool calls runs the tool through `runStoreTool`, which validates with the Zod schema and answers input it refuses with a tool error naming the first invalid fields. The method returns that error to the agent so it can correct the call:
+
+```ts file="templates/ecoshop/src/lib/agents/store-tools.server.ts" region="run-store-tool"
+```
+
+The Endpoint calls it with the visitor's cart and the same provider as `/mcp`:
+
+```ts file="templates/ecoshop/src/lib/agents/agent-tools-endpoint.server.ts"
+```
+
+## Serve the same tools over MCP
+
+The MCP server registers every tool that has the `mcp` surface, with the same title, description and Zod schema, and runs it through the same function:
+
+```ts file="templates/ecoshop/src/lib/mcp/store-mcp.server.ts"
+```
+
+## Why a recipe
+
+One app uses both surfaces so far, and what is shared between them is the app's own: the provider the tools read, the cart the Endpoint finds from a cookie, the pages a result opens. The part a framework could own is small, and it would have to choose a schema library and an MCP SDK for every app. Until a second app needs the same code, copying these files is cheaper than a package, as [Recipes](/docs/recipes/overview) explains. For the decorator itself, see [@agentTool](https://radiant.ecopages.app/docs/decorators/agent-tool) in the Radiant docs.

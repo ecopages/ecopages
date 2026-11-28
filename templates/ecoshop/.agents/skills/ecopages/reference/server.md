@@ -9,6 +9,7 @@
 - Endpoint files
 - Pages vs views
 - Client-side routing (React)
+- Agent tools (WebMCP and MCP)
 
 ## defineApiHandler
 
@@ -169,3 +170,11 @@ With `@ecopages/react-router`, anchor tags use SPA navigation by default. Use `d
 ## Client-side routing (browser-router)
 
 With `@ecopages/browser-router`, the body of the next page is morphed into the current one. A custom element that exists on both pages is replaced by the incoming element, which upgrades from its own server markup, so it does not keep the live element's state. Add `data-eco-persist="<id>"` to keep an element and its state. To hand a live object to a custom element on navigation, set a property on it in an `eco:before-swap` listener: `event.detail.newDocument.querySelector('my-host').engine = engine`.
+
+## Agent tools (WebMCP and MCP)
+
+To offer the same tool to an agent in the visitor's browser (WebMCP) and to MCP clients at `/mcp`, define it once and follow the [ecoshop template](https://github.com/ecopages/ecopages/tree/main/templates/ecoshop) (`src/lib/agents`); the [Agent tools recipe](https://ecopages.app/docs/recipes/agent-tools) walks through it. There is no framework helper: what the surfaces share is the app's own.
+
+- Keep a tool's data (name, title, description, annotations) in a module with no imports, and its Zod input schema in another that only the server imports. A `.server` module runs the tool.
+- A Radiant host decorates the method that does the work with `@agentTool`, which reads plain values (Radiant 0.14): `inputSchema` is a static object, not a function or a promise, and no field is a getter; `getEnabled` stays a function. Leave out `parse`, since a Zod `parse` would ship Zod. Write the JSON Schema from the Zod schema with `z.toJSONSchema`, commit it, and add a test that fails when it differs from the definitions, so the schema library never ships to a page.
+- Validate on the server: the Endpoint the method calls and the MCP server parse the input with Zod, and answer input they refuse with a tool error naming the first invalid fields.

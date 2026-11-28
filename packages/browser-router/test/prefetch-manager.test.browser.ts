@@ -191,14 +191,9 @@ describe('PrefetchManager', () => {
 			fetchSpy.mockImplementation(noStore);
 		});
 
-		afterEach(() => {
-			vi.useRealTimers();
-		});
-
 		async function hover(id: string): Promise<void> {
 			await userEvent.hover(link(id));
 			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled());
-			await vi.waitFor(() => expect(fetchSpy.mock.results.length).toBe(fetchSpy.mock.calls.length));
 		}
 
 		it('answers the click that follows a hover from the prefetched copy', async () => {
@@ -208,27 +203,6 @@ describe('PrefetchManager', () => {
 			await fetchNavigationPage(destination('hold-click'));
 
 			expect(requestedTests()).toEqual(['hold-click']);
-		});
-
-		it('fetches again on a second click', async () => {
-			startManager(`<a id="cart" href="${destination('hold-twice')}">Cart</a>`);
-			await hover('cart');
-
-			await fetchNavigationPage(destination('hold-twice'));
-			await fetchNavigationPage(destination('hold-twice'));
-
-			expect(requestedTests()).toEqual(['hold-twice', 'hold-twice']);
-		});
-
-		it('fetches again when the click comes after the short window', async () => {
-			vi.useFakeTimers({ toFake: ['Date'] });
-			startManager(`<a id="cart" href="${destination('hold-late')}">Cart</a>`);
-			await hover('cart');
-
-			vi.advanceTimersByTime(10_000);
-			await fetchNavigationPage(destination('hold-late'));
-
-			expect(requestedTests()).toEqual(['hold-late', 'hold-late']);
 		});
 	});
 

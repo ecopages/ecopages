@@ -19,7 +19,7 @@ export type PerformNavigationAttemptInput = {
  *
  * @remarks
  * The shared navigation cache outlives the router, so a router without a prefetch manager must set
- * `bypassPrefetchCache`. Otherwise the first fetched copy of a page is served for the rest of the session.
+ * `bypassPrefetchCache`. Otherwise the first fetched copy of a page is served for the rest of the session, or until its `max-age`.
  */
 export async function runPerformNavigationAttempt(input: PerformNavigationAttemptInput): Promise<boolean> {
 	const page = await fetchNavigationPage(input.url, {

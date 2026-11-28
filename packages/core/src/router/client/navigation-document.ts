@@ -16,7 +16,9 @@ export type FetchNavigationPageOptions = {
 	 *
 	 * @remarks
 	 * A response that forbids reuse is held for {@link HELD_NAVIGATION_HTML_MS} and handed to the next
-	 * navigation fetch of the same URL, once, so the hover and the click make one request instead of two.
+	 * navigation fetch of the same URL, once. A navigation fetch that starts while the prefetch is still in
+	 * flight waits for it, so a hover and the click that follows make one request instead of two. A prefetch a
+	 * newer fetch of the same URL has overtaken stores nothing.
 	 */
 	prefetch?: boolean;
 };
@@ -47,6 +49,9 @@ type HeldNavigationHtml = {
 const navigationHtmlCache = new Map<string, CachedNavigationHtml>();
 const heldNavigationHtml = new Map<string, HeldNavigationHtml>();
 const finalUrlByRequest = new Map<string, string>();
+const pendingPrefetches = new Map<string, Promise<void>>();
+const latestNetworkFetch = new Map<string, number>();
+let networkFetchSequence = 0;
 
 function getCacheKey(href: string | URL): string {
 	const url = new URL(href, window.location.href);
@@ -80,14 +85,14 @@ export function cacheNavigationHtml(
 	href: string | URL,
 	html: string,
 	finalHref: string | URL = href,
-	options: { maxAge?: number | null } = {},
+	options: { maxAge?: number } = {},
 ): void {
 	const requestedKey = getCacheKey(href);
 	const finalKey = getCacheKey(finalHref);
 	const entry: CachedNavigationHtml = {
 		html,
 		fetchedAt: Date.now(),
-		maxAgeMs: options.maxAge == null ? null : options.maxAge * 1000,
+		maxAgeMs: options.maxAge === undefined ? null : options.maxAge * 1000,
 	};
 	navigationHtmlCache.set(requestedKey, entry);
 	navigationHtmlCache.set(finalKey, entry);
@@ -110,8 +115,11 @@ export function invalidateNavigationHtml(href: string | URL): void {
 	}
 	navigationHtmlCache.delete(key);
 	navigationHtmlCache.delete(finalKey);
-	heldNavigationHtml.delete(key);
-	heldNavigationHtml.delete(finalKey);
+	for (const [heldKey, held] of heldNavigationHtml) {
+		if (heldKey === key || heldKey === finalKey || held.finalHref === finalKey) {
+			heldNavigationHtml.delete(heldKey);
+		}
+	}
 }
 
 /** Removes and returns the copy a prefetch held for a URL, or `null` when none is held or it timed out. */
@@ -121,35 +129,39 @@ function takeHeldNavigationHtml(key: string): HeldNavigationHtml | null {
 	return held && held.expiresAt >= Date.now() ? held : null;
 }
 
+type NavigationCacheControl = {
+	/** Whether the body may not be served again without asking the server. */
+	forbidsReuse: boolean;
+	/** Seconds the body may be reused for, or `undefined` when the response sets no limit. */
+	maxAge: number | undefined;
+};
+
 /**
- * Reports whether a response's `Cache-Control` forbids serving its body without asking the server again.
+ * Reads what a response's `Cache-Control` and `Age` let the navigation cache do with its body.
  *
  * @remarks
  * `no-store` and an unqualified `no-cache` forbid reuse. The navigation cache never revalidates, so a
  * response that must be revalidated on every use cannot come from it. `max-age=0` and `must-revalidate`
- * alone do not: a static page is sent that way and is meant to be reused for the session. A qualified
- * `no-cache="field"` only covers the named header fields and leaves the body reusable.
+ * alone do not: a static page is sent that way and is meant to be reused for the session, so only a positive
+ * `max-age` limits reuse. A qualified `no-cache="field"` only covers the named header fields and leaves the
+ * body reusable. A shared cache in front of the server reports the time it already held the body in `Age`,
+ * which counts against the `max-age`; a body that arrives with none of it left is not reusable. `s-maxage`
+ * is for shared caches and is ignored.
  */
-function forbidsReuse(headers: Headers): boolean {
-	const directives = (headers.get('Cache-Control') ?? '').toLowerCase().split(',');
-	return directives.some((directive) => {
+function readCacheControl(headers: Headers): NavigationCacheControl {
+	let forbidsReuse = false;
+	let maxAge = 0;
+	for (const directive of (headers.get('Cache-Control') ?? '').toLowerCase().split(',')) {
 		const name = directive.trim();
-		return name === 'no-store' || name === 'no-cache';
-	});
-}
+		if (name === 'no-store' || name === 'no-cache') forbidsReuse = true;
+		const match = /^max-age\s*=\s*"?(\d+)"?$/.exec(name);
+		if (match) maxAge = Number(match[1]);
+	}
+	if (maxAge <= 0) return { forbidsReuse, maxAge: undefined };
 
-/**
- * Reads how many seconds a response's `Cache-Control` lets its body be reused, or `null` for no limit.
- *
- * @remarks
- * Only a positive `max-age` limits reuse. `max-age=0` is how a static Page is sent, with `must-revalidate`,
- * and that page is meant to be reused for the session, so zero means no limit here as well. `s-maxage` is
- * for shared caches and is ignored.
- */
-function readMaxAge(headers: Headers): number | null {
-	const match = /(?:^|,)\s*max-age\s*=\s*"?(\d+)"?\s*(?:,|$)/i.exec(headers.get('Cache-Control') ?? '');
-	const seconds = match ? Number(match[1]) : 0;
-	return seconds > 0 ? seconds : null;
+	const age = Number.parseInt(headers.get('Age') ?? '', 10);
+	const remaining = maxAge - (Number.isFinite(age) && age > 0 ? age : 0);
+	return { forbidsReuse: forbidsReuse || remaining <= 0, maxAge: remaining };
 }
 
 /**
@@ -184,8 +196,9 @@ export function parseNavigationDocument(html: string, finalUrl: URL): Document {
  * not request the page again.
  */
 function storeFetchedHtml(requestedUrl: URL, html: string, finalUrl: URL, headers: Headers, prefetch: boolean): void {
-	if (!forbidsReuse(headers)) {
-		cacheNavigationHtml(requestedUrl, html, finalUrl, { maxAge: readMaxAge(headers) });
+	const { forbidsReuse, maxAge } = readCacheControl(headers);
+	if (!forbidsReuse) {
+		cacheNavigationHtml(requestedUrl, html, finalUrl, { maxAge });
 		return;
 	}
 
@@ -213,7 +226,8 @@ function storeFetchedHtml(requestedUrl: URL, html: string, finalUrl: URL, header
  * fetches it again. A copy older than the positive `max-age` of its response counts as missing, so a page
  * sent with `{ revalidate: N }` is fetched again once N seconds have passed. A `prefetch` of a page that forbids
  * reuse is the one exception to not caching it: the copy waits a few seconds for the click and answers one
- * navigation fetch, so a hover and its click request the page once.
+ * navigation fetch, so a hover and its click request the page once. A navigation fetch that finds a prefetch of
+ * its URL still in flight waits for it first, and one that bypasses the cache neither waits nor reads the hold.
  */
 export async function fetchNavigationPage(
 	href: string | URL,
@@ -221,21 +235,63 @@ export async function fetchNavigationPage(
 ): Promise<FetchedNavigationPage | null> {
 	const requestedUrl = new URL(href, window.location.href);
 	const requestCacheKey = getCacheKey(requestedUrl);
-	let html = options.bypassCache ? null : getCachedNavigationHtml(requestedUrl);
-	let cachedFinalHref = finalUrlByRequest.get(requestCacheKey);
-	if (html === null && !options.bypassCache && !options.prefetch) {
-		const held = takeHeldNavigationHtml(requestCacheKey);
-		if (held) {
-			html = held.html;
-			cachedFinalHref = held.finalHref;
+
+	if (options.prefetch) {
+		const load = loadNavigationPage(requestedUrl, options);
+		const settled = load.then(
+			() => undefined,
+			() => undefined,
+		);
+		pendingPrefetches.set(requestCacheKey, settled);
+		try {
+			return await load;
+		} finally {
+			if (pendingPrefetches.get(requestCacheKey) === settled) pendingPrefetches.delete(requestCacheKey);
 		}
 	}
+
+	const pending = options.bypassCache ? undefined : pendingPrefetches.get(requestCacheKey);
+	if (pending) {
+		await pending;
+		options.signal?.throwIfAborted();
+	}
+	return loadNavigationPage(requestedUrl, options);
+}
+
+/**
+ * Returns the copy a navigation may use without a request: a cached one, or, for a navigation fetch, the copy a
+ * prefetch held for its URL, which this call uses up.
+ */
+function readReusableHtml(
+	requestedUrl: URL,
+	key: string,
+	prefetch: boolean,
+): { html: string; finalHref: string | undefined } | null {
+	const html = getCachedNavigationHtml(requestedUrl);
+	if (html !== null) return { html, finalHref: finalUrlByRequest.get(key) };
+
+	const held = prefetch ? null : takeHeldNavigationHtml(key);
+	return held ? { html: held.html, finalHref: held.finalHref } : null;
+}
+
+async function loadNavigationPage(
+	requestedUrl: URL,
+	options: FetchNavigationPageOptions,
+): Promise<FetchedNavigationPage | null> {
+	const requestCacheKey = getCacheKey(requestedUrl);
+	const reusable = options.bypassCache
+		? null
+		: readReusableHtml(requestedUrl, requestCacheKey, options.prefetch === true);
+	let html = reusable?.html ?? null;
+	const cachedFinalHref = reusable?.finalHref;
 	let finalUrl = new URL(cachedFinalHref ?? requestedUrl.href);
 	if (requestedUrl.hash) {
 		finalUrl.hash = requestedUrl.hash;
 	}
 
 	if (html === null) {
+		const sequence = ++networkFetchSequence;
+		latestNetworkFetch.set(requestCacheKey, sequence);
 		const requestUrl = new URL(requestedUrl);
 		requestUrl.hash = '';
 		const fetchOptions: RequestInit & { priority?: 'high' | 'low' | 'auto' } = {
@@ -255,7 +311,10 @@ export async function fetchNavigationPage(
 		if (requestedUrl.hash) {
 			finalUrl.hash = requestedUrl.hash;
 		}
-		storeFetchedHtml(requestedUrl, html, finalUrl, response.headers, options.prefetch === true);
+		const overtaken = options.prefetch === true && latestNetworkFetch.get(requestCacheKey) !== sequence;
+		if (!overtaken) {
+			storeFetchedHtml(requestedUrl, html, finalUrl, response.headers, options.prefetch === true);
+		}
 	}
 
 	return {
@@ -271,4 +330,5 @@ export function clearNavigationHtmlCache(): void {
 	navigationHtmlCache.clear();
 	heldNavigationHtml.clear();
 	finalUrlByRequest.clear();
+	latestNetworkFetch.clear();
 }

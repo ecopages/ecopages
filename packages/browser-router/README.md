@@ -1,6 +1,6 @@
 # @ecopages/browser-router
 
-Client-side navigation and view transitions for Ecopages. It intercepts same-origin link clicks to provide smooth page transitions without full page reloads.
+Client-side navigation and view transitions for Ecopages. It intercepts same-origin link clicks and GET form submissions to provide smooth page transitions without full page reloads.
 
 ## Features
 

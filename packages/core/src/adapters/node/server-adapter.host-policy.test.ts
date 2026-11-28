@@ -32,8 +32,11 @@ function firstLine(port: number, request: string): Promise<string> {
 	});
 }
 
-const get = (port: number, host: string) =>
-	firstLine(port, `GET /about HTTP/1.1\r\nHost: ${host}\r\nConnection: close\r\n\r\n`);
+const get = (port: number, host: string, forwardedHost?: string) =>
+	firstLine(
+		port,
+		`GET /about HTTP/1.1\r\nHost: ${host}\r\n${forwardedHost ? `X-Forwarded-Host: ${forwardedHost}\r\n` : ''}Connection: close\r\n\r\n`,
+	);
 
 const upgrade = (port: number, host: string, origin?: string) =>
 	firstLine(
@@ -41,10 +44,16 @@ const upgrade = (port: number, host: string, origin?: string) =>
 		`GET /ws HTTP/1.1\r\nHost: ${host}\r\n${origin ? `Origin: ${origin}\r\n` : ''}Connection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n`,
 	);
 
-async function createAdapter(watch: boolean, allowedHosts?: string[]) {
+async function createAdapter(watch: boolean, allowedHosts?: string[], trustProxy?: { host: true }) {
 	const rootDir = path.fromNative(fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-host-policy-')));
 	onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
-	const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [], baseUrl: BASE_URL, allowedHosts });
+	const appConfig = await finalizeEcoPagesConfig({
+		rootDir,
+		integrations: [],
+		baseUrl: BASE_URL,
+		allowedHosts,
+		trustProxy,
+	});
 	fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
 	fs.writeFileSync(path.join(appConfig.absolutePaths.distDir, 'about.html'), '<h1>About</h1>');
 	const runtimeHost = new NodeRuntimeHost(new NodeHttpRequestBridge());
@@ -107,5 +116,15 @@ describe('NodeServerAdapter host policy', () => {
 		expect(await get(Number(port), 'localhost')).toMatch(/ 200 /u);
 		expect(await get(Number(port), '127.0.0.1')).toMatch(/ 200 /u);
 		expect(await get(Number(port), 'shop.example')).toMatch(/ 200 /u);
+	});
+
+	it('checks the forwarded host under ecopages preview when the config trusts its proxy', async () => {
+		const { adapter } = await createAdapter(false, undefined, { host: true });
+		const origin = await adapter.servePreviewOnly();
+		if (!origin) throw new Error('Expected a preview origin');
+		const port = Number(new URL(origin).port);
+
+		expect(await get(port, 'evil.example', 'shop.example')).toMatch(/ 200 /u);
+		expect(await get(port, 'shop.example', 'evil.example')).toMatch(/ 400 /u);
 	});
 });

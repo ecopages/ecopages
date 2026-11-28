@@ -334,6 +334,7 @@ export class NodeServerAdapter {
 					hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
 					port: Number(this.serveOptions.port ?? DEFAULT_ECOPAGES_PORT),
 					hostPolicy: this.previewHostPolicy,
+					trustProxy: this.appConfig.trustProxy,
 					handleRequest: async (request) =>
 						applyResponseHeaders(
 							await serveDistFile(request, {

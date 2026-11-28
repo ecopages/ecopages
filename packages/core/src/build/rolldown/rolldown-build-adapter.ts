@@ -67,7 +67,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 				if (level === 'warn') {
 					warnings.push(toBuildLog(log));
 				}
-				defaultHandler(level, log);
+				if (!options.quietWarnings) defaultHandler(level, log);
 			},
 		});
 		try {

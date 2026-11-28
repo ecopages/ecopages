@@ -15,6 +15,14 @@ import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { formatBuildLog } from '../../build/build-log.ts';
 import { getPreservedModuleFileName } from '../../build/rolldown/preserved-module-file-name.ts';
+import { inspectModuleClosure, type ModuleClosureTraits } from './vendor-module-effects.ts';
+import { createVendorPackageExternalsPlugin } from './vendor-package-externals.ts';
+import {
+	countPackageModules,
+	findOwningPackageDir,
+	resolvePackageSurface,
+	VENDOR_PACKAGE_BUNDLE_MAX_MODULES,
+} from './vendor-package-surface.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { parseModuleSource } from '../../cache/module-parse-cache.ts';
 import { escapeRegExp } from '../../utils/regex-escaping.ts';
@@ -27,6 +35,7 @@ const BROWSER_NODE_BUILTIN_GUARD_MARKER = '[browser-build] Node builtin';
 const VENDOR_GRAPH_QUIET_PERIOD_MS = 50;
 const VENDOR_GRAPH_RETRY_BACKOFF_MS = 2_000;
 const VENDOR_ENTRIES_FILE = 'dev-vendor-entries.json';
+const VENDOR_SURFACE_PROBE_CONCURRENCY = 8;
 
 export type VendorGraphKey = 'browser-first' | 'module-first';
 
@@ -79,6 +88,48 @@ type ScheduledVendorGraphBuild = {
 	timer: ReturnType<typeof setTimeout>;
 };
 
+/**
+ * The packages one build holds, which it does not leave out of its files.
+ *
+ * @remarks
+ * A build holds one package, or all the packages that ship JSX source, which a plugin of the build must see
+ * together: see {@link isJsxSource}.
+ */
+type VendorBuildScope = {
+	id: string;
+	name: string;
+	owns: (packageDir: string) => boolean;
+};
+
+const LEGACY_SCOPE_ID = '\0jsx-source';
+
+/** A package that another package imports, found while building it. */
+type VendorDependency = {
+	graphKey: VendorGraphKey;
+	specifier: string;
+	resolveDir: string;
+	entryPath: string;
+};
+
+/** The files of one package, built on its own. */
+type VendorPackageBundle = {
+	outputs: ReadonlyMap<string, string>;
+	commonJsEntryPaths: ReadonlySet<string>;
+	dependencies: readonly VendorDependency[];
+	/** The files that have a vendor file of their own in the build. */
+	entryPaths: ReadonlySet<string>;
+	/** Whether every import of the build resolved; a file that imports something the browser cannot load is not clean. */
+	clean: boolean;
+};
+
+/** What building a vendor graph produced: the files of every package and the entry files they cover. */
+type VendorGraphBundle = {
+	success: true;
+	outputs: ReadonlyMap<string, string>;
+	commonJsEntryPaths: ReadonlySet<string>;
+	entryPaths: ReadonlySet<string>;
+};
+
 type RunningVendorGraphBuild = {
 	generation: number;
 	entryPaths: ReadonlySet<string>;
@@ -126,57 +177,6 @@ function hasModuleSyntax(filePath: string): boolean {
 
 const BROWSER_FIRST_PACKAGE = '@ecopages/core';
 const BROWSER_FIRST_SPECIFIER = new RegExp(`^${escapeRegExp(BROWSER_FIRST_PACKAGE)}(?:/|$)`, 'u');
-const PIN_ENTRY_NAME = '__eco_vendor_pin';
-const PIN_SPECIFIER = 'ecopages:vendor-pin';
-const PIN_MODULE_ID = '\0ecopages-vendor-pin';
-const RUNTIME_PIN_ENTRY_NAME = '__eco_vendor_runtime_pin';
-const RUNTIME_PIN_SPECIFIER = 'ecopages:vendor-runtime-pin';
-const RUNTIME_PIN_MODULE_ID = '\0ecopages-vendor-runtime-pin';
-
-function exactly(value: string): RegExp {
-	return new RegExp(`^${escapeRegExp(value)}$`, 'u');
-}
-
-/**
- * Adds two entries to each vendor build that keep the shape of the other entries the same from one build to the next.
- *
- * @remarks
- * A browser that loaded a vendor file keeps its module, so a later build of the graph must not change a file it
- * already served; when it does, the pages that loaded it reload. Every module is its own file with all of its
- * exports, which keeps a file from depending on which entries exist. Two things outside the modules would still
- * change a file as packages arrive.
- *
- * Rolldown puts the helpers its CommonJS interop needs in one runtime module, and writes only the helpers some
- * module uses. The first ES module that needs a helper would add it to the file, and change every file that
- * imports the runtime. The runtime pin re-exports the module from an entry of its own, so its file holds every
- * helper from the first build and its content no longer depends on the packages that use it.
- *
- * A CommonJS entry exports its module's `require` function only once another entry imports it, so a package that
- * imports `react/jsx-runtime` adds an export to that entry. The pin re-exports the namespace of every entry whose
- * file has no `import` or `export` statement, so each `require` export is there from the first build. It leaves ES
- * module entries alone, which already export everything. Nothing requests the output of either pin.
- */
-function createVendorPinPlugin(entries: readonly VendorEntry[]): EcoBuildPlugin {
-	const contents = entries
-		.filter((entry) => !hasModuleSyntax(entry.entryPath))
-		.map((entry, index) => `export * as __eco_pin_${index} from ${JSON.stringify(entry.entryPath)};`)
-		.join('\n');
-	const runtimeContents = 'export * from "\\0rolldown/runtime.js";';
-	return {
-		name: 'ecopages-dev-vendor-pin',
-		cacheKey: `${contents}\n${runtimeContents}`,
-		setup(build) {
-			build.onResolve({ filter: exactly(PIN_SPECIFIER) }, () => ({ path: PIN_MODULE_ID }));
-			build.onLoad({ filter: exactly(PIN_MODULE_ID) }, () => ({ contents, loader: 'js' }));
-			build.onResolve({ filter: exactly(RUNTIME_PIN_SPECIFIER) }, () => ({ path: RUNTIME_PIN_MODULE_ID }));
-			build.onLoad({ filter: exactly(RUNTIME_PIN_MODULE_ID) }, () => ({
-				contents: runtimeContents,
-				loader: 'js',
-			}));
-		},
-	};
-}
-
 function getVendorGraphKey(specifier: string): VendorGraphKey {
 	return toPackageRootSpecifier(specifier) === BROWSER_FIRST_PACKAGE ? 'browser-first' : 'module-first';
 }
@@ -184,6 +184,11 @@ function getVendorGraphKey(specifier: string): VendorGraphKey {
 export type DevTransformVendorRegistryOptions = {
 	appConfig: EcoPagesAppConfig;
 	resolveVendorBundlePlugins?: () => Promise<readonly EcoBuildPlugin[]>;
+	/**
+	 * The most modules a package can have and still be served as one file; defaults to
+	 * {@link VENDOR_PACKAGE_BUNDLE_MAX_MODULES}.
+	 */
+	maxBundledPackageModules?: number;
 	/**
 	 * Called when a vendor graph was rebuilt after a browser received output of its previous build that the new
 	 * build changes or drops.
@@ -219,9 +224,14 @@ export class DevTransformVendorRegistry {
 	private readonly browserBundleService: BrowserBundleService;
 	private readonly resolveVendorBundlePlugins?: () => Promise<readonly EcoBuildPlugin[]>;
 	private readonly onVendorGraphChange?: (changedUrls: readonly string[]) => void;
+	private readonly maxBundledModules: number;
 	private readonly graphs = new Map<VendorGraphKey, VendorGraph>();
 	private readonly entriesByUrl = new Map<string, { graph: VendorGraph; entry: VendorEntry }>();
 	private generation = 0;
+	private readonly packageBundles = new Map<string, VendorPackageBundle>();
+	private readonly moduleCounts = new Map<string, number>();
+	private readonly jsxSurfaces = new Map<string, boolean>();
+	private readonly closureTraits = new Map<string, ModuleClosureTraits>();
 	private readonly warnedPackageCopies = new Set<string>();
 	private persistedContents?: string;
 
@@ -230,6 +240,7 @@ export class DevTransformVendorRegistry {
 		this.browserBundleService = new BrowserBundleService(options.appConfig);
 		this.resolveVendorBundlePlugins = options.resolveVendorBundlePlugins;
 		this.onVendorGraphChange = options.onVendorGraphChange;
+		this.maxBundledModules = options.maxBundledPackageModules ?? VENDOR_PACKAGE_BUNDLE_MAX_MODULES;
 		this.graphs.set('browser-first', createVendorGraph('browser-first', BROWSER_FIRST_VENDOR_CONDITIONS));
 		this.graphs.set('module-first', createVendorGraph('module-first', MODULE_FIRST_VENDOR_CONDITIONS));
 		this.seedPersistedEntries();
@@ -337,6 +348,10 @@ export class DevTransformVendorRegistry {
 	 */
 	invalidateAll(): void {
 		this.generation += 1;
+		this.packageBundles.clear();
+		this.moduleCounts.clear();
+		this.jsxSurfaces.clear();
+		this.closureTraits.clear();
 		clearBarePackageResolverCaches();
 		for (const graph of this.graphs.values()) {
 			graph.failed.clear();
@@ -375,8 +390,9 @@ export class DevTransformVendorRegistry {
 		specifier: string,
 		resolveDir: string,
 		entryPath: string,
+		graphKey: VendorGraphKey = getVendorGraphKey(specifier),
 	): { graph: VendorGraph; entry: VendorEntry } {
-		const graph = this.requireGraph(getVendorGraphKey(specifier));
+		const graph = this.requireGraph(graphKey);
 		const existing = graph.entries.get(entryPath);
 		if (existing) {
 			if (
@@ -556,13 +572,11 @@ export class DevTransformVendorRegistry {
 	): Promise<VendorGraphBuild> {
 		const failed = new Map(knownFailed);
 		const entryPaths = new Set(entries.map((entry) => entry.entryPath));
-		const finish = (result?: Extract<BuildResult, { success: true }>): VendorGraphBuild => ({
+		const finish = (result?: VendorGraphBundle): VendorGraphBuild => ({
 			generation,
-			entryPaths,
-			outputs: result ? this.collectOutputs(result) : new Map(),
-			commonJsEntryPaths: new Set(
-				(result?.dependencyGraph.commonJsEntrypoints ?? []).map((entryPath) => path.resolve(entryPath)),
-			),
+			entryPaths: new Set([...entryPaths, ...(result?.entryPaths ?? [])]),
+			outputs: result?.outputs ?? new Map(),
+			commonJsEntryPaths: result?.commonJsEntryPaths ?? new Set(),
 			errors: failed,
 			failed,
 			servedUrls: new Set(),
@@ -658,45 +672,218 @@ export class DevTransformVendorRegistry {
 	}
 
 	/**
-	 * Keeps the `@ecopages/core` imports of module-first packages out of their graph, pointing each at its
-	 * browser-first entry URL.
+	 * Builds the packages of `entries`, and the packages they import, each into its own files.
 	 *
 	 * @remarks
-	 * A package such as a router imports core's browser modules. Bundled into the module-first graph, they would
-	 * be a second copy next to the browser-first one that Pages import. The import becomes the entry's stable URL instead, which a browser
-	 * request then builds like any other entry.
+	 * A package is built on its own, and the packages it imports stay out of its file: see
+	 * {@link createVendorPackageExternalsPlugin}. A package that an entry's package imports is a new entry of the
+	 * graph, built in the same pass, so a dependency of a dependency is served without a second build.
 	 */
-	private createBrowserFirstImportsPlugin(): EcoBuildPlugin {
-		return {
-			name: 'ecopages-dev-vendor-browser-first-imports',
-			setup: (build) => {
-				build.onResolve({ filter: BROWSER_FIRST_SPECIFIER }, (args) => {
-					const resolveDir =
-						args.importer && path.isAbsolute(args.importer)
-							? resolveImporterDir(args.importer)
-							: this.rootResolveDir;
-					const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, args.path, resolveDir);
-					if (!resolved) return undefined;
-					return { path: this.addEntry(args.path, resolveDir, resolved.path).entry.url, external: true };
-				});
-			},
-		};
+	private async bundleGraph(
+		graph: VendorGraph,
+		entries: readonly VendorEntry[],
+	): Promise<VendorGraphBundle | BuildFailure> {
+		const outputs = new Map<string, string>();
+		const commonJsEntryPaths = new Set<string>();
+		const covered = new Set<string>();
+		const built = new Map<string, Map<string, VendorEntry>>();
+		let pending = this.groupEntries(graph, entries);
+		while (pending.size > 0) {
+			const batch = [...pending];
+			for (const [scopeId, scopeEntries] of batch) {
+				const known = built.get(scopeId) ?? new Map<string, VendorEntry>();
+				for (const entry of scopeEntries) known.set(entry.entryPath, entry);
+				built.set(scopeId, known);
+			}
+			const bundles = await Promise.all(
+				batch.map(([scopeId]) => this.bundleScope(graph, scopeId, [...built.get(scopeId)!.values()])),
+			);
+			pending = new Map();
+			for (const bundle of bundles) {
+				if (!('outputs' in bundle)) return bundle;
+				for (const [url, content] of bundle.outputs) outputs.set(url, content);
+				for (const entryPath of bundle.commonJsEntryPaths) commonJsEntryPaths.add(entryPath);
+				for (const entryPath of bundle.entryPaths) covered.add(entryPath);
+				for (const dependency of bundle.dependencies) {
+					const { entry } = this.addEntry(
+						dependency.specifier,
+						dependency.resolveDir,
+						dependency.entryPath,
+						dependency.graphKey,
+					);
+					if (dependency.graphKey !== graph.key || covered.has(entry.entryPath)) continue;
+					const scopeId = this.scopeIdOf(graph, entry.entryPath);
+					pending.set(scopeId, [...(pending.get(scopeId) ?? []), entry]);
+				}
+			}
+		}
+		return { success: true, outputs, commonJsEntryPaths, entryPaths: covered };
 	}
 
-	private async bundleGraph(graph: VendorGraph, entries: readonly VendorEntry[]): Promise<BuildResult> {
+	/** The entries by the build that holds them: their package, or the one build of the packages that ship JSX source. */
+	private groupEntries(graph: VendorGraph, entries: readonly VendorEntry[]): Map<string, VendorEntry[]> {
+		const groups = new Map<string, VendorEntry[]>();
+		for (const entry of entries) {
+			const scopeId = this.scopeIdOf(graph, entry.entryPath);
+			groups.set(scopeId, [...(groups.get(scopeId) ?? []), entry]);
+		}
+		return groups;
+	}
+
+	private scopeIdOf(graph: VendorGraph, entryPath: string): string {
+		const packageDir = findOwningPackageDir(entryPath);
+		return this.shipsJsxSource(graph, packageDir) ? LEGACY_SCOPE_ID : packageDir;
+	}
+
+	/**
+	 * Whether a package ships JSX source: its `exports` field reaches a JSX file, or an app imports one.
+	 *
+	 * @remarks
+	 * Which JSX runtime compiles a JSX file depends on its extension, its pragma and the plugins of the build, and a
+	 * plugin such as React's client-graph boundary reads which entries reach which modules, so such a plugin needs the
+	 * entries of every package that ships JSX source in one build. These packages are workspace packages, which ship
+	 * source; an installed package ships compiled JavaScript. Their build keeps one file per module, as a build of
+	 * many entries does, and leaves the packages that do not ship JSX source out of its files.
+	 */
+	private shipsJsxSource(graph: VendorGraph, packageDir: string): boolean {
+		const key = `${graph.key}\0${packageDir}`;
+		let surfaceHasJsx = this.jsxSurfaces.get(key);
+		if (surfaceHasJsx === undefined) {
+			surfaceHasJsx = resolvePackageSurface(packageDir, graph.conditions, this.maxBundledModules).some(
+				isJsxSource,
+			);
+			this.jsxSurfaces.set(key, surfaceHasJsx);
+		}
+		return (
+			surfaceHasJsx ||
+			[...graph.entries.values()].some(
+				(entry) => isJsxSource(entry.entryPath) && findOwningPackageDir(entry.entryPath) === packageDir,
+			)
+		);
+	}
+
+	/**
+	 * Whether a module can load inside the one file of its package: it and the modules it imports from the package
+	 * run nothing but declarations, and import no Node builtin.
+	 */
+	private isLoadableWithPackage(file: string): boolean {
+		const { loadTimeEffects, nodeBuiltin } = inspectModuleClosure(file, this.closureTraits);
+		return !loadTimeEffects && !nodeBuiltin;
+	}
+
+	private bundleScope(
+		graph: VendorGraph,
+		scopeId: string,
+		entries: readonly VendorEntry[],
+	): Promise<VendorPackageBundle | BuildFailure> {
+		if (scopeId === LEGACY_SCOPE_ID) {
+			const scope: VendorBuildScope = {
+				id: LEGACY_SCOPE_ID,
+				name: '__jsx-source',
+				owns: (packageDir) => this.shipsJsxSource(graph, packageDir),
+			};
+			const files = [...new Set(entries.map((entry) => entry.entryPath))].sort();
+			return this.buildPackageFiles(graph, scope, files, false);
+		}
+		return this.bundlePackage(graph, scopeId, entries);
+	}
+
+	/**
+	 * Builds one package: the files of `entries`, plus every script its `exports` field reaches, as one file with a
+	 * small file per entry that re-exports from it.
+	 *
+	 * @remarks
+	 * The one file holds the package's whole browser surface, so a later import of another subpath of the package
+	 * adds a small file and changes nothing already served. A package with more than
+	 * {@link VENDOR_PACKAGE_BUNDLE_MAX_MODULES} modules is built as one file per module instead, which holds only the
+	 * modules the entries reach. A package whose surface does not build, such as one with a server-only subpath, is
+	 * built from its entries alone. The build is kept until the next {@link DevTransformVendorRegistry.invalidateAll}.
+	 */
+	private async bundlePackage(
+		graph: VendorGraph,
+		packageDir: string,
+		entries: readonly VendorEntry[],
+	): Promise<VendorPackageBundle | BuildFailure> {
+		const requested = [...new Set(entries.map((entry) => entry.entryPath))].sort();
+		const bundled = this.countModules(packageDir) <= this.maxBundledModules;
+		const surface = bundled
+			? resolvePackageSurface(packageDir, graph.conditions, this.maxBundledModules).filter(
+					(file) => !requested.includes(file) && this.isLoadableWithPackage(file),
+				)
+			: [];
+		const scope: VendorBuildScope = {
+			id: packageDir,
+			name: getVendorModuleName(this.appConfig.rootDir, packageDir),
+			owns: (dir) => dir === packageDir,
+		};
+		const complete = await this.buildPackageFiles(graph, scope, [...requested, ...surface].sort(), bundled);
+		if (surface.length === 0) return complete;
+		const usable = 'outputs' in complete && complete.clean;
+		const sound = await this.findBuildableSurface(graph, scope, surface);
+		if (usable && sound.length === surface.length) return complete;
+		return this.buildPackageFiles(graph, scope, [...requested, ...sound].sort(), bundled);
+	}
+
+	/**
+	 * The files of a package's `surface` that a browser can load, found by building them with the packages they import
+	 * bundled in.
+	 *
+	 * @remarks
+	 * A package can list a subpath that a browser cannot use, such as a command line entry that imports Node
+	 * builtins, or one that imports a server-only package. One such file would break the package's one file, and the
+	 * packages it imports are left out of that file, so their failure would show only when the browser loads them.
+	 * The files are built with their imports inline, which fails on a Node builtin or an import the browser cannot
+	 * resolve, all together first and one at a time when that fails. A file that fails stays out of the surface, and
+	 * the package serves it only if an import asks. The builds do not depend on the files an app imports, so they
+	 * run once for a surface until the next invalidation.
+	 */
+	private async findBuildableSurface(
+		graph: VendorGraph,
+		scope: VendorBuildScope,
+		surface: readonly string[],
+	): Promise<string[]> {
+		const together = await this.buildPackageFiles(graph, scope, [...surface].sort(), true, true);
+		if ('outputs' in together && together.clean) return [...surface];
+		const sound: string[] = [];
+		for (let start = 0; start < surface.length; start += VENDOR_SURFACE_PROBE_CONCURRENCY) {
+			const batch = surface.slice(start, start + VENDOR_SURFACE_PROBE_CONCURRENCY);
+			const probes = await Promise.all(
+				batch.map((file) => this.buildPackageFiles(graph, scope, [file], true, true)),
+			);
+			for (const [index, probe] of probes.entries()) {
+				if ('outputs' in probe && probe.clean) sound.push(batch[index]!);
+			}
+		}
+		appLogger.debug(
+			`[dev-transform] ${surface.length - sound.length} of ${surface.length} files in the surface of ${scope.id} do not build for a browser and stay out of its file.`,
+		);
+		return sound;
+	}
+
+	private async buildPackageFiles(
+		graph: VendorGraph,
+		scope: VendorBuildScope,
+		files: readonly string[],
+		bundled: boolean,
+		inline = false,
+	): Promise<VendorPackageBundle | (BuildFailure & { success: false })> {
+		const generation = this.generation;
+		const key = `${generation}\0${graph.key}\0${scope.id}\0${bundled}\0${inline}\0${files.join('\0')}`;
+		const cached = this.packageBundles.get(key);
+		if (cached) return cached;
+
 		const vendorPlugins = this.resolveVendorBundlePlugins ? await this.resolveVendorBundlePlugins() : [];
-		const graphPlugins = graph.key === 'module-first' ? [this.createBrowserFirstImportsPlugin()] : [];
-		return this.browserBundleService.bundle({
+		const dependencies = new Map<string, VendorDependency>();
+		const externals = createVendorPackageExternalsPlugin({
+			resolveDependency: (specifier, importer) =>
+				this.describeDependency(graph, scope.owns, specifier, importer, dependencies),
+		});
+		const rootDir = this.appConfig.rootDir;
+		const packageName = scope.name;
+		const result = await this.browserBundleService.bundle({
 			lane: 'build',
 			entrypoints: {
-				...Object.fromEntries(
-					entries.map((entry) => [
-						getVendorModuleName(this.appConfig.rootDir, entry.entryPath),
-						entry.entryPath,
-					]),
-				),
-				[PIN_ENTRY_NAME]: PIN_SPECIFIER,
-				[RUNTIME_PIN_ENTRY_NAME]: RUNTIME_PIN_SPECIFIER,
+				...Object.fromEntries(files.map((file) => [getVendorModuleName(rootDir, file), file])),
 			},
 			outdir: this.resolveOutdir(),
 			naming: `${VENDOR_GRAPH_FILE_PREFIX[graph.key]}-[name]`,
@@ -704,18 +891,76 @@ export class DevTransformVendorRegistry {
 			minify: false,
 			externalPackages: false,
 			treeshaking: true,
-			preserveModules: true,
-			preserveModuleSignatures: true,
-			preserveModulesRoot: path.parse(this.appConfig.rootDir).root,
+			quietWarnings: inline,
+			...(bundled
+				? { singleChunk: { name: `${packageName}~package` } }
+				: {
+						preserveModules: true,
+						modulePathFileNames: true,
+						preserveModulesRoot: path.parse(rootDir).root,
+					}),
 			conditions: [...graph.conditions],
 			excludeAppBuildPlugins: resolveAppBuildPlugins(this.appConfig, 'browser').map((plugin) => plugin.name),
-			plugins: [createVendorPinPlugin(entries), ...graphPlugins, ...vendorPlugins],
+			plugins: [...vendorPlugins, ...(inline ? [] : [externals])],
 		});
+		if (!result.success) return result;
+
+		const bundle: VendorPackageBundle = {
+			outputs: this.collectOutputs(result),
+			commonJsEntryPaths: new Set(
+				(result.dependencyGraph.commonJsEntrypoints ?? []).map((entryPath) => path.resolve(entryPath)),
+			),
+			dependencies: [...dependencies.values()],
+			entryPaths: new Set(files),
+			clean: !(result.warnings ?? []).some((warning) => warning.code === 'UNRESOLVED_IMPORT'),
+		};
+		if (generation === this.generation) this.packageBundles.set(key, bundle);
+		return bundle;
+	}
+
+	/**
+	 * The vendor file a package module's import of another package becomes, or `undefined` when the package that is
+	 * being built owns the import. Records the package as a dependency to build.
+	 *
+	 * @remarks
+	 * The imports of `@ecopages/core` always go to its browser-first entries, so core loads once whichever graph
+	 * imports it.
+	 */
+	private describeDependency(
+		graph: VendorGraph,
+		owns: (packageDir: string) => boolean,
+		specifier: string,
+		importer: string,
+		dependencies: Map<string, VendorDependency>,
+	): VendorImport | undefined {
+		const resolveDir = resolveImporterDir(importer);
+		const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, specifier, resolveDir);
+		if (!resolved) return undefined;
+		const graphKey = getVendorGraphKey(specifier) === 'browser-first' ? 'browser-first' : graph.key;
+		if (graphKey === graph.key && owns(findOwningPackageDir(resolved.path))) return undefined;
+		dependencies.set(`${graphKey}\0${resolved.path}`, {
+			graphKey,
+			specifier,
+			resolveDir,
+			entryPath: resolved.path,
+		});
+		return {
+			url: getVendorEntryUrl(this.appConfig.rootDir, graphKey, resolved.path),
+			commonJs: !hasModuleSyntax(resolved.path),
+		};
+	}
+
+	private countModules(packageDir: string): number {
+		const known = this.moduleCounts.get(packageDir);
+		if (known !== undefined) return known;
+		const count = countPackageModules(packageDir, this.maxBundledModules);
+		this.moduleCounts.set(packageDir, count);
+		return count;
 	}
 
 	/**
 	 * @remarks
-	 * Every output lands in one directory, so the relative imports between module files resolve under
+	 * Every output lands in one directory, so the relative imports between files of one package resolve under
 	 * `/assets/vendors/` in the browser as they are.
 	 */
 	private collectOutputs(result: Extract<BuildResult, { success: true }>): Map<string, string> {
@@ -934,6 +1179,18 @@ function isRetryDue(build: VendorGraphBuild, entryPath: string): boolean {
 		build.errors.has(entryPath) &&
 		!build.failed.has(entryPath)
 	);
+}
+
+/**
+ * Whether a file is JSX source.
+ *
+ * @remarks
+ * Which JSX runtime compiles a JSX file depends on its extension, its pragma and the plugins of the build, and a
+ * Component of one Integration can render inside another's. A package that ships JSX source, such as a workspace
+ * package, is served as one file per module, which keeps each file as its importers' plugins compile it.
+ */
+function isJsxSource(file: string): boolean {
+	return /\.[jt]sx$/u.test(file);
 }
 
 function describeEntries(entries: readonly VendorEntry[]): string {

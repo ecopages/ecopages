@@ -131,8 +131,8 @@ export interface BuildOptions {
 	/** Emits one output module per source module so separate server emits can share module identity. */
 	preserveModules?: boolean;
 	preserveModulesRoot?: string;
-	/** With `preserveModules`, keeps every export of every module, so a file does not depend on which entries exist. */
-	preserveModuleSignatures?: boolean;
+	/** With `preserveModules`, names each file after its module's path from `preserveModulesRoot`, with no two paths sharing a name. */
+	modulePathFileNames?: boolean;
 	root?: string;
 	externalPackages?: boolean;
 	/**
@@ -188,6 +188,16 @@ export interface BuildOptions {
 	 * smaller package stays with whatever shares it, as the bundler would place it.
 	 */
 	packageChunks?: { minSize: number };
+	/**
+	 * Puts every module of the build into one chunk named `name`, and gives each entry a small file that re-exports
+	 * the entry's own exports from it, so the chunk is the same whichever entries import it.
+	 *
+	 * @remarks
+	 * The chunk's file name has no content hash, so the files that import it keep a stable import path.
+	 */
+	singleChunk?: { name: string };
+	/** Collects the warnings of the build into the result without printing them, for a build that only checks. */
+	quietWarnings?: boolean;
 }
 
 /**

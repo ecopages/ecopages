@@ -3,10 +3,14 @@ import { path } from '@ecopages/file-system/path';
 import { expect } from 'vitest';
 import type { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 
-/** Relative imports of a served vendor file, resolved to the URLs the browser would request. */
-function relativeVendorImports(url: string, code: string): string[] {
-	const specifiers = [...code.matchAll(/(?:from|import)\s*\(?\s*["'](\.\.?\/[^"']+)["']/g)].map((match) => match[1]);
-	return specifiers.map((specifier) => path.join(path.dirname(url), specifier));
+/** The vendor files a served vendor file imports, by the URLs the browser would request: relative or absolute. */
+function vendorImports(url: string, code: string): string[] {
+	const specifiers = [
+		...code.matchAll(/(?:from|import)\s*\(?\s*["']((?:\.\.?\/|\/assets\/vendors\/)[^"']+)["']/g),
+	].map((match) => match[1]!);
+	return specifiers.map((specifier) =>
+		specifier.startsWith('/') ? specifier : path.join(path.dirname(url), specifier),
+	);
 }
 
 /** Every vendor file the browser loads for `urls`, by URL. */
@@ -24,7 +28,7 @@ export async function readVendorGraph(
 		expect(response.status).toBe(200);
 		const code = await response.text();
 		files.set(url, code);
-		pending.push(...relativeVendorImports(url, code));
+		pending.push(...vendorImports(url, code));
 	}
 	return files;
 }

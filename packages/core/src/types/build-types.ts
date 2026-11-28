@@ -15,6 +15,11 @@ export type EcoBuildOnResolveArgs = {
 export type EcoBuildOnResolveResult = {
 	path?: string;
 	external?: boolean;
+	/**
+	 * Whether importing the resolved module can have effects beyond its bindings. `false` lets the bundler drop an
+	 * import whose bindings go unused.
+	 */
+	sideEffects?: boolean;
 };
 
 /**

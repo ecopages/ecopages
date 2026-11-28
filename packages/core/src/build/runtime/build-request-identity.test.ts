@@ -81,7 +81,7 @@ test('createBuildRequestIdentity distinguishes every BuildOptions field', () => 
 		splitting: [true, false],
 		preserveModules: [true, false],
 		preserveModulesRoot: ['/in', '/other'],
-		preserveModuleSignatures: [false, true],
+		modulePathFileNames: [false, true],
 		root: ['/in', '/other'],
 		externalPackages: [true, false],
 		reportPackagesOutsideRoot: [true, false],
@@ -92,6 +92,8 @@ test('createBuildRequestIdentity distinguishes every BuildOptions field', () => 
 		workerEntries: [true, false],
 		ssrScriptEntries: [true, false],
 		packageChunks: [{ minSize: 1 }, { minSize: 2 }],
+		singleChunk: [{ name: 'a' }, { name: 'b' }],
+		quietWarnings: [false, true],
 
 		stylesheets: [
 			{ extensions: ['.css'], compileModule: async () => '' },

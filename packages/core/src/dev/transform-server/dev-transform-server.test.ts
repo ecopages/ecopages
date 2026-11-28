@@ -619,6 +619,27 @@ describe('DevTransformServer', () => {
 		return (await response?.text()) ?? '';
 	}
 
+	/** The code of a vendor file and of the files it imports, which is how a package is served: a file per entry and one for the package. */
+	async function readVendorFiles(server: DevTransformServer, url: string): Promise<string> {
+		const seen = new Set<string>();
+		const pending = [url];
+		const code: string[] = [];
+		while (pending.length > 0) {
+			const next = pending.pop()!;
+			if (seen.has(next)) continue;
+			seen.add(next);
+			const response = await server.tryHandleRequest(new Request(`http://localhost${next}`));
+			expect(response?.status).toBe(200);
+			const text = (await response?.text()) ?? '';
+			code.push(text);
+			for (const match of text.matchAll(/(?:from|import)\s*["']((?:\.\/|\/assets\/vendors\/)[^"']+)["']/gu)) {
+				const specifier = match[1]!;
+				pending.push(specifier.startsWith('/') ? specifier : path.join(path.dirname(next), specifier));
+			}
+		}
+		return code.join('\n');
+	}
+
 	function vendorBuildsUnder(bundle: { mock: { calls: unknown[][] } }, rootDir: string): number {
 		const modules = path.join(path.fromNative(fs.realpathSync(rootDir)), 'node_modules');
 		return bundle.mock.calls.filter(([options]) =>
@@ -628,7 +649,7 @@ describe('DevTransformServer', () => {
 		).length;
 	}
 
-	it('builds the vendor graph once for a module that imports five new packages', async () => {
+	it('builds each of five new packages once for a module that imports them', async () => {
 		const rootDir = createTempRoot('dev-transform-vendor-batch');
 		fs.writeFileSync(
 			path.join(rootDir, 'package.json'),
@@ -647,7 +668,7 @@ describe('DevTransformServer', () => {
 		);
 
 		expect(code.match(/\/assets\/vendors\//gu)).toHaveLength(5);
-		expect(vendorBuildsUnder(bundle, rootDir)).toBe(1);
+		expect(vendorBuildsUnder(bundle, rootDir)).toBe(5);
 	});
 
 	it.each(['constructor', 'addContributor'] as const)(
@@ -684,7 +705,7 @@ describe('DevTransformServer', () => {
 				"export { marker } from 'lib-b';\n",
 			);
 
-			expect(vendorBuildsUnder(bundle, rootDir)).toBe(1);
+			expect(vendorBuildsUnder(bundle, rootDir)).toBe(2);
 		},
 	);
 
@@ -717,11 +738,7 @@ describe('DevTransformServer', () => {
 			return url;
 		}
 
-		async function readVendor(server: DevTransformServer, url: string) {
-			const response = await server.tryHandleRequest(new Request(`http://localhost${url}`));
-			expect(response?.status).toBe(200);
-			return (await response?.text()) ?? '';
-		}
+		const readVendor = readVendorFiles;
 
 		it('serves a dependency that only the importing workspace package declares', async () => {
 			const { rootDir, hostDir, server } = await createWorkspaceApp('dev-transform-vendor-transitive');
@@ -802,8 +819,7 @@ describe('DevTransformServer', () => {
 			"import { release } from 'fixture-lib';\nexport { release };\n",
 		);
 		const vendorUrl = consumer.match(/['"](\/assets\/vendors\/[^'"]+)['"]/u)?.[1];
-		const readVendor = async () =>
-			(await server.tryHandleRequest(new Request(`http://localhost${vendorUrl}`)))?.text();
+		const readVendor = async () => readVendorFiles(server, vendorUrl!);
 		expect(await readVendor()).toContain('release-one');
 
 		writeFixturePackage(rootDir, 'fixture-lib', "export const release = 'release-two';\n");

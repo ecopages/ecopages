@@ -38,7 +38,6 @@ import { isNodeBuiltinSpecifier, nodeBuiltinSpecifiers } from '../../utils/node-
 import { createFileRoleGrammarPlugin } from './file-role-grammar-plugin.ts';
 import { createSsrScriptEntriesPlugin } from './ssr-script-entries-plugin.ts';
 import { getPreservedModuleFileName } from './preserved-module-file-name.ts';
-import { createPreservedModuleSignaturesPlugin } from './preserved-module-signatures-plugin.ts';
 import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
 import { createStylesheetModulePlugin } from './stylesheet-module-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -591,9 +590,6 @@ async function buildRolldownInputPlugins(
 		...appPlugins,
 		...(options.environment === 'browser' && options.workerEntries !== false ? [createWorkerEntriesPlugin()] : []),
 		...(options.ssrScriptEntries === true ? [createSsrScriptEntriesPlugin()] : []),
-		...(options.preserveModules && options.preserveModuleSignatures
-			? [createPreservedModuleSignaturesPlugin(Object.values(entrypoints))]
-			: []),
 	];
 }
 
@@ -613,6 +609,7 @@ async function buildRolldownInputOptions(
 		transform: buildRolldownTransformOptions(options),
 		resolve: options.conditions ? { conditionNames: options.conditions } : undefined,
 		treeshake: typeof options.treeshaking === 'boolean' ? options.treeshaking : true,
+		...(options.singleChunk ? { preserveEntrySignatures: 'strict' as const } : {}),
 		...(isEcopagesEnvEnabled('ECOPAGES_PROFILE_BUILD')
 			? {}
 			: {
@@ -731,10 +728,10 @@ function buildRolldownOutputOptions(options: BuildOptions, outdir: string): Outp
 		entryFileNames: options.preserveModules
 			? flattenPreservedModuleFileNames(
 					entryFileNames,
-					options.preserveModuleSignatures ? options.preserveModulesRoot : undefined,
+					options.modulePathFileNames ? options.preserveModulesRoot : undefined,
 				)
 			: entryFileNames,
-		chunkFileNames: '[name]-[hash].js',
+		chunkFileNames: options.singleChunk ? entryFileNames : '[name]-[hash].js',
 		assetFileNames: '[name]-[hash][extname]',
 		...(options.preserveModules
 			? {
@@ -745,8 +742,10 @@ function buildRolldownOutputOptions(options: BuildOptions, outdir: string): Outp
 						: {}),
 				}
 			: {}),
+		...(options.singleChunk ? { sanitizeFileName: sanitizePreservedModuleName } : {}),
 		sourcemap: mapRolldownSourcemap(options.sourcemap),
 		...(shouldDisableRolldownCodeSplitting(options) ? { codeSplitting: false } : {}),
+		...(options.singleChunk ? { codeSplitting: { groups: [{ name: options.singleChunk.name, test: /./u }] } } : {}),
 		...(options.packageChunks && options.splitting !== false
 			? {
 					codeSplitting: {

@@ -157,13 +157,54 @@ export async function rewriteModuleImports(options: RewriteModuleImportsOptions)
 }> {
 	const normalizedSource = path.resolve(options.sourcePath);
 	const dependencies = new Set<string>();
-	const sites: SpecifierSite[] = [];
 
 	const parseResult = parseModuleSource(normalizedSource, options.code, {
 		sourceType: 'module',
 		lang: path.extname(normalizedSource).endsWith('x') ? 'tsx' : 'ts',
 	});
+	const sites = collectSpecifierSites(parseResult.program);
 
+	const edits: ImportEdit[] = rewriteWorkerUrls(parseResult.program, options, normalizedSource, dependencies);
+	const resolvedSpecifiers = await Promise.all(
+		sites.map((site) =>
+			resolveImportSpecifier({
+				specifier: site.literal.value,
+				sourcePath: normalizedSource,
+				srcDir: options.srcDir,
+				projectRoot: options.projectRoot,
+				extraModuleRoots: options.extraModuleRoots,
+				resolveVendorImport: options.resolveVendorImport,
+				moduleVersion: options.moduleVersion,
+				dependencies,
+			}),
+		),
+	);
+	for (const [index, site] of sites.entries()) {
+		const resolved = resolvedSpecifiers[index];
+		if (!resolved) {
+			continue;
+		}
+		const edit = createSpecifierEdit(site, resolved, index, normalizedSource, options.code);
+		if (edit) edits.push(edit);
+	}
+
+	return {
+		code: applyEdits(options.code, edits),
+		dependencies: [...dependencies],
+	};
+}
+
+function applyEdits(source: string, edits: ImportEdit[]): string {
+	let code = source;
+	for (const edit of [...edits].sort((left, right) => right.start - left.start)) {
+		code = `${code.slice(0, edit.start)}${edit.replacement}${code.slice(edit.end)}`;
+	}
+	return code;
+}
+
+/** Every static import, re-export and `import()` of a module that names its source with a string literal. */
+function collectSpecifierSites(program: unknown): SpecifierSite[] {
+	const sites: SpecifierSite[] = [];
 	const walk = (node: unknown): void => {
 		if (!isRecord(node)) {
 			return;
@@ -197,56 +238,64 @@ export async function rewriteModuleImports(options: RewriteModuleImportsOptions)
 			}
 		}
 	};
+	walk(program);
+	return sites;
+}
 
-	walk(parseResult.program);
+/**
+ * The edit that points a specifier site at its resolved specifier, with the CommonJS interop when the target is
+ * CommonJS, or `undefined` when the site stays as written.
+ */
+function createSpecifierEdit(
+	site: SpecifierSite,
+	resolved: ResolvedSpecifier,
+	index: number,
+	sourcePath: string,
+	code: string,
+): ImportEdit | undefined {
+	const quote = code[site.literal.start] === "'" ? "'" : '"';
+	const quotedSpecifier = `${quote}${resolved.specifier}${quote}`;
+	const interop = resolved.commonJs ? rewriteCommonJsSite(site, quotedSpecifier, index, sourcePath) : undefined;
+	if (interop) return interop;
+	if (resolved.specifier === site.literal.value) return undefined;
+	return { start: site.literal.start, end: site.literal.end, replacement: quotedSpecifier };
+}
 
-	const edits: ImportEdit[] = rewriteWorkerUrls(parseResult.program, options, normalizedSource, dependencies);
-	const resolvedSpecifiers = await Promise.all(
-		sites.map((site) =>
-			resolveImportSpecifier({
-				specifier: site.literal.value,
-				sourcePath: normalizedSource,
-				srcDir: options.srcDir,
-				projectRoot: options.projectRoot,
-				extraModuleRoots: options.extraModuleRoots,
-				resolveVendorImport: options.resolveVendorImport,
-				moduleVersion: options.moduleVersion,
-				dependencies,
-			}),
-		),
-	);
+/**
+ * Points the imports of a package module that reach another package at that package's vendor file.
+ *
+ * @param resolve - The vendor file of a specifier, or `undefined` when the specifier stays as written.
+ * @returns The rewritten code, or `undefined` when no specifier changed.
+ *
+ * @remarks
+ * A vendor file of CommonJS is read from its default export, as an app module's import of it is.
+ */
+export async function rewriteVendorSpecifiers(options: {
+	code: string;
+	sourcePath: string;
+	resolve: (specifier: string) => VendorImport | undefined | Promise<VendorImport | undefined>;
+}): Promise<string | undefined> {
+	const sourcePath = path.resolve(options.sourcePath);
+	const extension = path.extname(sourcePath);
+	const parseResult = parseModuleSource(sourcePath, options.code, {
+		sourceType: 'module',
+		lang: extension.endsWith('x') ? 'tsx' : extension.includes('ts') ? 'ts' : 'js',
+	});
+	const sites = collectSpecifierSites(parseResult.program);
+	const edits: ImportEdit[] = [];
 	for (const [index, site] of sites.entries()) {
-		const resolved = resolvedSpecifiers[index];
-		if (!resolved) {
-			continue;
-		}
-
-		const quote = options.code[site.literal.start] === "'" ? "'" : '"';
-		const quotedSpecifier = `${quote}${resolved.specifier}${quote}`;
-		const interop = resolved.commonJs
-			? rewriteCommonJsSite(site, quotedSpecifier, index, normalizedSource)
-			: undefined;
-		if (interop) {
-			edits.push(interop);
-			continue;
-		}
-		if (resolved.specifier === site.literal.value) {
-			continue;
-		}
-
-		edits.push({ start: site.literal.start, end: site.literal.end, replacement: quotedSpecifier });
+		const vendor = await options.resolve(site.literal.value);
+		if (!vendor) continue;
+		const edit = createSpecifierEdit(
+			site,
+			{ specifier: vendor.url, commonJs: vendor.commonJs },
+			index,
+			sourcePath,
+			options.code,
+		);
+		if (edit) edits.push(edit);
 	}
-
-	edits.sort((left, right) => right.start - left.start);
-	let code = options.code;
-	for (const edit of edits) {
-		code = `${code.slice(0, edit.start)}${edit.replacement}${code.slice(edit.end)}`;
-	}
-
-	return {
-		code,
-		dependencies: [...dependencies],
-	};
+	return edits.length > 0 ? applyEdits(options.code, edits) : undefined;
 }
 
 /**

@@ -88,6 +88,7 @@ function toResolveResult(
 				? toRolldownModuleId(resolvePluginPath(result.path, importer, contextRoot))
 				: source,
 		...(typeof result.external === 'boolean' ? { external: result.external } : {}),
+		...(typeof result.sideEffects === 'boolean' ? { moduleSideEffects: result.sideEffects } : {}),
 	};
 }
 

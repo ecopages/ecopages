@@ -279,6 +279,122 @@ describe('shared navigation document loading', () => {
 			});
 		});
 
+		describe('one-use hold of a prefetched no-store page', () => {
+			const href = 'https://example.test/cart';
+			const at = (ms: number) => vi.setSystemTime(new Date(Date.UTC(2026, 0, 1, 0, 0, 0) + ms));
+
+			beforeEach(() => {
+				vi.useFakeTimers({ toFake: ['Date'] });
+				at(0);
+			});
+
+			afterEach(() => {
+				vi.useRealTimers();
+			});
+
+			it('serves the prefetched copy to the next navigation without a request', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				const page = await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+				expect(page?.html).toContain('<body>');
+			});
+
+			it('uses the copy once, then fetches again', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				await fetchNavigationPage(href);
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('serves the copy up to the end of the short window', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				at(4_000);
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+			});
+
+			it('fetches again once the short window has passed', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				at(6_000);
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('holds nothing for a navigation fetch', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href);
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('keeps the fragment of the click and the redirect target of the prefetch', async () => {
+				const fetchMock = vi.fn(async () => {
+					const response = htmlResponse('no-store');
+					Object.defineProperty(response, 'url', { value: 'https://example.test/cart/current' });
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				const page = await fetchNavigationPage(`${href}#items`);
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+				expect(page?.finalUrl.href).toBe('https://example.test/cart/current#items');
+			});
+
+			it('drops the copy when a fetch that bypasses the cache has made it stale', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				await fetchNavigationPage(href, { bypassCache: true });
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledTimes(3);
+			});
+
+			it('drops the copy when its URL is invalidated', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				invalidateNavigationHtml(href);
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('stores a cacheable prefetched page as it always did', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('public, max-age=60'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				await fetchNavigationPage(href);
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+			});
+		});
+
 		it('stores the page again once its response allows reuse', async () => {
 			const fetchMock = vi
 				.fn()

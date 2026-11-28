@@ -88,14 +88,48 @@ describe('EcoRouter fresh navigation', () => {
 			expect(document.body.innerHTML).toContain('/order visit 2');
 		});
 
-		it('fetches a no-store page on click even when hovering the link prefetched it', async () => {
+		it('shows the copy a hover prefetched of a no-store page for the click that follows, with one request', async () => {
 			serveVersionedPages({ '/order': 'no-store' });
 			fixtures.router = createRouter({ prefetch: { strategy: 'hover', delay: 0 } });
 			const link = createLink({ href: '/order', id: 'order-link' });
 
 			await userEvent.hover(link);
 			await vi.waitFor(() => expect(fixtures.fetchSpy).toHaveBeenCalledTimes(1));
+			await vi.waitFor(() => expect(fixtures.fetchSpy?.mock.results).toHaveLength(1));
 			await Promise.all([waitForNavigation(), userEvent.click(link)]);
+
+			expect(document.body.innerHTML).toContain('/order visit 1');
+			expect(fixtures.fetchSpy).toHaveBeenCalledTimes(1);
+		});
+
+		it('fetches a no-store page again for a second click after a hover prefetched it', async () => {
+			serveVersionedPages({ '/order': 'no-store' });
+			fixtures.router = createRouter({ prefetch: { strategy: 'hover', delay: 0 } });
+			const link = createLink({ href: '/order', id: 'order-link' });
+
+			await userEvent.hover(link);
+			await vi.waitFor(() => expect(fixtures.fetchSpy?.mock.results).toHaveLength(1));
+			await Promise.all([waitForNavigation(), userEvent.click(link)]);
+			await fixtures.router.navigate('/product');
+			await fixtures.router.navigate('/order');
+
+			expect(document.body.innerHTML).toContain('/order visit 2');
+		});
+
+		it('fetches a no-store page on click when the hover prefetch is older than the short window', async () => {
+			serveVersionedPages({ '/order': 'no-store' });
+			fixtures.router = createRouter({ prefetch: { strategy: 'hover', delay: 0 } });
+			const link = createLink({ href: '/order', id: 'order-link' });
+
+			await userEvent.hover(link);
+			await vi.waitFor(() => expect(fixtures.fetchSpy?.mock.results).toHaveLength(1));
+			const now = Date.now();
+			const clock = vi.spyOn(Date, 'now').mockReturnValue(now + 10_000);
+			try {
+				await Promise.all([waitForNavigation(), userEvent.click(link)]);
+			} finally {
+				clock.mockRestore();
+			}
 
 			expect(document.body.innerHTML).toContain('/order visit 2');
 		});

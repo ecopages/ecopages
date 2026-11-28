@@ -11,7 +11,24 @@ export type FetchNavigationPageOptions = {
 	signal?: AbortSignal;
 	bypassCache?: boolean;
 	priority?: 'high' | 'low' | 'auto';
+	/**
+	 * Marks the fetch as a prefetch, ahead of a click that may never come.
+	 *
+	 * @remarks
+	 * A response that forbids reuse is held for {@link HELD_NAVIGATION_HTML_MS} and handed to the next
+	 * navigation fetch of the same URL, once, so the hover and the click make one request instead of two.
+	 */
+	prefetch?: boolean;
 };
+
+/**
+ * How long a prefetched page that forbids reuse waits for its click.
+ *
+ * @remarks
+ * Long enough for a visitor to go from hovering a link to pressing it, short enough that the page the
+ * click shows is still the page the visitor saw the link for. The copy is used once, never twice.
+ */
+const HELD_NAVIGATION_HTML_MS = 5000;
 
 type CachedNavigationHtml = {
 	html: string;
@@ -21,7 +38,14 @@ type CachedNavigationHtml = {
 	maxAgeMs: number | null;
 };
 
+type HeldNavigationHtml = {
+	html: string;
+	finalHref: string;
+	expiresAt: number;
+};
+
 const navigationHtmlCache = new Map<string, CachedNavigationHtml>();
+const heldNavigationHtml = new Map<string, HeldNavigationHtml>();
 const finalUrlByRequest = new Map<string, string>();
 
 function getCacheKey(href: string | URL): string {
@@ -86,6 +110,15 @@ export function invalidateNavigationHtml(href: string | URL): void {
 	}
 	navigationHtmlCache.delete(key);
 	navigationHtmlCache.delete(finalKey);
+	heldNavigationHtml.delete(key);
+	heldNavigationHtml.delete(finalKey);
+}
+
+/** Removes and returns the copy a prefetch held for a URL, or `null` when none is held or it timed out. */
+function takeHeldNavigationHtml(key: string): HeldNavigationHtml | null {
+	const held = heldNavigationHtml.get(key);
+	heldNavigationHtml.delete(key);
+	return held && held.expiresAt >= Date.now() ? held : null;
 }
 
 /**
@@ -143,6 +176,33 @@ export function parseNavigationDocument(html: string, finalUrl: URL): Document {
 }
 
 /**
+ * Keeps a fetched document for later navigations as its `Cache-Control` allows.
+ *
+ * @remarks
+ * A page that forbids reuse stays out of the cache and any copy held for its URLs is dropped. When the fetch
+ * was a prefetch, that one response is kept in the one-use hold instead, so the click it was fetched for does
+ * not request the page again.
+ */
+function storeFetchedHtml(requestedUrl: URL, html: string, finalUrl: URL, headers: Headers, prefetch: boolean): void {
+	if (!forbidsReuse(headers)) {
+		cacheNavigationHtml(requestedUrl, html, finalUrl, { maxAge: readMaxAge(headers) });
+		return;
+	}
+
+	invalidateNavigationHtml(requestedUrl);
+	invalidateNavigationHtml(finalUrl);
+	if (!prefetch) return;
+
+	const finalHref = new URL(finalUrl);
+	finalHref.hash = '';
+	heldNavigationHtml.set(getCacheKey(requestedUrl), {
+		html,
+		finalHref: finalHref.href,
+		expiresAt: Date.now() + HELD_NAVIGATION_HTML_MS,
+	});
+}
+
+/**
  * Fetches, validates, caches, and parses an HTML document for client navigation.
  *
  * @remarks
@@ -151,7 +211,9 @@ export function parseNavigationDocument(html: string, finalUrl: URL): Document {
  * both navigation runtimes. A response with `Cache-Control: no-store` or an unqualified `no-cache` is parsed
  * and returned but not cached, and any copy held for its URLs is dropped, so the next navigation to that URL
  * fetches it again. A copy older than the positive `max-age` of its response counts as missing, so a page
- * sent with `{ revalidate: N }` is fetched again once N seconds have passed.
+ * sent with `{ revalidate: N }` is fetched again once N seconds have passed. A `prefetch` of a page that forbids
+ * reuse is the one exception to not caching it: the copy waits a few seconds for the click and answers one
+ * navigation fetch, so a hover and its click request the page once.
  */
 export async function fetchNavigationPage(
 	href: string | URL,
@@ -160,7 +222,14 @@ export async function fetchNavigationPage(
 	const requestedUrl = new URL(href, window.location.href);
 	const requestCacheKey = getCacheKey(requestedUrl);
 	let html = options.bypassCache ? null : getCachedNavigationHtml(requestedUrl);
-	const cachedFinalHref = finalUrlByRequest.get(requestCacheKey);
+	let cachedFinalHref = finalUrlByRequest.get(requestCacheKey);
+	if (html === null && !options.bypassCache && !options.prefetch) {
+		const held = takeHeldNavigationHtml(requestCacheKey);
+		if (held) {
+			html = held.html;
+			cachedFinalHref = held.finalHref;
+		}
+	}
 	let finalUrl = new URL(cachedFinalHref ?? requestedUrl.href);
 	if (requestedUrl.hash) {
 		finalUrl.hash = requestedUrl.hash;
@@ -186,12 +255,7 @@ export async function fetchNavigationPage(
 		if (requestedUrl.hash) {
 			finalUrl.hash = requestedUrl.hash;
 		}
-		if (forbidsReuse(response.headers)) {
-			invalidateNavigationHtml(requestedUrl);
-			invalidateNavigationHtml(finalUrl);
-		} else {
-			cacheNavigationHtml(requestedUrl, html, finalUrl, { maxAge: readMaxAge(response.headers) });
-		}
+		storeFetchedHtml(requestedUrl, html, finalUrl, response.headers, options.prefetch === true);
 	}
 
 	return {
@@ -205,5 +269,6 @@ export async function fetchNavigationPage(
 /** Clears cached navigation HTML and redirect mappings. */
 export function clearNavigationHtmlCache(): void {
 	navigationHtmlCache.clear();
+	heldNavigationHtml.clear();
 	finalUrlByRequest.clear();
 }

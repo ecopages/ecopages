@@ -113,7 +113,7 @@ export class PrefetchManager {
 		this.prefetched.add(url.href);
 
 		try {
-			const page = await fetchNavigationPage(url, { priority: 'low' });
+			const page = await fetchNavigationPage(url, { priority: 'low', prefetch: true });
 			if (!page) {
 				this.prefetched.delete(url.href);
 				return;

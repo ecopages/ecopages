@@ -183,6 +183,55 @@ describe('PrefetchManager', () => {
 		});
 	});
 
+	describe('one-use hold of a no-store page', () => {
+		const noStore = async () =>
+			new Response(HTML, { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' } });
+
+		beforeEach(() => {
+			fetchSpy.mockImplementation(noStore);
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		async function hover(id: string): Promise<void> {
+			await userEvent.hover(link(id));
+			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+			await vi.waitFor(() => expect(fetchSpy.mock.results.length).toBe(fetchSpy.mock.calls.length));
+		}
+
+		it('answers the click that follows a hover from the prefetched copy', async () => {
+			startManager(`<a id="cart" href="${destination('hold-click')}">Cart</a>`);
+			await hover('cart');
+
+			await fetchNavigationPage(destination('hold-click'));
+
+			expect(requestedTests()).toEqual(['hold-click']);
+		});
+
+		it('fetches again on a second click', async () => {
+			startManager(`<a id="cart" href="${destination('hold-twice')}">Cart</a>`);
+			await hover('cart');
+
+			await fetchNavigationPage(destination('hold-twice'));
+			await fetchNavigationPage(destination('hold-twice'));
+
+			expect(requestedTests()).toEqual(['hold-twice', 'hold-twice']);
+		});
+
+		it('fetches again when the click comes after the short window', async () => {
+			vi.useFakeTimers({ toFake: ['Date'] });
+			startManager(`<a id="cart" href="${destination('hold-late')}">Cart</a>`);
+			await hover('cart');
+
+			vi.advanceTimersByTime(10_000);
+			await fetchNavigationPage(destination('hold-late'));
+
+			expect(requestedTests()).toEqual(['hold-late', 'hold-late']);
+		});
+	});
+
 	describe('priority images', () => {
 		const IMAGE_FILE = '/packages/browser-router/test/fixtures/pixel.svg';
 

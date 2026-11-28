@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Page, Response } from '@playwright/test';
 import { expect, test } from '../../app-fixture.ts';
 import { gotoAndWait } from '../../utils/test-helpers';
 
@@ -47,6 +47,30 @@ test.describe('Browser Router Cache-Control', () => {
 		await expect(page.locator('[data-testid="dynamic-page"]')).toBeVisible();
 
 		await expect(page.locator('[data-testid="render-count"]')).not.toHaveText(firstVisit!);
+		expect(dynamicFetches()).toBe(2);
+	});
+
+	test('requests a dynamic page once for a hover and the click that follows, then again for the next click', async ({
+		page,
+	}) => {
+		const dynamicFetches = trackRouterFetches(page, '/cache-control/dynamic');
+		await gotoAndWait(page, '/cache-control/static');
+		const isDynamicFetch = (response: Response) =>
+			response.request().resourceType() === 'fetch' &&
+			new URL(response.url()).pathname === '/cache-control/dynamic';
+
+		const prefetched = page.waitForResponse(isDynamicFetch);
+		await page.locator('[data-testid="link-dynamic-hover"]').hover();
+		await (await prefetched).finished();
+		await page.locator('[data-testid="link-dynamic-hover"]').click();
+		await expect(page.locator('[data-testid="dynamic-page"]')).toBeVisible();
+		expect(dynamicFetches()).toBe(1);
+
+		await page.locator('[data-testid="link-static"]').click();
+		await expect(page.locator('[data-testid="static-page"]')).toBeVisible();
+		await page.locator('[data-testid="link-dynamic"]').click();
+		await expect(page.locator('[data-testid="dynamic-page"]')).toBeVisible();
+
 		expect(dynamicFetches()).toBe(2);
 	});
 

@@ -36,6 +36,47 @@ describe('normalizePreservedModuleOutput', () => {
 		expect(user.code).not.toContain('dep_exports');
 	});
 
+	it('turns a namespace re-export of the owner into `export * as`', () => {
+		const dep = chunk(
+			'dep.js',
+			'import { __exportAll } from "./runtime.js";\nvar dep_exports = /* @__PURE__ */ __exportAll({ a: () => "a" });\nconst a = "a";\nexport { a, dep_exports };\n',
+		);
+		const entry = chunk('entry.js', 'export { dep_exports as ns, a as first } from "./dep.js";\n');
+
+		normalizePreservedModuleOutput([dep, entry], new Set());
+
+		expect(dep.code).toBe('const a = "a";\nexport { a };\n');
+		expect(entry.code).toContain('export { a as first } from "./dep.js";');
+		expect(entry.code).toContain('export * as ns from "./dep.js";');
+		expect(entry.code).not.toContain('dep_exports');
+	});
+
+	it('recognises the namespace helper under the alias Rolldown gives it when the module has an export of that name', () => {
+		const dep = chunk(
+			'dep.js',
+			'import { __exportAll as __exportAll$1 } from "./runtime.js";\nvar dep_exports = /* @__PURE__ */ __exportAll$1({ a: () => "a" });\nconst a = "a";\nexport { a, dep_exports };\n',
+		);
+		const user = chunk(
+			'user.js',
+			'import { dep_exports } from "./dep.js";\nexport const keys = Object.keys(dep_exports);\n',
+		);
+
+		normalizePreservedModuleOutput([dep, user], new Set());
+
+		expect(dep.code).toBe('const a = "a";\nexport { a };\n');
+		expect(user.code).toContain('import * as dep_exports from "./dep.js";');
+	});
+
+	it('leaves a module alone whose file exports an init function, which a native namespace would list as a key', () => {
+		const code =
+			'import { __esmMin, __exportAll } from "./runtime.js";\nvar dep_exports = /* @__PURE__ */ __exportAll({ a: () => "a" });\nvar a;\nvar init_dep = __esmMin(() => {\n\ta = "a";\n});\nexport { a, dep_exports, init_dep };\n';
+		const dep = chunk('dep.js', code);
+
+		normalizePreservedModuleOutput([dep], new Set());
+
+		expect(dep.code).toBe(code);
+	});
+
 	it('leaves a file alone when the module also reads its own namespace', () => {
 		const code = [
 			'import { __exportAll } from "./runtime.js";',

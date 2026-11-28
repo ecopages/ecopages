@@ -42,40 +42,121 @@ function removeStatement(code: MagicString, source: string, node: AstNode): void
 	code.remove(node.start, end);
 }
 
+const NAMESPACE_HELPER = /^__exportAll(?:\$\d+)?$/u;
+const INIT_FUNCTION = /^init_/u;
+
+type NamespaceOwner = {
+	declaration: AstNode;
+	helper: string;
+	local: string;
+	exported: string;
+	exportStatement: AstNode;
+};
+
 /**
- * The name of the namespace object a module file declares for the modules that read it as a value, with the
- * statement that declares it.
+ * Whether a statement exports an `init_x` function, which Rolldown writes for an ES module that a CommonJS module
+ * requires. A native namespace would list it as a key, so such a module keeps its own namespace object.
+ */
+function exportsInitFunction(statement: AstNode): boolean {
+	return (
+		statement.type === 'ExportNamedDeclaration' &&
+		!statement.source &&
+		nodes(statement.specifiers).some((specifier) => INIT_FUNCTION.test(nameOf(specifier.exported) ?? ''))
+	);
+}
+
+/** Removes the specifier at `index` of a specifier list, with the comma that joins it to its neighbour. */
+function removeSpecifier(edited: MagicString, specifiers: AstNode[], index: number): void {
+	const specifier = specifiers[index]!;
+	const next = specifiers[index + 1];
+	if (next) edited.remove(specifier.start, next.start);
+	else edited.remove(specifiers[index - 1]!.end, specifier.end);
+}
+
+/** The helper and the name of a statement `var x = __exportAll({...})`, when it is one. */
+function readNamespaceDeclaration(statement: AstNode): { helper: string; local: string } | undefined {
+	if (statement.type !== 'VariableDeclaration') return undefined;
+	const declarator = nodes(statement.declarations)[0];
+	const init = declarator?.init;
+	const helper = isNode(init) && init.type === 'CallExpression' ? nameOf(init.callee) : undefined;
+	const local = nameOf(declarator?.id);
+	return helper && local && NAMESPACE_HELPER.test(helper) ? { helper, local } : undefined;
+}
+
+/**
+ * The namespace object a module file declares for the modules that read it as a value, with the statements that
+ * declare and export it.
  *
  * @remarks
  * Rolldown writes `var x_exports = __exportAll({...})` and exports it when another module uses `import * as ns`
  * as a value, such as `Object.keys(ns)`. A file is recognised only when that name appears nowhere else in it than
  * the declaration and the export, so a module that uses its own namespace is left alone.
  */
-function findNamespaceDeclaration(
-	chunk: PreservedModuleChunk,
-	body: AstNode[],
-): { declaration: AstNode; local: string; exported: string; exportStatement: AstNode } | undefined {
-	for (const statement of body) {
-		if (statement.type !== 'VariableDeclaration') continue;
-		const declarator = nodes(statement.declarations)[0];
-		const init = declarator?.init;
-		if (!isNode(init) || init.type !== 'CallExpression' || nameOf(init.callee) !== '__exportAll') continue;
-		const local = nameOf(declarator?.id);
-		if (!local || countWord(chunk.code, local) !== 2) continue;
+function findNamespaceOwner(chunk: PreservedModuleChunk, body: AstNode[]): NamespaceOwner | undefined {
+	if (body.some(exportsInitFunction)) return undefined;
+	for (const declaration of body) {
+		const declared = readNamespaceDeclaration(declaration);
+		if (!declared || countWord(chunk.code, declared.local) !== 2) continue;
 		for (const exportStatement of body) {
 			if (exportStatement.type !== 'ExportNamedDeclaration' || exportStatement.source) continue;
-			const specifier = nodes(exportStatement.specifiers).find((candidate) => nameOf(candidate.local) === local);
+			const specifier = nodes(exportStatement.specifiers).find(
+				(candidate) => nameOf(candidate.local) === declared.local,
+			);
 			if (specifier) {
 				return {
-					declaration: statement,
-					local,
-					exported: nameOf(specifier.exported) ?? local,
+					...declared,
+					declaration,
+					exported: nameOf(specifier.exported) ?? declared.local,
 					exportStatement,
 				};
 			}
 		}
 	}
 	return undefined;
+}
+
+function removeNamespaceObject(chunk: PreservedModuleChunk, owner: NamespaceOwner): void {
+	const edited = new MagicString(chunk.code);
+	removeStatement(edited, chunk.code, owner.declaration);
+	const specifiers = nodes(owner.exportStatement.specifiers);
+	if (specifiers.length === 1) removeStatement(edited, chunk.code, owner.exportStatement);
+	else {
+		removeSpecifier(
+			edited,
+			specifiers,
+			specifiers.findIndex((specifier) => nameOf(specifier.local) === owner.local),
+		);
+	}
+	chunk.code = removeUnusedHelperImport(edited.toString(), chunk, owner.helper);
+}
+
+/** Rewrites the imports and re-exports of the owners' namespace objects in a chunk to the owners' real namespaces. */
+function importNativeNamespaces(chunk: PreservedModuleChunk, owners: ReadonlyMap<string, NamespaceOwner>): void {
+	const edited = new MagicString(chunk.code);
+	let changed = false;
+	for (const statement of parseModule(chunk)) {
+		const isImport = statement.type === 'ImportDeclaration';
+		if (!isImport && !(statement.type === 'ExportNamedDeclaration' && statement.source)) continue;
+		const source = nameOf(statement.source);
+		const owner = source === undefined ? undefined : owners.get(source.replace(/^\.\//u, ''));
+		const specifiers = nodes(statement.specifiers);
+		const namespace = owner
+			? specifiers.find((specifier) => nameOf(isImport ? specifier.imported : specifier.local) === owner.exported)
+			: undefined;
+		if (!namespace) continue;
+		const kept = specifiers
+			.filter((specifier) => specifier !== namespace)
+			.map((specifier) => chunk.code.slice(specifier.start, specifier.end));
+		const quoted = JSON.stringify(source);
+		const keptStatement =
+			kept.length > 0 ? `${isImport ? 'import' : 'export'} { ${kept.join(', ')} } from ${quoted};\n` : '';
+		const namespaceStatement = isImport
+			? `import * as ${nameOf(namespace.local)} from ${quoted};`
+			: `export * as ${nameOf(namespace.exported)} from ${quoted};`;
+		edited.overwrite(statement.start, statement.end, `${keptStatement}${namespaceStatement}`);
+		changed = true;
+	}
+	if (changed) chunk.code = edited.toString();
 }
 
 /**
@@ -89,51 +170,14 @@ function findNamespaceDeclaration(
  * stays as it was.
  */
 function useNativeNamespaces(chunks: PreservedModuleChunk[]): void {
-	const owners = new Map<string, { local: string; exported: string }>();
+	const owners = new Map<string, NamespaceOwner>();
 	for (const chunk of chunks) {
-		const body = parseModule(chunk);
-		const found = findNamespaceDeclaration(chunk, body);
-		if (!found) continue;
-		owners.set(chunk.fileName, found);
-		const edited = new MagicString(chunk.code);
-		removeStatement(edited, chunk.code, found.declaration);
-		const specifiers = nodes(found.exportStatement.specifiers);
-		if (specifiers.length === 1) {
-			removeStatement(edited, chunk.code, found.exportStatement);
-		} else {
-			const index = specifiers.findIndex((specifier) => nameOf(specifier.local) === found.local);
-			const specifier = specifiers[index]!;
-			const next = specifiers[index + 1];
-			if (next) edited.remove(specifier.start, next.start);
-			else edited.remove(specifiers[index - 1]!.end, specifier.end);
-		}
-		chunk.code = removeUnusedHelperImport(edited.toString(), chunk, '__exportAll');
+		const owner = findNamespaceOwner(chunk, parseModule(chunk));
+		if (!owner) continue;
+		owners.set(chunk.fileName, owner);
+		removeNamespaceObject(chunk, owner);
 	}
-
-	for (const chunk of chunks) {
-		const edited = new MagicString(chunk.code);
-		let changed = false;
-		for (const statement of parseModule(chunk)) {
-			if (statement.type !== 'ImportDeclaration') continue;
-			const source = nameOf(statement.source);
-			const owner = source === undefined ? undefined : owners.get(source.replace(/^\.\//u, ''));
-			if (!owner) continue;
-			const specifiers = nodes(statement.specifiers);
-			const namespace = specifiers.find((specifier) => nameOf(specifier.imported) === owner.exported);
-			if (!namespace) continue;
-			const local = nameOf(namespace.local)!;
-			const rest = specifiers.filter((specifier) => specifier !== namespace);
-			const kept = rest.map((specifier) => chunk.code.slice(specifier.start, specifier.end));
-			const quoted = JSON.stringify(source);
-			edited.overwrite(
-				statement.start,
-				statement.end,
-				`${kept.length > 0 ? `import { ${kept.join(', ')} } from ${quoted};\n` : ''}import * as ${local} from ${quoted};`,
-			);
-			changed = true;
-		}
-		if (changed) chunk.code = edited.toString();
-	}
+	for (const chunk of chunks) importNativeNamespaces(chunk, owners);
 }
 
 function removeUnusedHelperImport(code: string, chunk: PreservedModuleChunk, helper: string): string {
@@ -145,12 +189,7 @@ function removeUnusedHelperImport(code: string, chunk: PreservedModuleChunk, hel
 		const index = specifiers.findIndex((specifier) => nameOf(specifier.local) === helper);
 		if (index === -1) continue;
 		if (specifiers.length === 1) removeStatement(edited, code, statement);
-		else {
-			const specifier = specifiers[index]!;
-			const next = specifiers[index + 1];
-			if (next) edited.remove(specifier.start, next.start);
-			else edited.remove(specifiers[index - 1]!.end, specifier.end);
-		}
+		else removeSpecifier(edited, specifiers, index);
 	}
 	return edited.toString();
 }

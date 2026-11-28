@@ -4,7 +4,7 @@
  * @module prefetch-manager
  */
 
-import { fetchNavigationPage, invalidateNavigationHtml } from '@ecopages/core/client';
+import { fetchNavigationPage, getCachedNavigationHtml, invalidateNavigationHtml } from '@ecopages/core/client';
 import { isSamePageHref, shouldPrefetchLink } from '@ecopages/core/client';
 import { discoverPriorityImages, warmPriorityImage } from '../dom/image-discovery.ts';
 import { discoverNewStylesheetLinks, getCurrentStylesheetHrefs } from '../dom/stylesheet-discovery.ts';
@@ -44,6 +44,7 @@ const MAX_PREFETCH_IMAGES = 2;
 export class PrefetchManager {
 	private options: PrefetchOptions;
 	private prefetched: Set<string> = new Set();
+	private cachedPrefetches: Set<string> = new Set();
 	private prefetchedStylesheets: Set<string> = new Set();
 	private prefetchedImages: Set<string> = new Set();
 	private observer: IntersectionObserver | null = null;
@@ -106,7 +107,7 @@ export class PrefetchManager {
 		const url = new URL(href, window.location.origin);
 
 		if (url.origin !== window.location.origin) return;
-		if (this.prefetched.has(url.href)) return;
+		if (this.isPrefetched(url.href)) return;
 
 		if (isSamePageHref(url.href)) return;
 
@@ -119,6 +120,7 @@ export class PrefetchManager {
 				return;
 			}
 
+			this.recordIfCached(url);
 			if (this.options.images) this.prefetchImages(page.document);
 			await this.prefetchStylesheets(page.document);
 		} catch {
@@ -130,6 +132,7 @@ export class PrefetchManager {
 		const url = new URL(href, window.location.origin);
 		invalidateNavigationHtml(url);
 		this.prefetched.delete(url.href);
+		this.cachedPrefetches.delete(url.href);
 	}
 
 	/**
@@ -148,6 +151,29 @@ export class PrefetchManager {
 		if (url.origin !== window.location.origin) return;
 
 		this.prefetched.add(url.href);
+		this.recordIfCached(url);
+	}
+
+	/**
+	 * Reports whether a page was prefetched or visited and its copy is still there to use.
+	 *
+	 * @remarks
+	 * A page whose copy went into the navigation cache is forgotten once that copy is gone, expired after its
+	 * `max-age` or invalidated, so the next hover warms it again. A page that never entered the cache, a
+	 * `no-store` page, stays prefetched: forgetting it would render it again on every hover.
+	 */
+	private isPrefetched(href: string): boolean {
+		if (!this.prefetched.has(href)) return false;
+		if (this.cachedPrefetches.has(href) && getCachedNavigationHtml(href) === null) {
+			this.prefetched.delete(href);
+			this.cachedPrefetches.delete(href);
+			return false;
+		}
+		return true;
+	}
+
+	private recordIfCached(url: URL): void {
+		if (getCachedNavigationHtml(url) !== null) this.cachedPrefetches.add(url.href);
 	}
 
 	/**
@@ -302,7 +328,7 @@ export class PrefetchManager {
 	 * @param eager - If true, prefetch immediately without waiting for idle
 	 */
 	private scheduleIdlePrefetch(href: string, eager: boolean = false): void {
-		if (this.prefetched.has(href)) return;
+		if (this.isPrefetched(href)) return;
 
 		const prefetch = () => this.prefetch(href);
 
@@ -328,7 +354,7 @@ export class PrefetchManager {
 	 * @param delay - Milliseconds to wait before prefetching
 	 */
 	private scheduleHoverPrefetch(href: string, delay: number = this.options.delay): void {
-		if (this.prefetched.has(href)) return;
+		if (this.isPrefetched(href)) return;
 		if (this.hoverTimeouts.has(href)) return;
 
 		const timeout = setTimeout(() => {

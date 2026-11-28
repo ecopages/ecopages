@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { userEvent } from 'vitest/browser';
-import { clearNavigationHtmlCache, fetchNavigationPage, getCachedNavigationHtml } from '@ecopages/core/client';
+import {
+	clearNavigationHtmlCache,
+	fetchNavigationPage,
+	getCachedNavigationHtml,
+	invalidateNavigationHtml,
+} from '@ecopages/core/client';
 import { PrefetchManager, type PrefetchOptions } from '../src/client/services/prefetch-manager.ts';
 
 const HTML = '<html><head></head><body></body></html>';
@@ -203,6 +208,78 @@ describe('PrefetchManager', () => {
 			await fetchNavigationPage(destination('hold-click'));
 
 			expect(requestedTests()).toEqual(['hold-click']);
+		});
+	});
+
+	describe('pages that expire', () => {
+		const revalidating = async () =>
+			new Response(HTML, { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=60' } });
+		const at = (seconds: number) => vi.setSystemTime(new Date(Date.UTC(2026, 0, 1) + seconds * 1000));
+
+		beforeEach(() => {
+			fetchSpy.mockImplementation(revalidating);
+			vi.useFakeTimers({ toFake: ['Date'] });
+			at(0);
+		});
+
+		it('does not prefetch a page again while its copy is fresh', async () => {
+			const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+			const href = new URL(destination('fresh'), window.location.href).href;
+
+			await prefetchManager.prefetch(href);
+			at(30);
+			await prefetchManager.prefetch(href);
+
+			expect(requestedTests()).toEqual(['fresh']);
+		});
+
+		it('prefetches a page again once its copy has expired', async () => {
+			const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+			const href = new URL(destination('expired'), window.location.href).href;
+
+			await prefetchManager.prefetch(href);
+			at(61);
+			await prefetchManager.prefetch(href);
+
+			expect(requestedTests()).toEqual(['expired', 'expired']);
+		});
+
+		it('prefetches a page again once its copy was invalidated elsewhere', async () => {
+			const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+			const href = new URL(destination('invalidated'), window.location.href).href;
+
+			await prefetchManager.prefetch(href);
+			invalidateNavigationHtml(href);
+			await prefetchManager.prefetch(href);
+
+			expect(requestedTests()).toEqual(['invalidated', 'invalidated']);
+		});
+
+		it('prefetches a visited page again once its copy has expired', async () => {
+			const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+			const href = new URL(destination('visited-expired'), window.location.href).href;
+
+			await fetchNavigationPage(href);
+			prefetchManager.markVisited(href);
+			at(61);
+			await prefetchManager.prefetch(href);
+
+			expect(requestedTests()).toEqual(['visited-expired', 'visited-expired']);
+		});
+
+		it('prefetches a no-store page once however long ago, so a hover does not render it again', async () => {
+			fetchSpy.mockImplementation(
+				async () =>
+					new Response(HTML, { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' } }),
+			);
+			const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+			const href = new URL(destination('no-store-late'), window.location.href).href;
+
+			await prefetchManager.prefetch(href);
+			at(3600);
+			await prefetchManager.prefetch(href);
+
+			expect(requestedTests()).toEqual(['no-store-late']);
 		});
 	});
 

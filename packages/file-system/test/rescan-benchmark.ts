@@ -4,7 +4,7 @@
  *
  * @remarks
  * Watches the kitchen-sink playground (or the folder given) the way the dev server does, skipping installed
- * packages and build output, and times `RecursiveFileWatcher.rescanNow()` on a quiet tree with mitata. It prints
+ * packages and build output, and times `rescanNow(watcher)` on a quiet tree with mitata. It prints
  * the number of entries a rescan checks and of `ignored` calls it makes, and the wait the watcher would take before
  * the next rescan, so the factor and the cap in `safety-rescan.ts` can be tuned from numbers.
  */
@@ -12,7 +12,7 @@
 import { bench, run } from 'mitata';
 import { readdirSync } from 'node:fs';
 import { path } from '../src/path.ts';
-import { RecursiveFileWatcher } from '../src/adapters/recursive-file-watcher.ts';
+import { RecursiveFileWatcher, rescanNow } from '../src/adapters/recursive-file-watcher.ts';
 import { nextRescanWaitMs, SAFETY_RESCAN_DEFAULT_MS } from '../src/adapters/safety-rescan.ts';
 
 const IGNORED_FOLDERS = new Set(['node_modules', '.git', '.eco', 'dist', '.data', 'results']);
@@ -53,7 +53,7 @@ await watcher.ready;
 
 ignoredCalls = 0;
 const startedAt = performance.now();
-await watcher.rescanNow();
+await rescanNow(watcher);
 const firstDuration = performance.now() - startedAt;
 const callsPerRescan = ignoredCalls;
 
@@ -64,7 +64,7 @@ console.log(
 );
 
 bench('rescanNow on a quiet tree', async () => {
-	await watcher.rescanNow();
+	await rescanNow(watcher);
 });
 
 await run();

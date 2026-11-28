@@ -25,9 +25,28 @@ type WatchedPath = {
 };
 
 /**
- * The paths of one scan that `ignored` accepted, with every ancestor up to the watched path, for each watched path.
+ * What one scan of a watch root has found so far.
+ *
+ * @remarks
+ * A scan walks a folder before its children, so the paths `ignored` accepted stand for their ancestors: `ignored`
+ * runs once for an entry instead of once for the entry and each ancestor.
  */
-type AcceptedPaths = Map<WatchedPath, Set<string>>;
+class RootScan {
+	public readonly entries = new Set<string>();
+	public readonly changedEntries = new Set<string>();
+	public readonly unreadableDirectories = new Set<string>();
+	private readonly accepted = new Map<WatchedPath, Set<string>>();
+
+	public acceptedFor(watchedPath: WatchedPath): ReadonlySet<string> | undefined {
+		return this.accepted.get(watchedPath);
+	}
+
+	public accept(watchedPath: WatchedPath, reportedPath: string): void {
+		const acceptedForPath = this.accepted.get(watchedPath) ?? new Set<string>();
+		acceptedForPath.add(reportedPath);
+		this.accepted.set(watchedPath, acceptedForPath);
+	}
+}
 
 type WatchRoot = {
 	path: string;
@@ -72,6 +91,19 @@ export interface RecursiveFileWatcherInternals {
 	rescans?: boolean;
 }
 
+let rescanWatcher: (watcher: RecursiveFileWatcher) => Promise<void>;
+
+/**
+ * Runs one safety rescan of `watcher` now, and resolves when it has reported what differs.
+ *
+ * @remarks
+ * For the tests and the rescan benchmark. The rescan stays private to the class: the class hands this function
+ * access from a static block, so `RecursiveFileWatcher` has no public member for it.
+ */
+export function rescanNow(watcher: RecursiveFileWatcher): Promise<void> {
+	return rescanWatcher(watcher);
+}
+
 /**
  * Watches requested filesystem paths with native directory watchers.
  *
@@ -80,6 +112,10 @@ export interface RecursiveFileWatcherInternals {
  * removals. Indexing emits no initial changes.
  */
 export class RecursiveFileWatcher implements FileWatcher {
+	static {
+		rescanWatcher = (watcher) => watcher.rescan();
+	}
+
 	public readonly ready: Promise<void>;
 	private readonly options: WatchOptions;
 	private readonly watchedPaths: WatchedPath[] = [];
@@ -215,6 +251,11 @@ export class RecursiveFileWatcher implements FileWatcher {
 	 * large tree is scanned rarely, but never more than five intervals, so a missed change is reported within a
 	 * bounded time even when the volume is slow. `close()` stops the timer. The `ignored` callback runs for every
 	 * entry on every rescan, so it should be cheap.
+	 *
+	 * A rescan sees what is on disk when it runs, so it recovers a change that is still there. A file created and
+	 * deleted again between two rescans, or between `ready` and the first rescan on macOS when the native stream
+	 * has not started, is never reported: neither its creation nor its removal. That is a limit of recovering by
+	 * rescan, not a case a faster rescan would close.
 	 */
 	private startSafetyRescans(): void {
 		if (this.safetyRescanTimer || this.closed || !this.rescansEnabled) return;
@@ -275,7 +316,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 
 	private async runSafetyRescan(): Promise<void> {
 		const startedAt = performance.now();
-		await this.rescanNow();
+		await this.rescan();
 		this.safetyRescanTimer = undefined;
 		this.scheduleSafetyRescan(nextRescanWaitMs(performance.now() - startedAt, this.safetyRescanMs));
 	}
@@ -284,10 +325,10 @@ export class RecursiveFileWatcher implements FileWatcher {
 	 * Checks every watched root against the index once, and reports what differs.
 	 *
 	 * @remarks
-	 * The rescan timer calls this; the safety rescan benchmark does too, to time one rescan of a real tree. It does
-	 * nothing while the index is being built.
+	 * The rescan timer calls this; {@link rescanNow} lets the tests and the safety rescan benchmark call it too. It
+	 * does nothing while the index is being built.
 	 */
-	public async rescanNow(): Promise<void> {
+	private async rescan(): Promise<void> {
 		this.rescanReports.prune();
 		if (this.indexing) return;
 		await this.rescanSafely(() => this.followMissingPaths());
@@ -559,44 +600,26 @@ export class RecursiveFileWatcher implements FileWatcher {
 			}
 	}
 
-	private async scanWatchRoot(root: WatchRoot): Promise<{
-		entries: Set<string>;
-		changedEntries: Set<string>;
-		unreadableDirectories: Set<string>;
-	}> {
-		const entries = new Set<string>();
-		const changedEntries = new Set<string>();
-		const unreadableDirectories = new Set<string>();
+	private async scanWatchRoot(root: WatchRoot): Promise<RootScan> {
+		const scan = new RootScan();
 		let rootStats: Stats | undefined;
 		try {
 			rootStats = await tryStatAsync(root.path);
 		} catch (error) {
 			if (isPermissionError(error)) {
-				unreadableDirectories.add(root.path);
-				return { entries, changedEntries, unreadableDirectories };
+				scan.unreadableDirectories.add(root.path);
+				return scan;
 			}
 			throw error;
 		}
-		const accepted: AcceptedPaths = new Map();
 		let canRecurse = !root.recursive;
-		if (root.recursive && rootStats)
-			canRecurse = this.collectReconciliationEntry(root.path, rootStats, entries, changedEntries, accepted);
+		if (root.recursive && rootStats) canRecurse = this.collectReconciliationEntry(root.path, rootStats, scan);
 		if (rootStats?.isDirectory() && canRecurse)
-			await this.collectReconciliationChildren(
-				root.path,
-				root.recursive,
-				entries,
-				changedEntries,
-				unreadableDirectories,
-				accepted,
-			);
-		return { entries, changedEntries, unreadableDirectories };
+			await this.collectReconciliationChildren(root.path, root.recursive, scan);
+		return scan;
 	}
 
-	private getRemovedReconciliationEntries(
-		root: WatchRoot,
-		snapshot: { entries: Set<string>; unreadableDirectories: Set<string> },
-	): Array<[string, EntryKind]> {
+	private getRemovedReconciliationEntries(root: WatchRoot, snapshot: RootScan): Array<[string, EntryKind]> {
 		const removedEntries = [...this.knownEntries.entries()]
 			.filter(
 				([entryPath]) =>
@@ -654,10 +677,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 	private async collectReconciliationChildren(
 		directoryPath: string,
 		recursive: boolean,
-		entries: Set<string>,
-		changedEntries: Set<string>,
-		unreadableDirectories: Set<string>,
-		accepted: AcceptedPaths,
+		scan: RootScan,
 	): Promise<void> {
 		let children;
 		try {
@@ -665,7 +685,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 		} catch (error) {
 			if (isMissingPathError(error)) return;
 			if (isPermissionError(error)) {
-				unreadableDirectories.add(directoryPath);
+				scan.unreadableDirectories.add(directoryPath);
 				return;
 			}
 			throw error;
@@ -678,22 +698,15 @@ export class RecursiveFileWatcher implements FileWatcher {
 				stats = await tryLstatAsync(childPath);
 			} catch (error) {
 				if (isPermissionError(error)) {
-					unreadableDirectories.add(childPath);
+					scan.unreadableDirectories.add(childPath);
 					continue;
 				}
 				throw error;
 			}
 			if (!stats) continue;
-			const canRecurse = this.collectReconciliationEntry(childPath, stats, entries, changedEntries, accepted);
+			const canRecurse = this.collectReconciliationEntry(childPath, stats, scan);
 			if (recursive && canRecurse && stats.isDirectory() && !stats.isSymbolicLink()) {
-				await this.collectReconciliationChildren(
-					childPath,
-					recursive,
-					entries,
-					changedEntries,
-					unreadableDirectories,
-					accepted,
-				);
+				await this.collectReconciliationChildren(childPath, recursive, scan);
 			}
 		}
 	}
@@ -702,17 +715,11 @@ export class RecursiveFileWatcher implements FileWatcher {
 		this.changesDuringIndex.set(entryPath, this.changesDuringIndex.get(entryPath) === true);
 	}
 
-	private collectReconciliationEntry(
-		entryPath: string,
-		stats: Stats,
-		entries: Set<string>,
-		changedEntries: Set<string>,
-		accepted: AcceptedPaths,
-	): boolean {
-		const mappedPaths = this.getMappedPaths(entryPath, stats, accepted);
+	private collectReconciliationEntry(entryPath: string, stats: Stats, scan: RootScan): boolean {
+		const mappedPaths = this.getMappedPaths(entryPath, stats, scan);
 		if (mappedPaths.length) {
-			entries.add(entryPath);
-			if (this.hasReconciliationChanged(entryPath, stats)) changedEntries.add(entryPath);
+			scan.entries.add(entryPath);
+			if (this.hasReconciliationChanged(entryPath, stats)) scan.changedEntries.add(entryPath);
 		}
 		return mappedPaths.length > 0;
 	}
@@ -960,6 +967,11 @@ export class RecursiveFileWatcher implements FileWatcher {
 
 	/**
 	 * True when a native `change` repeats what a safety rescan already reported for the same version of the file.
+	 *
+	 * @remarks
+	 * A rescan remembers only files, so only a path that is a file before and after can repeat a report. A change of
+	 * kind is a different event: the report is not consumed and expires with the ledger's time limit, and the
+	 * version comparison keeps it from swallowing anything newer.
 	 */
 	private isLateNativeChange(
 		canonicalPath: string,
@@ -1044,10 +1056,10 @@ export class RecursiveFileWatcher implements FileWatcher {
 	}
 
 	/**
-	 * @param accepted - The paths a scan has accepted so far. A scan walks a folder before its children, so the
-	 * ancestors of an entry are already accepted and `ignored` runs once for the entry instead of once per ancestor.
+	 * @param scan - The scan this entry belongs to, when there is one. Its accepted ancestors are not asked about
+	 * again.
 	 */
-	private getMappedPaths(canonicalPath: string, stats?: Stats, accepted?: AcceptedPaths): string[] {
+	private getMappedPaths(canonicalPath: string, stats?: Stats, scan?: RootScan): string[] {
 		const mappedPaths: string[] = [];
 		let hasMatchingPath = false;
 		for (const watchedPath of this.watchedPaths) {
@@ -1062,12 +1074,8 @@ export class RecursiveFileWatcher implements FileWatcher {
 				? path.join(watchedPath.requestedPath, relativePath)
 				: watchedPath.requestedPath;
 			hasMatchingPath = true;
-			if (this.isIgnored(reportedPath, watchedPath, stats, accepted?.get(watchedPath))) continue;
-			if (accepted) {
-				const acceptedForPath = accepted.get(watchedPath) ?? new Set<string>();
-				acceptedForPath.add(reportedPath);
-				accepted.set(watchedPath, acceptedForPath);
-			}
+			if (this.isIgnored(reportedPath, watchedPath, stats, scan?.acceptedFor(watchedPath))) continue;
+			scan?.accept(watchedPath, reportedPath);
 			mappedPaths.push(reportedPath);
 		}
 		if (hasMatchingPath && !mappedPaths.length && stats?.isDirectory()) this.ignoredDirectories.add(canonicalPath);

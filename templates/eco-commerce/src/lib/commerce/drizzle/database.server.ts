@@ -77,10 +77,11 @@ async function seed(db: CatalogDb, { sizeName }: Pick<OpenCatalogDatabaseOptions
  * @remarks
  * The temporary file is installed in one step, so a reader never sees a half-seeded database. Two processes that
  * seed at once, such as a dev server and a build, each write their own temporary file. When nothing is at the
- * path yet, the file is installed with `linkNew`, which creates the link only if the path is still absent, so two
+ * path yet, the file is installed with `linkNew`, which creates the file only if the path is still absent, so two
  * processes that finish at the same instant cannot overwrite each other: one installs, and the other finds a
  * file that may hold carts by then. A process that finds a current catalog in place keeps that file and drops
- * its own. A file that is there but stale is replaced with `rename`.
+ * its own. A file that is there but stale, or still being copied on a volume without hard links, is replaced with
+ * `rename`.
  */
 async function writeCatalogFile(filePath: string, options: OpenCatalogDatabaseOptions): Promise<void> {
 	fileSystem.ensureDir(path.dirname(filePath));
@@ -96,34 +97,11 @@ async function writeCatalogFile(filePath: string, options: OpenCatalogDatabaseOp
 		if (!seeded) fileSystem.remove(temporaryPath);
 	}
 	try {
-		if (await installIfAbsent(temporaryPath, filePath)) return;
+		if (await fileSystem.linkNewAsync(temporaryPath, filePath)) return;
 		if (await holdsCurrentCatalog(filePath, options)) return;
 		fileSystem.rename(temporaryPath, filePath);
 	} finally {
 		fileSystem.remove(temporaryPath);
-	}
-}
-
-/** Errors of a volume that cannot hold a hard link to the temporary file, where the install falls back to `rename`. */
-const LINK_UNSUPPORTED_ERRORS = new Set(['EPERM', 'EXDEV', 'ENOTSUP', 'EOPNOTSUPP', 'ENOSYS']);
-
-/**
- * Installs `source` at `destination` when nothing is there, and says whether it did.
- *
- * @remarks
- * A volume without hard links, such as some network and removable drives, cannot link the file, so there the
- * install checks that the destination is absent and renames, which leaves a window of a few instructions between
- * the check and the rename that a link does not have.
- */
-async function installIfAbsent(source: string, destination: string): Promise<boolean> {
-	try {
-		return await fileSystem.linkNewAsync(source, destination);
-	} catch (error) {
-		const code = errorCode(error);
-		if (typeof code !== 'string' || !LINK_UNSUPPORTED_ERRORS.has(code)) throw error;
-		if (await fileSystem.existsAsync(destination)) return false;
-		fileSystem.rename(source, destination);
-		return true;
 	}
 }
 

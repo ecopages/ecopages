@@ -74,37 +74,37 @@ const module = await import(path.toFileUrl(page).href);
 
 ## API
 
-| Method                             | Description                                                              |
-| :--------------------------------- | :----------------------------------------------------------------------- |
-| `glob(patterns, options)`          | Find files matching glob patterns                                        |
-| `readFile(path)`                   | Read file as string (async)                                              |
-| `readFileSync(path)`               | Read file as string (sync)                                               |
-| `readFileAsBuffer(path)`           | Read file as `Buffer`                                                    |
-| `write(path, content)`             | Write content to file                                                    |
-| `writeAsync(path, content)`        | Write content to file (async)                                            |
-| `exists(path)`                     | Check if path exists                                                     |
-| `ensureDir(path)`                  | Ensure directory exists                                                  |
-| `copyDir(src, dest)`               | Copy directory recursively                                               |
-| `copyFile(src, dest)`              | Copy single file                                                         |
-| `remove(path)`                     | Remove file or directory                                                 |
-| `removeAsync(path)`                | Remove file or directory (async)                                         |
-| `hash(path)`                       | Get hash of file contents                                                |
-| `gzipFile(path)`                   | Gzip a single file                                                       |
-| `gzipDir(path, extensions)`        | Gzip files in directory                                                  |
-| `isDirectory(path)`                | Check if path is directory                                               |
-| `realpath(path)`                   | Resolve symlinks to canonical path                                       |
-| `stat(path)`                       | Kind, size and mtime, following symlinks                                 |
-| `lstat(path)`                      | Kind, size and mtime of the path itself                                  |
-| `readdir(path, options)`           | List entries with their kind                                             |
-| `readlink(path)`                   | Read a symlink's stored target                                           |
-| `mkdtemp(prefix)`                  | Create a uniquely named directory                                        |
-| `tempDir()`                        | The OS directory for temporary files                                     |
-| `rename(src, dest)`                | Move a file or directory                                                 |
-| `linkNew(src, dest)`               | Hard-link `src` to `dest` only if `dest` is absent; `false` if it exists |
-| `linkNewAsync(src, dest)`          | Asynchronous `linkNew`                                                   |
-| `verifyFileExists(path)`           | Throw if file doesn't exist                                              |
-| `watch(paths, options)`            | Watch paths; the returned handle can add more                            |
-| `installFileSystem(next)`          | Replace the process-wide `fileSystem` (tests)                            |
-| `createRecordingFileSystem(inner)` | Wrap `inner` and record every path argument                              |
+| Method                             | Description                                                            |
+| :--------------------------------- | :--------------------------------------------------------------------- |
+| `glob(patterns, options)`          | Find files matching glob patterns                                      |
+| `readFile(path)`                   | Read file as string (async)                                            |
+| `readFileSync(path)`               | Read file as string (sync)                                             |
+| `readFileAsBuffer(path)`           | Read file as `Buffer`                                                  |
+| `write(path, content)`             | Write content to file                                                  |
+| `writeAsync(path, content)`        | Write content to file (async)                                          |
+| `exists(path)`                     | Check if path exists                                                   |
+| `ensureDir(path)`                  | Ensure directory exists                                                |
+| `copyDir(src, dest)`               | Copy directory recursively                                             |
+| `copyFile(src, dest)`              | Copy single file                                                       |
+| `remove(path)`                     | Remove file or directory                                               |
+| `removeAsync(path)`                | Remove file or directory (async)                                       |
+| `hash(path)`                       | Get hash of file contents                                              |
+| `gzipFile(path)`                   | Gzip a single file                                                     |
+| `gzipDir(path, extensions)`        | Gzip files in directory                                                |
+| `isDirectory(path)`                | Check if path is directory                                             |
+| `realpath(path)`                   | Resolve symlinks to canonical path                                     |
+| `stat(path)`                       | Kind, size and mtime, following symlinks                               |
+| `lstat(path)`                      | Kind, size and mtime of the path itself                                |
+| `readdir(path, options)`           | List entries with their kind                                           |
+| `readlink(path)`                   | Read a symlink's stored target                                         |
+| `mkdtemp(prefix)`                  | Create a uniquely named directory                                      |
+| `tempDir()`                        | The OS directory for temporary files                                   |
+| `rename(src, dest)`                | Move a file or directory                                               |
+| `linkNew(src, dest)`               | Install `src` at `dest` only if `dest` is absent; `false` if it exists |
+| `linkNewAsync(src, dest)`          | Asynchronous `linkNew`                                                 |
+| `verifyFileExists(path)`           | Throw if file doesn't exist                                            |
+| `watch(paths, options)`            | Watch paths; the returned handle can add more                          |
+| `installFileSystem(next)`          | Replace the process-wide `fileSystem` (tests)                          |
+| `createRecordingFileSystem(inner)` | Wrap `inner` and record every path argument                            |
 
 `stat`, `lstat` and `readdir` return plain objects (`isFile`, `isDirectory`, `isSymbolicLink`, plus `size` and `mtimeMs` for stats). `readdir(path, { recursive: true })` also lists subdirectories, naming each entry by its path relative to `path`. `stat`, `lstat`, `readdir`, `readlink`, `mkdtemp`, `rename` and `linkNew` throw Node's error unchanged, so a missing path can be detected by `error.code === 'ENOENT'`. `linkNew` is the one write that never replaces: of several processes that install a file at one path at once, exactly one gets `true`, which is how a seeded file is published without overwriting another process's copy.

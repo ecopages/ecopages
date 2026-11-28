@@ -255,31 +255,6 @@ describe('openCatalogDatabase', () => {
 		expect(fileSystem.readdir(path.dirname(filePath)).map((entry) => entry.name)).toEqual(['catalog.db']);
 	});
 
-	test('a volume without hard links installs the seeded file with a rename and leaves no temporary file', async () => {
-		const restore = installFileSystem(
-			Object.assign(Object.create(nodeFs), {
-				linkNewAsync: async () => {
-					throw Object.assign(new Error('operation not permitted'), { code: 'EPERM' });
-				},
-			}),
-		);
-
-		try {
-			const { db, close } = await openCatalogDatabase({
-				url: path.toFileUrl(filePath).href,
-				migrationsFolder,
-				sizeName: 'small',
-			});
-			const [row] = await db.select({ value: count() }).from(products);
-			close();
-
-			expect(row?.value).toBe(productTotal(CATALOG_SIZES.small));
-		} finally {
-			restore();
-		}
-		expect(fileSystem.readdir(path.dirname(filePath)).map((entry) => entry.name)).toEqual(['catalog.db']);
-	});
-
 	test('a link that fails for another reason leaves no temporary file and reports the error', async () => {
 		const restore = installFileSystem(
 			Object.assign(Object.create(nodeFs), {

@@ -80,7 +80,7 @@ describe('RescanReports', () => {
 		expect(reports.consumeIfRepeat('/a.ts', version)).toBe(false);
 	});
 
-	it('prunes the reports no event consumed, and keeps the recent ones', () => {
+	it('keeps a recent report through a prune', () => {
 		const { reports, advance } = createReports();
 		reports.remember('/old.ts', version);
 		advance(1_001);
@@ -88,16 +88,17 @@ describe('RescanReports', () => {
 
 		reports.prune();
 
-		expect(reports.size).toBe(1);
 		expect(reports.consumeIfRepeat('/recent.ts', version)).toBe(true);
 	});
 
 	it('clears every report', () => {
 		const { reports } = createReports();
 		reports.remember('/a.ts', version);
+		reports.remember('/b.ts', version);
 
 		reports.clear();
 
-		expect(reports.size).toBe(0);
+		expect(reports.consumeIfRepeat('/a.ts', version)).toBe(false);
+		expect(reports.consumeIfRepeat('/b.ts', version)).toBe(false);
 	});
 });

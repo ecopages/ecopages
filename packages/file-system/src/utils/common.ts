@@ -4,6 +4,8 @@
  */
 
 import {
+	constants,
+	copyFileSync,
 	cpSync,
 	type Dirent,
 	existsSync,
@@ -22,6 +24,7 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import {
+	copyFile as copyFileAsync,
 	cp as cpAsync,
 	link as linkAsync,
 	mkdir as mkdirAsync,
@@ -40,9 +43,32 @@ import {
 	type ReaddirOptions,
 } from '../types.ts';
 
-/** True for the error `link(2)` raises when the destination exists, the one failure `linkNew` reports as `false`. */
+function errorCodeOf(error: unknown): string | undefined {
+	return error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined;
+}
+
+/** True for the error `link(2)` and an exclusive copy raise when the destination exists, which `linkNew` reports as `false`. */
 function isAlreadyExistsError(error: unknown): boolean {
-	return error instanceof Error && (error as NodeJS.ErrnoException).code === 'EEXIST';
+	return errorCodeOf(error) === 'EEXIST';
+}
+
+/**
+ * The errors of a link that cannot be made: `EPERM` (FAT and exFAT on macOS and Linux, some network
+ * shares), `EXDEV` (the paths are on two volumes), `EISDIR` (exFAT on Windows), `ENOTSUP`, `EOPNOTSUPP` and `ENOSYS`.
+ */
+const HARD_LINK_UNSUPPORTED_ERRORS: ReadonlySet<string> = new Set([
+	'EPERM',
+	'EXDEV',
+	'EISDIR',
+	'ENOTSUP',
+	'EOPNOTSUPP',
+	'ENOSYS',
+]);
+
+/** True when `error` says the volume has no hard links and `source` can still be installed by copying it. */
+function isHardLinkUnsupportedError(error: unknown): boolean {
+	const code = errorCodeOf(error);
+	return code !== undefined && HARD_LINK_UNSUPPORTED_ERRORS.has(code);
 }
 
 function toFileStats(stats: Stats): FileStats {
@@ -252,6 +278,13 @@ export abstract class BaseFileSystem {
 			return true;
 		} catch (error) {
 			if (isAlreadyExistsError(error)) return false;
+			if (!isHardLinkUnsupportedError(error)) throw error;
+		}
+		try {
+			copyFileSync(source, destination, constants.COPYFILE_EXCL);
+			return true;
+		} catch (error) {
+			if (isAlreadyExistsError(error)) return false;
 			throw error;
 		}
 	}
@@ -259,6 +292,13 @@ export abstract class BaseFileSystem {
 	async linkNewAsync(source: string, destination: string): Promise<boolean> {
 		try {
 			await linkAsync(source, destination);
+			return true;
+		} catch (error) {
+			if (isAlreadyExistsError(error)) return false;
+			if (!isHardLinkUnsupportedError(error)) throw error;
+		}
+		try {
+			await copyFileAsync(source, destination, constants.COPYFILE_EXCL);
 			return true;
 		} catch (error) {
 			if (isAlreadyExistsError(error)) return false;

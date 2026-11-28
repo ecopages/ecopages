@@ -73,10 +73,6 @@ export class RescanReports {
 		this.now = now;
 	}
 
-	public get size(): number {
-		return this.reports.size;
-	}
-
 	public remember(entryPath: string, version: EntryVersion): void {
 		this.reports.set(entryPath, { version, reportedAt: this.now() });
 	}

@@ -100,7 +100,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 
 import { NodeFileSystem } from './node.ts';
-import { RecursiveFileWatcher } from './recursive-file-watcher.ts';
+import { RecursiveFileWatcher, rescanNow } from './recursive-file-watcher.ts';
 
 test('reconciles a watched root when native events omit the filename', async () => {
 	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-null-name-'))));
@@ -764,7 +764,7 @@ test('a safety rescan asks `ignored` once per entry of a deep tree, not once per
 	try {
 		await watcher.ready;
 		ignoredCalls.length = 0;
-		await watcher.rescanNow();
+		await rescanNow(watcher);
 
 		const entries = 1 + 6 + 20;
 		expect(ignoredCalls.length).toBeLessThanOrEqual(entries * 1.25);

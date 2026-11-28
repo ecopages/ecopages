@@ -326,6 +326,21 @@ for (const [name, fs] of adapters) {
 				expect(readFileSync(destination, 'utf8')).toBe('seeded');
 			});
 
+			test('returns false for an existing destination that is a dangling symlink asynchronously', async () => {
+				const source = path.join(testDir, 'seed.tmp');
+				const destination = path.join(testDir, 'catalog.db');
+				writeFileSync(source, 'seeded');
+				symlinkSync(path.join(testDir, 'missing-target'), destination);
+
+				expect(await fs.linkNewAsync(source, destination)).toBe(false);
+			});
+
+			test('throws ENOENT for a missing source asynchronously', async () => {
+				await expect(
+					fs.linkNewAsync(path.join(testDir, 'missing'), path.join(testDir, 'target')),
+				).rejects.toMatchObject({ code: 'ENOENT' });
+			});
+
 			test('lets exactly one of several processes install at the same moment', async () => {
 				const destination = path.join(testDir, 'catalog.db');
 				const adapter = path.toFileUrl(

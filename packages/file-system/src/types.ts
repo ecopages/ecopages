@@ -211,18 +211,20 @@ export interface FileSystem {
 	rename(source: string, destination: string): void;
 
 	/**
-	 * Install `source` at `destination` as a hard link, only when nothing is at `destination` yet, in one atomic step.
-	 * A dangling symlink at `destination` counts as something.
+	 * Install `source` at `destination` only when nothing is at `destination` yet, atomically. A dangling symlink at
+	 * `destination` counts as something.
 	 *
 	 * @remarks
 	 * `rename` replaces an existing file, so two processes that each seeded a file and then check for one before
 	 * renaming can still overwrite each other. `link(2)` fails with `EEXIST` when the destination exists, so exactly
 	 * one of several processes that call this at once installs its file and every other one gets `false` and leaves
-	 * the installed file untouched. Both paths must be on one volume, and `source` stays where it is: remove it
-	 * afterwards.
+	 * the installed file untouched. When the link cannot be made, because the volume has no hard links (FAT, exFAT,
+	 * some network shares) or the paths are on two volumes, an exclusive copy is made instead, which has the same single winner; there the destination appears
+	 * before its content is complete, so a process that loses the race must not read it as finished. `source` stays
+	 * where it is: remove it afterwards.
 	 *
-	 * @returns `true` when the link was created, `false` when `destination` already exists. Any other failure,
-	 * such as a missing source (`ENOENT`) or a volume without hard links (`EPERM`, `EXDEV`), throws Node's error.
+	 * @returns `true` when `destination` was created, `false` when it already exists. Any other failure, such as a
+	 * missing source (`ENOENT`), throws Node's error.
 	 */
 	linkNew(source: string, destination: string): boolean;
 

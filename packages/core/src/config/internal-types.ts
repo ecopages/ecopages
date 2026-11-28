@@ -2,7 +2,7 @@ import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { AppRuntime } from './assembly/app-runtime.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
-import type { ResponseHeaderRule, TrustProxy } from './user-config-types.ts';
+import type { AllowedHosts, ResponseHeaderRule, TrustProxy } from './user-config-types.ts';
 import type {
 	CacheConfig,
 	ComponentRenderInput,
@@ -114,6 +114,8 @@ export type EcoPagesAppConfig = {
 	/** The user's `maxRequestBodySize` in bytes, validated at finalization, or the default. */
 	maxRequestBodySize: number;
 	trustProxy?: TrustProxy;
+	/** The user's `allowedHosts`, validated at finalization. */
+	allowedHosts?: AllowedHosts;
 	/**
 	 * @default { title: 'Ecopages', description: 'Ecopages' }
 	 */

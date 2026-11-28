@@ -2,11 +2,16 @@ import { fileSystem } from '@ecopages/file-system';
 import { createClient } from '@libsql/client';
 import { path } from '@ecopages/file-system/path';
 import { count, eq } from 'drizzle-orm';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { CATALOG_SIZES, generateCatalog, type CatalogSize } from './seed/generator.ts';
 import { createTempDir, migrationsFolder } from './database.fixture.ts';
 import { openCatalogDatabase, resolveDatabaseUrl } from './database.server.ts';
 import { carts, catalogMeta, products } from './schema.ts';
+
+vi.mock('./seed/generator.ts', async (importOriginal) => {
+	const original = await importOriginal<typeof import('./seed/generator.ts')>();
+	return { ...original, generateCatalog: vi.fn(original.generateCatalog) };
+});
 
 function productTotal(size: CatalogSize): number {
 	return (
@@ -163,18 +168,17 @@ describe('openCatalogDatabase', () => {
 	});
 
 	test('a seed that fails partway leaves no file in place, and the next open seeds cleanly', async () => {
-		const broken = () => {
-			const catalog = generateCatalog(CATALOG_SIZES.small);
+		vi.mocked(generateCatalog).mockImplementationOnce((size) => {
+			const catalog = generateCatalog(size);
 			const duplicate = { ...catalog.products[0]!, id: catalog.products.length + 1 };
 			return { ...catalog, products: [...catalog.products, duplicate] };
-		};
+		});
 
 		await expect(
 			openCatalogDatabase({
 				url: path.toFileUrl(filePath).href,
 				migrationsFolder,
 				sizeName: 'small',
-				generate: broken,
 			}),
 		).rejects.toThrow();
 		expect(fileSystem.exists(filePath)).toBe(false);
@@ -200,14 +204,14 @@ describe('openCatalogDatabase', () => {
 		await winner.db.insert(carts).values({ id: '00000000-0000-4000-8000-000000000002', updatedAt: Date.now() });
 		winner.close();
 
+		vi.mocked(generateCatalog).mockImplementationOnce((size) => {
+			fileSystem.copyFile(winnerPath, filePath);
+			return generateCatalog(size);
+		});
 		const { db, close } = await openCatalogDatabase({
 			url: path.toFileUrl(filePath).href,
 			migrationsFolder,
 			sizeName: 'small',
-			generate: () => {
-				fileSystem.copyFile(winnerPath, filePath);
-				return generateCatalog(CATALOG_SIZES.small);
-			},
 		});
 		const remaining = await db.select().from(carts);
 		close();

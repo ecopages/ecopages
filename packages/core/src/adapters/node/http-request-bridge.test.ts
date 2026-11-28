@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { PassThrough, Writable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import type { TrustProxy } from '../../config/user-config-types.ts';
-import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
+import { NodeClientAbortError, NodeHttpRequestBridge, resolveHeaderOrigin } from './http-request-bridge.ts';
 
 class MockIncomingMessage extends PassThrough {
 	public url = '/submit?ok=1';
@@ -149,6 +149,77 @@ describe('NodeHttpRequestBridge', () => {
 				'http://internal:3000/submit?ok=1',
 			);
 		});
+
+		it('keeps the host that was checked when the request target names another host', () => {
+			const headers = { host: 'shop.example' };
+
+			expect(requestUrl(headers, undefined, '//evil.example/x?a=1')).toBe(
+				'http://shop.example//evil.example/x?a=1',
+			);
+			expect(requestUrl(headers, undefined, 'http://evil.example/x?a=1')).toBe('http://shop.example/x?a=1');
+			expect(requestUrl(headers, undefined, 'https://evil.example')).toBe('http://shop.example/');
+			expect(requestUrl(headers, undefined, '*')).toBe('http://shop.example/');
+			expect(requestUrl(headers, undefined, 'foo:@evil.example/x')).toBe('http://shop.example/');
+			expect(requestUrl(headers, undefined, 'x:.evil.example/')).toBe('http://shop.example/');
+		});
+	});
+
+	describe('header origin', () => {
+		const origin = (headers: Record<string, string | string[] | undefined>, trustProxy?: TrustProxy) =>
+			resolveHeaderOrigin({ headers } as unknown as IncomingMessage, 'http://127.0.0.1:3000', trustProxy);
+
+		it('is the origin of the Host the visitor sent, with its port', () => {
+			expect(origin({ host: 'Shop.Example:8080' })).toBe('http://shop.example:8080');
+			expect(origin({ host: '[::1]:3000' })).toBe('http://[::1]:3000');
+		});
+
+		it('is null when Host is missing or not a host, instead of the listen origin', () => {
+			for (const host of [
+				undefined,
+				'',
+				'evil.example/path',
+				'user@evil.example',
+				'a b',
+				'a.example,b.example',
+			]) {
+				expect(origin({ host })).toBeNull();
+			}
+		});
+
+		it('reads a forwarded host and protocol only when the app trusts its proxy', () => {
+			const headers = {
+				host: 'internal:3000',
+				'x-forwarded-host': 'shop.example',
+				'x-forwarded-proto': 'https',
+			};
+
+			expect(origin(headers)).toBe('http://internal:3000');
+			expect(origin(headers, false)).toBe('http://internal:3000');
+			expect(origin(headers, { proto: true })).toBe('https://internal:3000');
+			expect(origin(headers, true)).toBe('https://shop.example');
+			expect(origin(headers, { host: true })).toBe('http://shop.example');
+		});
+
+		it('falls through to Host when a trusted forwarded host is not a host', () => {
+			expect(origin({ host: 'internal', 'x-forwarded-host': 'bad host' }, true)).toBe('http://internal');
+		});
+	});
+
+	it('uses the origin a caller already checked for the request URL', () => {
+		const req = new MockIncomingMessage();
+		req.method = 'GET';
+		req.url = '/page?a=1';
+		req.headers = { host: 'evil.example' };
+
+		const request = new NodeHttpRequestBridge().createWebRequest(
+			req as unknown as IncomingMessage,
+			'http://127.0.0.1:3000',
+			{
+				origin: 'https://shop.example',
+			},
+		);
+
+		expect(request.url).toBe('https://shop.example/page?a=1');
 	});
 
 	it('pauses the Node request while no one reads the body, and resumes it as the body is read', async () => {

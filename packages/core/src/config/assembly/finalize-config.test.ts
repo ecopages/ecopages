@@ -115,6 +115,21 @@ describe('finalizeEcoPagesConfig trustProxy', () => {
 	});
 });
 
+describe('finalizeEcoPagesConfig allowedHosts', () => {
+	test('keeps the option and leaves it unset by default', async () => {
+		expect((await finalize({ allowedHosts: ['shop.example', '*.shop.example'] })).allowedHosts).toEqual([
+			'shop.example',
+			'*.shop.example',
+		]);
+		expect((await finalize({ allowedHosts: true })).allowedHosts).toBe(true);
+		expect((await finalize({})).allowedHosts).toBeUndefined();
+	});
+
+	test.each([['https://shop.example'], ['shop.example:3000'], ['*'], ['']])('rejects the entry %j', async (entry) => {
+		await expect(finalize({ allowedHosts: [entry] })).rejects.toThrow('Invalid "allowedHosts" entry');
+	});
+});
+
 describe('finalizeEcoPagesConfig', () => {
 	test('does not run processor setup while finalizing config', async () => {
 		const setup = vi.fn(async () => {

@@ -41,6 +41,33 @@ test.beforeAll(async ({ browser, app }) => {
 });
 
 test.describe('eco-commerce template', () => {
+	test('the cart and revalidation routes refuse a request from another site, and a cart post without browser headers', async ({
+		request,
+	}) => {
+		const form = { variantId: 'any', quantity: '1' };
+		const posts = [
+			await request.post('/cart/add', { form, headers: { 'Sec-Fetch-Site': 'cross-site' }, maxRedirects: 0 }),
+			await request.post('/cart/add', { form, headers: { Origin: 'https://evil.example' }, maxRedirects: 0 }),
+			await request.post('/cart/update', { form, headers: { 'Sec-Fetch-Site': 'same-site' }, maxRedirects: 0 }),
+			await request.post('/cart/add', { form, maxRedirects: 0 }),
+			await request.post('/api/revalidate', { data: {}, headers: { 'Sec-Fetch-Site': 'cross-site' } }),
+		];
+
+		expect(posts.map((response) => response.status())).toEqual([403, 403, 403, 403, 403]);
+		expect(await posts[3]!.text()).toBe('Cart changes must come from this site.');
+	});
+
+	test('revalidation lets a request without browser headers reach its token check, which runs before the body is read', async ({
+		request,
+	}) => {
+		const withoutToken = await request.post('/api/revalidate', {
+			data: 'not json',
+			headers: { 'Content-Type': 'application/json' },
+		});
+
+		expect(withoutToken.status()).toBe(404);
+	});
+
 	test('a visitor browses from a collection down to a product, each page listing its children', async ({ page }) => {
 		await page.goto('/');
 		await page.getByRole('heading', { level: 2, name: 'Living' }).getByRole('link').click();
@@ -151,7 +178,10 @@ test.describe('eco-commerce template', () => {
 	test('the header count goes up when a visitor adds a product, without a page load', async ({ page }) => {
 		const [first] = (await (await page.request.get('/api/products?in=lounge-chairs&pageSize=1')).json()).items;
 		const { variants } = await (await page.request.get(`/api/products/${first.handle}`)).json();
-		await page.request.post('/cart/add', { form: { variantId: variants[0].id, quantity: '2' } });
+		await page.request.post('/cart/add', {
+			form: { variantId: variants[0].id, quantity: '2' },
+			headers: { 'Sec-Fetch-Site': 'same-origin' },
+		});
 		await openFirstProduct(page);
 		const count = page.locator('cart-link [data-ref="count"]');
 		await expect(count).toHaveText('2');
@@ -286,7 +316,10 @@ test.describe('eco-commerce template', () => {
 	test('a refused addition takes the header count back and says why', async ({ page }) => {
 		const [first] = (await (await page.request.get('/api/products?in=lounge-chairs&pageSize=1')).json()).items;
 		const { variants } = await (await page.request.get(`/api/products/${first.handle}`)).json();
-		await page.request.post('/cart/add', { form: { variantId: variants[0].id, quantity: '99' } });
+		await page.request.post('/cart/add', {
+			form: { variantId: variants[0].id, quantity: '99' },
+			headers: { 'Sec-Fetch-Site': 'same-origin' },
+		});
 		await openFirstProduct(page);
 		const count = page.locator('cart-link [data-ref="count"]');
 		await expect(count).toHaveText('99');
@@ -305,7 +338,10 @@ test.describe('eco-commerce template', () => {
 		const variantOf = async (handle: string): Promise<string> =>
 			(await (await context.request.get(`/api/products/${handle}`)).json()).variants[0].id;
 		const [chairVariant, lampVariant] = await Promise.all([variantOf(chair.handle), variantOf(lamp.handle)]);
-		await context.request.post('/cart/add', { form: { variantId: chairVariant, quantity: '1' } });
+		await context.request.post('/cart/add', {
+			form: { variantId: chairVariant, quantity: '1' },
+			headers: { 'Sec-Fetch-Site': 'same-origin' },
+		});
 		const [tabA, tabB] = await Promise.all([context.newPage(), context.newPage()]);
 		await Promise.all([tabA.goto('/order'), tabB.goto('/order')]);
 

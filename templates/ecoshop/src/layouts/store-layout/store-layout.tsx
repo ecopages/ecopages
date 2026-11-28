@@ -66,11 +66,8 @@ export const StoreLayout = eco.layout<JsxRenderable, LayoutProps<JsxRenderable>>
 						.
 					</p>
 					<p class="store-footer__agents">
-						For agents:{' '}
-						<a href={storePaths.llms} data-eco-reload>
-							llms.txt
-						</a>
-						, the MCP server at <code>{storePaths.mcp}</code>, and WebMCP tools on every page.
+						For agents: <a href={storePaths.llms}>llms.txt</a>, the MCP server at{' '}
+						<code>{storePaths.mcp}</code>, and WebMCP tools on every page.
 					</p>
 				</div>
 			</footer>

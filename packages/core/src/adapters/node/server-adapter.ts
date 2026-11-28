@@ -21,6 +21,7 @@ import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constant
 import { disposeDevResources, prepareRuntimePublicDir } from '../shared/runtime/runtime-server-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
+import { createHostPolicy, type HostPolicy } from '../shared/http/host-policy.ts';
 import type { RuntimeHost } from './runtime-host.ts';
 import { compileApiRoutes, type ApiRoutes } from '../shared/http/api-request-pipeline.ts';
 import { serveDistFile } from '../shared/http/dist-file-handler.ts';
@@ -37,6 +38,7 @@ export type NodeServeAdapterServerOptions = {
 	port?: number;
 	hostname?: string;
 	trustProxy?: TrustProxy;
+	hostPolicy?: HostPolicy;
 };
 
 export interface NodeServerAdapterParams {
@@ -96,6 +98,12 @@ export class NodeServerAdapter {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly runtime: AppRuntime;
 	private readonly options: { watch?: boolean };
+	private readonly hostPolicy: HostPolicy;
+	/**
+	 * The hosts `ecopages preview` answers: the same `allowedHosts` and `baseUrl` as the app server, plus the local
+	 * defaults, since a preview is a local look at an export whose `baseUrl` names the production site.
+	 */
+	private readonly previewHostPolicy: HostPolicy;
 	private serveOptions: NodeServeAdapterServerOptions;
 	private readonly requestPipeline: ServerRequestPipeline;
 	private serverInstance: NodeServerInstance | undefined;
@@ -131,6 +139,16 @@ export class NodeServerAdapter {
 		this.appConfig = options.appConfig;
 		this.runtime = options.runtime;
 		this.options = options.options ?? {};
+		this.hostPolicy = createHostPolicy({
+			allowedHosts: this.appConfig.allowedHosts,
+			baseUrl: this.appConfig.baseUrl,
+			development: this.options.watch === true,
+		});
+		this.previewHostPolicy = createHostPolicy({
+			allowedHosts: this.appConfig.allowedHosts,
+			baseUrl: this.appConfig.baseUrl,
+			development: true,
+		});
 		this.requestReadiness = new Promise<void>((resolve, reject) => {
 			this.resolveRequestReadiness = resolve;
 			this.rejectRequestReadiness = reject;
@@ -243,10 +261,11 @@ export class NodeServerAdapter {
 		});
 	}
 
-	public getServerOptions(): NodeServeAdapterServerOptions {
+	public getServerOptions(): NodeServeAdapterServerOptions & { hostPolicy: HostPolicy } {
 		return {
 			...this.serveOptions,
 			trustProxy: this.appConfig.trustProxy,
+			hostPolicy: this.hostPolicy,
 		};
 	}
 
@@ -314,6 +333,8 @@ export class NodeServerAdapter {
 				serveOptions: {
 					hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
 					port: Number(this.serveOptions.port ?? DEFAULT_ECOPAGES_PORT),
+					hostPolicy: this.previewHostPolicy,
+					trustProxy: this.appConfig.trustProxy,
 					handleRequest: async (request) =>
 						applyResponseHeaders(
 							await serveDistFile(request, {
@@ -486,6 +507,7 @@ export class NodeServerAdapter {
 					appConfig: this.appConfig,
 					runtime: this.runtime,
 					server,
+					hostPolicy: this.hostPolicy,
 					requestPipeline: this.requestPipeline,
 					errorHandler: this.errorHandler,
 					websocketHandlers: this.websocketHandlers,
@@ -513,6 +535,7 @@ export class NodeServerAdapter {
 				attachNodeHttpWebSocketUpgrades(server, {
 					runtimeOrigin: this.runtime.origin,
 					trustProxy: this.appConfig.trustProxy,
+					hostPolicy: this.hostPolicy,
 					websocketHandlers: this.websocketHandlers,
 				});
 			}

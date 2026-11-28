@@ -1,7 +1,6 @@
 import { CommerceBackendError } from '@/lib/commerce/errors';
 import type { CommerceProvider } from '@/lib/commerce/types';
-import { isSameOriginRequest } from '@/lib/http/same-origin';
-import { siteOrigin } from '@/lib/site-origin';
+import { readBounded } from '@/lib/http/read-bounded';
 import { storePaths } from '@/lib/store-urls';
 
 /**
@@ -28,22 +27,14 @@ const FORWARDED_HEADERS = ['mcp-session-id', 'mcp-protocol-version'] as const;
 export interface UcpOptions {
 	/** The provider that says whether a store is connected, and where. */
 	provider: CommerceProvider;
-	/** Replaces the global `fetch`, for tests. */
-	fetch?: typeof fetch;
-	/** Replaces the clock the profile cache reads, for tests. */
-	now?: () => number;
 }
 
 const PROFILE_CACHE_MS = 5 * 60 * 1000;
 
-const profileCache = new Map<string, { at: number; profile: Record<string, unknown> }>();
-
 /**
- * Forgets the cached profiles, for tests.
+ * The profiles the connected stores answered, by store origin, as the store sent them.
  */
-export function clearUcpProfileCache(): void {
-	profileCache.clear();
-}
+const profileCache = new Map<string, { at: number; profile: Record<string, unknown> }>();
 
 /**
  * The store's UCP profile with its MCP endpoint pointed at this storefront, or `null` on the demo catalog.
@@ -51,24 +42,27 @@ export function clearUcpProfileCache(): void {
  * @remarks
  * Shopify's profile names the store's own endpoint. A client that read it would call Shopify and skip this
  * storefront, so every URL in the profile whose path is `/api/ucp/mcp` is replaced with this site's. The rest of the
- * profile is the store's, unchanged. The profile is kept for five minutes, as long as `/.well-known/ucp` tells a
- * client to keep it, so the page tool and the route do not ask Shopify on every call; a failure is not kept. Throws a
- * `CommerceBackendError` when the store does not answer with a profile.
+ * profile is the store's, unchanged. The store's profile is kept for five minutes, as long as `/.well-known/ucp`
+ * tells a client to keep it, so the page tool and the route do not ask Shopify on every call; a failure is not kept.
+ * The endpoints are pointed at `origin` on each read, so the cache holds one entry per store however many hosts
+ * serve this site. Throws a `CommerceBackendError` when the store does not answer with a profile.
  */
 export async function readUcpProfile(
 	origin: string,
-	{ provider, fetch: send = fetch, now = Date.now }: UcpOptions,
+	{ provider }: UcpOptions,
 ): Promise<Record<string, unknown> | null> {
 	const storeOrigin = provider.ucpOrigin();
 	if (!storeOrigin) return null;
 
-	const key = `${storeOrigin} ${origin}`;
-	const cached = profileCache.get(key);
-	if (cached && now() - cached.at < PROFILE_CACHE_MS) return cached.profile;
+	const endpoint = `${origin.replace(/\/+$/u, '')}${storePaths.ucpMcp}`;
+	const cached = profileCache.get(storeOrigin);
+	if (cached && Date.now() - cached.at < PROFILE_CACHE_MS) {
+		return pointEndpointsHere(cached.profile, endpoint) as Record<string, unknown>;
+	}
 
 	let response: Response;
 	try {
-		response = await send(`${storeOrigin}${storePaths.ucpProfile}`, {
+		response = await fetch(`${storeOrigin}${storePaths.ucpProfile}`, {
 			headers: { Accept: 'application/json' },
 			signal: AbortSignal.timeout(PROFILE_TIMEOUT_MS),
 		});
@@ -81,12 +75,8 @@ export async function readUcpProfile(
 	if (typeof profile !== 'object' || profile === null || Array.isArray(profile)) {
 		throw new CommerceBackendError('The store answered with a UCP profile that is not a JSON object');
 	}
-	const pointed = pointEndpointsHere(profile, `${origin.replace(/\/+$/u, '')}${storePaths.ucpMcp}`) as Record<
-		string,
-		unknown
-	>;
-	profileCache.set(key, { at: now(), profile: pointed });
-	return pointed;
+	profileCache.set(storeOrigin, { at: Date.now(), profile: profile as Record<string, unknown> });
+	return pointEndpointsHere(profile, endpoint) as Record<string, unknown>;
 }
 
 /**
@@ -127,33 +117,6 @@ function isUcpEndpoint(value: string): boolean {
 	}
 }
 
-/**
- * Reads a request body, or `null` as soon as it holds more than `limit` bytes, so a client cannot make the server
- * buffer more by streaming without a `Content-Length`.
- */
-async function readBounded(request: Request, limit: number): Promise<Uint8Array<ArrayBuffer> | null> {
-	if (Number(request.headers.get('content-length')) > limit) return null;
-	const reader = request.body?.getReader();
-	if (!reader) return new Uint8Array();
-	const chunks: Uint8Array[] = [];
-	let total = 0;
-	for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
-		total += chunk.value.byteLength;
-		if (total > limit) {
-			await reader.cancel();
-			return null;
-		}
-		chunks.push(chunk.value);
-	}
-	const body = new Uint8Array(total);
-	let offset = 0;
-	for (const chunk of chunks) {
-		body.set(chunk, offset);
-		offset += chunk.byteLength;
-	}
-	return body;
-}
-
 function notConnected(): Response {
 	return Response.json(
 		{
@@ -164,13 +127,19 @@ function notConnected(): Response {
 }
 
 /**
- * Serves `/.well-known/ucp`: the connected store's UCP profile.
+ * Serves `/.well-known/ucp`: the connected store's UCP profile, with its endpoint on the origin of the request.
+ *
+ * @remarks
+ * The answer depends on the host and, behind a proxy that `trustProxy` trusts, on the forwarded host and protocol,
+ * so a shared cache keeps one copy per combination instead of serving one host's endpoint to another.
  */
-export async function handleUcpProfile(options: UcpOptions & { origin?: string }): Promise<Response> {
+export async function handleUcpProfile(request: Request, options: UcpOptions): Promise<Response> {
 	try {
-		const profile = await readUcpProfile(options.origin ?? siteOrigin, options);
+		const profile = await readUcpProfile(new URL(request.url).origin, options);
 		if (!profile) return notConnected();
-		return Response.json(profile, { headers: { 'Cache-Control': 'public, max-age=300' } });
+		return Response.json(profile, {
+			headers: { 'Cache-Control': 'public, max-age=300', Vary: 'Host, X-Forwarded-Host, X-Forwarded-Proto' },
+		});
 	} catch (error) {
 		if (error instanceof CommerceBackendError) return Response.json({ error: error.message }, { status: 502 });
 		throw error;
@@ -183,15 +152,12 @@ export async function handleUcpProfile(options: UcpOptions & { origin?: string }
  * @remarks
  * The body is the client's JSON-RPC message, including the `meta.ucp-agent.profile` the store requires, so the
  * store negotiates capabilities with the client itself and nothing is added or removed here. The destination is
- * fixed to the connected store, a foreign `Origin` is refused as on the other endpoints, and a body over 256 kB is
- * refused.
+ * fixed to the connected store, and a body over 256 kB is refused. The route refuses a request another site started
+ * before this runs and passes clients that are not browsers, which UCP clients are.
  */
-export async function handleUcpMcp(request: Request, { provider, fetch: send = fetch }: UcpOptions): Promise<Response> {
+export async function handleUcpMcp(request: Request, { provider }: UcpOptions): Promise<Response> {
 	const storeOrigin = provider.ucpOrigin();
 	if (!storeOrigin) return notConnected();
-	if (!isSameOriginRequest(request, siteOrigin)) {
-		return Response.json({ error: 'Origin not allowed' }, { status: 403 });
-	}
 
 	const body = await readBounded(request, MAX_REQUEST_BYTES);
 	if (!body) return Response.json({ error: 'Request too large' }, { status: 413 });
@@ -206,7 +172,7 @@ export async function handleUcpMcp(request: Request, { provider, fetch: send = f
 	}
 
 	try {
-		const upstream = await send(`${storeOrigin}${storePaths.ucpMcp}`, {
+		const upstream = await fetch(`${storeOrigin}${storePaths.ucpMcp}`, {
 			method: 'POST',
 			headers,
 			body,

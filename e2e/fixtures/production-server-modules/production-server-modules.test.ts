@@ -247,6 +247,7 @@ function spawnProductionServer(
 			VITEST: '',
 			NODE_ENV: 'production',
 			ECOPAGES_HOSTNAME: '127.0.0.1',
+			ECOPAGES_BASE_URL: `http://127.0.0.1:${port}`,
 			ECOPAGES_PORT: String(port),
 			ECOPAGES_UNIFIED_PAGES_GRAPH: '0',
 		},

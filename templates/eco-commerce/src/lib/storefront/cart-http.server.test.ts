@@ -7,7 +7,6 @@ import {
 	CART_COOKIE,
 	cartSummaryAction,
 	readCartToken,
-	refuseCrossSite,
 	refuseInvalidChange,
 	serializeCartCookie,
 	updateCartAction,
@@ -22,13 +21,16 @@ const origin = 'http://localhost:3000';
 function post(
 	pathname: string,
 	fields: Record<string, string>,
-	init: { accept?: string; cookie?: string; fetchSite?: string } = {},
+	init: { accept?: string; cookie?: string; site?: string } = {},
 ) {
 	const headers = new Headers({ 'content-type': 'application/x-www-form-urlencoded' });
 	if (init.accept) headers.set('accept', init.accept);
 	if (init.cookie) headers.set('cookie', init.cookie);
-	if (init.fetchSite) headers.set('sec-fetch-site', init.fetchSite);
-	return new Request(`${origin}${pathname}`, { method: 'POST', headers, body: new URLSearchParams(fields) });
+	return new Request(`${init.site ?? origin}${pathname}`, {
+		method: 'POST',
+		headers,
+		body: new URLSearchParams(fields),
+	});
 }
 
 /** The token a setup change returned; a refused change fails the test instead of leaving an empty cart. */
@@ -46,7 +48,7 @@ describe('cart HTTP', () => {
 	let subject: Awaited<ReturnType<typeof openTestBackend>>;
 	let backend: CommerceBackend;
 	let variantId = '';
-	const deps = (): CartHttpDeps => ({ cart: backend.cart, secureCookie: false });
+	const deps = (): CartHttpDeps => ({ cart: backend.cart });
 	type PostInit = Parameters<typeof post>[2];
 	/** Runs the Endpoint's steps: the body is validated by its schema first, as Ecopages does before the handler. */
 	const add = (fields: Record<string, string>, init?: PostInit) =>
@@ -122,11 +124,12 @@ describe('cart HTTP', () => {
 		expect(asText.headers.get('content-type')).toContain('text/plain');
 	});
 
-	test('refuses a post a browser sent from another site, and lets the others go on', () => {
-		expect(refuseCrossSite(post('/cart/add', { variantId }, { fetchSite: 'cross-site' }))?.status).toBe(403);
-		for (const fetchSite of ['same-origin', 'none', undefined]) {
-			expect(refuseCrossSite(post('/cart/add', { variantId }, { fetchSite }))).toBeNull();
-		}
+	test('marks the cart cookie Secure when the request URL is https, and not when it is http', async () => {
+		const secure = await add({ variantId }, { site: 'https://shop.example' });
+		const plain = await add({ variantId }, { site: 'http://shop.example' });
+
+		expect(secure.headers.get('set-cookie')).toContain('; Secure');
+		expect(plain.headers.get('set-cookie')).not.toContain('Secure');
 	});
 
 	test('refuses an addition past the cart limit with the reason', async () => {

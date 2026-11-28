@@ -13,7 +13,6 @@ import { formatMoney } from '@/lib/commerce/money';
 import type { Product, ProductCard } from '@/lib/commerce/types';
 import { pageTitle } from '@/lib/store';
 import { resolveBuildPolicy } from '@/lib/storefront/build-policy';
-import { productCacheTags } from '@/lib/storefront/cache-tags';
 import { productJson } from '@/lib/storefront/to-json';
 import { categoryUrl, collectionUrl, productUrl, subcategoryUrl } from '@/lib/storefront/urls';
 import './product.css';
@@ -35,7 +34,7 @@ const RELATED_COUNT = 12;
  */
 export default eco.page<ProductPageProps, JsxRenderable>({
 	layout: BaseLayout,
-	cache: ({ params }) => ({ revalidate: 3600, tags: productCacheTags(String(params.product)) }),
+	cache: ({ params }) => ({ revalidate: 3600, tags: ['catalog', 'products', `product:${params.product}`] }),
 	paths: async () => {
 		const handles = await getCommerceBackend().catalog.listFeaturedProductHandles(
 			resolveBuildPolicy().productsPerSubcategory,

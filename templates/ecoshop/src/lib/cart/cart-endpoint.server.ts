@@ -1,10 +1,7 @@
-import { createMiddleware } from '@ecopages/core';
 import { z } from 'zod';
 import { CartInputError } from '@/lib/commerce/errors';
 import { formatMoney } from '@/lib/commerce/money';
 import { type Cart, type CommerceProvider, MAX_LINE_QUANTITY } from '@/lib/commerce/types';
-import { isSameOriginRequest } from '@/lib/http/same-origin';
-import { siteOrigin } from '@/lib/site-origin';
 import { storePaths } from '@/lib/store-urls';
 import { cartCookieFor, readCartId } from './cart-cookie';
 import { noticeQuery, shortageQuery } from './cart-messages';
@@ -49,25 +46,11 @@ export function redirectInvalidPost(): Response {
 }
 
 /**
- * Answers 403 to a post from another site, or `null` to go on.
- */
-export function refuseCrossOrigin(request: Request): Response | null {
-	return isSameOriginRequest(request, siteOrigin)
-		? null
-		: Response.json({ error: 'Origin not allowed' }, { status: 403 });
-}
-
-/**
- * The cart Endpoint's first stage: it refuses a post from another site before the body is read.
- */
-export const sameOriginOnly = createMiddleware((context, next) => refuseCrossOrigin(context.request) ?? next());
-
-/**
  * Applies a cart change the Endpoint already validated against {@link cartActionSchema}, and answers the form with a
  * 303 back to `/cart`.
  *
  * @remarks
- * Ecopages parses the form body after the route's middleware, so {@link sameOriginOnly} has already refused a post
+ * Ecopages parses the form body after the route's middleware, so `sameOrigin()` has already refused a post
  * from another site, and answers a change that fails the schema with {@link redirectInvalidPost} before this runs. The product form and
  * the agent tools add through `/api/agent-tools`, so this Endpoint serves plain form posts only.
  */

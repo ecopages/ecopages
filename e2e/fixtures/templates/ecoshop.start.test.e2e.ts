@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import { get as httpGet } from 'node:http';
 import { expect, type Page } from '@playwright/test';
 import { test } from '../../app-fixture.ts';
 
@@ -55,6 +56,37 @@ test('a browser with WebMCP downloads the schema library to register the tools',
 	expect(await schemaChunksDownloaded(page, '/products/field-shirt', true)).toHaveLength(1);
 });
 
+/** The status of a GET for `/` that names `host` as its `Host`, sent to the running server's port. */
+function statusForHost(appUrl: string, host: string): Promise<number> {
+	return new Promise((resolve, reject) => {
+		httpGet(
+			{ host: 'localhost', port: Number(new URL(appUrl).port), path: '/', headers: { Host: host } },
+			(res) => {
+				res.resume();
+				resolve(res.statusCode ?? 0);
+			},
+		).on('error', reject);
+	});
+}
+
+test('the production server refuses a request for a host it does not serve', async ({ app }) => {
+	expect(await statusForHost(app.url, 'evil.example')).toBe(400);
+	expect(await statusForHost(app.url, `evil.example:${new URL(app.url).port}`)).toBe(400);
+	expect(await statusForHost(app.url, `localhost:${new URL(app.url).port}`)).toBe(200);
+});
+
+test('the production server answers only the host of its baseUrl: no IP address, no loopback name', async ({ app }) => {
+	const { port } = new URL(app.url);
+
+	expect(await statusForHost(app.url, `127.0.0.1:${port}`)).toBe(400);
+	expect(await statusForHost(app.url, `[::1]:${port}`)).toBe(400);
+	expect(await statusForHost(app.url, `app.localhost:${port}`)).toBe(400);
+	expect(await statusForHost(app.url, `localhost.:${port}`)).toBe(200);
+});
+
+/** What a browser sends with a form post or `fetch` from a page of the store itself. */
+const fromThisSite = { 'Sec-Fetch-Site': 'same-origin' };
+
 const mcpHeaders = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
 
 test('llms.txt lists the store, its collections and the MCP endpoint', async ({ request }) => {
@@ -85,6 +117,7 @@ test('the cart answers a form post with a redirect, and an invalid one with a re
 }) => {
 	const form = await request.post('/api/cart', {
 		form: { intent: 'add', variantId: fieldShirtM, quantity: '2' },
+		headers: fromThisSite,
 		maxRedirects: 0,
 	});
 	expect(form.status()).toBe(303);
@@ -93,11 +126,16 @@ test('the cart answers a form post with a redirect, and an invalid one with a re
 
 	const second = await request.post('/api/cart', {
 		form: { intent: 'add', variantId: fieldShirtM, quantity: '1' },
+		headers: fromThisSite,
 		maxRedirects: 0,
 	});
 	expect(second.status()).toBe(303);
 
-	const invalid = await request.post('/api/cart', { form: { intent: 'add' }, maxRedirects: 0 });
+	const invalid = await request.post('/api/cart', {
+		form: { intent: 'add' },
+		headers: fromThisSite,
+		maxRedirects: 0,
+	});
 	expect(invalid.status()).toBe(303);
 	expect(invalid.headers().location).toBe('/cart?notice=invalid');
 
@@ -109,7 +147,7 @@ test('the cart answers a form post with a redirect, and an invalid one with a re
 
 	const repeated = await request.post('/api/cart', {
 		data: `intent=add&variantId=${encodeURIComponent(canvasTote)}&variantId=${encodeURIComponent(fieldShirtM)}`,
-		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+		headers: { ...fromThisSite, 'Content-Type': 'application/x-www-form-urlencoded' },
 		maxRedirects: 0,
 	});
 	expect(repeated.status()).toBe(303);
@@ -216,4 +254,75 @@ test('a shop update re-renders the policy pages', async ({ request }) => {
 
 	expect(await response.json()).toEqual({ revalidated: true, tags: ['collections', 'policies'] });
 	expect((await request.get('/policies/shipping-policy')).headers()['x-cache']).toBe('MISS');
+});
+
+const stateChangingRoutes = [
+	{ path: '/api/cart', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, data: 'intent=add' },
+	{ path: '/api/agent-tools/get_cart', headers: { 'Content-Type': 'application/json' }, data: '{}' },
+	{ path: '/mcp', headers: mcpHeaders, data: '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' },
+	{ path: '/api/ucp/mcp', headers: { 'Content-Type': 'application/json' }, data: '{}' },
+	{ path: '/api/revalidate', headers: { 'Content-Type': 'application/json' }, data: '{}' },
+];
+
+for (const route of stateChangingRoutes) {
+	test(`${route.path} refuses a request from another site`, async ({ request }) => {
+		const crossSite = await request.post(route.path, {
+			headers: { ...route.headers, 'Sec-Fetch-Site': 'cross-site' },
+			data: route.data,
+			maxRedirects: 0,
+		});
+		const foreignOrigin = await request.post(route.path, {
+			headers: { ...route.headers, Origin: 'https://evil.example' },
+			data: route.data,
+			maxRedirects: 0,
+		});
+
+		expect(crossSite.status()).toBe(403);
+		expect(foreignOrigin.status()).toBe(403);
+	});
+}
+
+test('the cart and the page tools refuse a post with neither Sec-Fetch-Site nor Origin, and the agent routes do not', async ({
+	request,
+}) => {
+	const cart = await request.post('/api/cart', { form: { intent: 'add', variantId: fieldShirtM }, maxRedirects: 0 });
+	const tool = await request.post('/api/agent-tools/get_cart', { data: {} });
+	const mcp = await request.post('/mcp', {
+		headers: mcpHeaders,
+		data: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+	});
+
+	const ucp = await request.post('/api/ucp/mcp', { data: {} });
+
+	expect(cart.status()).toBe(403);
+	expect(tool.status()).toBe(403);
+	expect(mcp.status()).toBe(200);
+	expect(ucp.status()).toBe(404);
+});
+
+test('a post whose Origin is the origin the visitor used passes, with no Sec-Fetch-Site', async ({ app, request }) => {
+	const cart = await request.post('/api/cart', {
+		form: { intent: 'add', variantId: fieldShirtM },
+		headers: { Origin: app.url },
+		maxRedirects: 0,
+	});
+
+	expect(cart.status()).toBe(303);
+});
+
+test('a refused post answers in the shape of its route', async ({ request }) => {
+	const mcp = await request.post('/mcp', {
+		headers: { ...mcpHeaders, 'Sec-Fetch-Site': 'cross-site' },
+		data: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+	});
+	const cart = await request.post('/api/cart', {
+		form: { intent: 'add', variantId: fieldShirtM },
+		headers: { 'Sec-Fetch-Site': 'cross-site' },
+		maxRedirects: 0,
+	});
+
+	expect(mcp.status()).toBe(403);
+	expect(await mcp.json()).toMatchObject({ jsonrpc: '2.0', error: { code: -32000 } });
+	expect(cart.status()).toBe(403);
+	expect(await cart.json()).toEqual({ error: 'Cross-origin request refused' });
 });

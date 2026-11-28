@@ -116,11 +116,11 @@ The database records the preset and the generator version. When either differs f
 
 Product images come from `src/lib/images/placeholder.ts`, a few hundred bytes of SVG drawn from the product handle. To use real photos, replace `src/pages/images/products/[slug].api.ts` and `thumbnailUrl` in `src/lib/commerce/drizzle/mappers.ts`.
 
-To use your own data, pass a `generate` function to `openCatalogDatabase` in `getCatalogDb` (`src/lib/commerce/drizzle/database.server.ts`) that returns your rows in the generator's shape, or write another adapter.
+To use your own data, make `seed` in `src/lib/commerce/drizzle/database.server.ts` insert your rows in the generator's shape instead of calling `generateCatalog`, or write another adapter.
 
 ## The cart
 
-The cart lives in the database: a `carts` row per visitor and a `cart_lines` row per product option. The cookie, `HttpOnly` and `SameSite=Lax`, holds only the cart id, signed with HMAC-SHA256; a cookie whose signature does not match reads as an empty cart. Each change is one operation on one line (add, set quantity, remove), applied in a single statement, so two tabs that change the cart at the same moment both keep their change. A cart holds up to 50 product options, checked by the database statement itself; adding a 51st is refused with the reason. A line holds up to 99: an addition that would go past it is capped at 99, and one to a line already at 99 is refused. Cart posts are refused unless the browser marks them `Sec-Fetch-Site: same-origin` (or `none`, as for a typed URL), so a post from another site, or a subdomain, never changes the cart. A request without the header, such as one from a script on the server, passes. Carts untouched for 30 days are removed. There are no accounts and no checkout.
+The cart lives in the database: a `carts` row per visitor and a `cart_lines` row per product option. The cookie, `HttpOnly` and `SameSite=Lax`, holds only the cart id, signed with HMAC-SHA256; a cookie whose signature does not match reads as an empty cart. Each change is one operation on one line (add, set quantity, remove), applied in a single statement, so two tabs that change the cart at the same moment both keep their change. A cart holds up to 50 product options, checked by the database statement itself; adding a 51st is refused with the reason. A line holds up to 99: an addition that would go past it is capped at 99, and one to a line already at 99 is refused. Cart posts are refused unless they come from this site (see [Host and origin checks](#host-and-origin-checks)), so a post from another site, or a subdomain, never changes the cart. Carts untouched for 30 days are removed. There are no accounts and no checkout.
 
 - Without JavaScript, "Add to cart" is a form that posts the chosen finish and quantity to `/cart/add`, which answers with a redirect to `/order`. Quantities on `/order` are forms that post to `/cart/update`.
 - With JavaScript, `<add-to-cart>` sends the same form with `fetch`, shows a toast, and updates the header count. The header cart link opens a drawer with the cart, where quantities change and lines go away without leaving the page.
@@ -157,16 +157,24 @@ Where `document.modelContext` is missing, no tool is registered and nothing is l
 
 Copy `.env.example` to `.env`.
 
-| Variable                            | Default                 | Purpose                                                                        |
-| ----------------------------------- | ----------------------- | ------------------------------------------------------------------------------ |
-| `CART_SECRET`                       | development secret      | Signs the cart cookie. Required in production, at least 32 characters.         |
-| `DATABASE_URL`                      | `file:.data/catalog.db` | libSQL URL: a local `file:` path or a remote `libsql://` database.             |
-| `DATABASE_AUTH_TOKEN`               | unset                   | Token for a remote database such as Turso.                                     |
-| `CATALOG_SIZE`                      | `medium`                | Catalog preset.                                                                |
-| `PREBUILT_PRODUCTS_PER_SUBCATEGORY` | `4`                     | Product pages rendered at build per subcategory.                               |
-| `PREBUILT_LISTING_PAGES`            | `2`                     | Listing pages rendered at build per subcategory.                               |
-| `REVALIDATE_TOKEN`                  | unset                   | Enables `POST /api/revalidate`.                                                |
-| `ECOPAGES_BASE_URL`                 | `http://localhost:3000` | Origin for canonical links; an `https:` origin marks the cart cookie `Secure`. |
+| Variable                            | Default                 | Purpose                                                                     |
+| ----------------------------------- | ----------------------- | --------------------------------------------------------------------------- |
+| `CART_SECRET`                       | development secret      | Signs the cart cookie. Required in production, at least 32 characters.      |
+| `DATABASE_URL`                      | `file:.data/catalog.db` | libSQL URL: a local `file:` path or a remote `libsql://` database.          |
+| `DATABASE_AUTH_TOKEN`               | unset                   | Token for a remote database such as Turso.                                  |
+| `CATALOG_SIZE`                      | `medium`                | Catalog preset.                                                             |
+| `PREBUILT_PRODUCTS_PER_SUBCATEGORY` | `4`                     | Product pages rendered at build per subcategory.                            |
+| `PREBUILT_LISTING_PAGES`            | `2`                     | Listing pages rendered at build per subcategory.                            |
+| `REVALIDATE_TOKEN`                  | unset                   | Enables `POST /api/revalidate`.                                             |
+| `ECOPAGES_BASE_URL`                 | `http://localhost:3000` | Origin for canonical links; in production the server answers only its host. |
+
+## Host and origin checks
+
+One policy, both from Ecopages core. First, the server answers only the hosts it serves: in `ecopages dev`, `localhost` and IP addresses plus the host of `ECOPAGES_BASE_URL`; in production, only the host of `ECOPAGES_BASE_URL` (`allowedHosts` in `eco.config.ts` adds more, such as `localhost` for a health check). A request for another `Host` gets HTTP 400, which stops a DNS rebinding page from reaching a store running on a shopper's machine, and means `request.url` is the address the visitor used. Second, every state-changing route lists `sameOrigin()` and answers HTTP 403, before it reads the body, to a request another site started: `Sec-Fetch-Site` decides when the browser sends it (`same-origin` or `none` pass), otherwise `Origin` must equal the request origin.
+
+- `POST /cart/add` and `POST /cart/update` are posted by the store's own pages, so a request with neither header is refused too.
+- `POST /api/revalidate` is called by servers and scripts with a bearer token, which send neither header, so it uses `sameOrigin({ allowNonBrowser: true })`: those pass and a browser request from another site is still refused.
+- The cart cookie is `Secure` when the request URL is `https`. Behind a proxy that terminates TLS, set `trustProxy: { proto: true }` in `eco.config.ts`, so the request URL reads `X-Forwarded-Proto`; set `trustProxy: true` only when the proxy also overwrites `X-Forwarded-Host`.
 
 ## Structure
 

@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer, request as httpRequest, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { connect, type AddressInfo } from 'node:net';
 import { path } from '@ecopages/file-system/path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
@@ -12,6 +12,8 @@ import { ApiRequestPipeline, compileApiRoutes } from '../shared/http/api-request
 import { defineQuery } from '../shared/http/define-api-handler.ts';
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocket-upgrades.ts';
+import { createHostPolicy } from '../shared/http/host-policy.ts';
+import { anyHostPolicy } from './host-policy.fixture.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 import { NodeRuntimeHost } from './runtime-host.ts';
 
@@ -44,13 +46,14 @@ describe('NodeRuntimeHost', () => {
 		const host = new NodeRuntimeHost(requestBridge as never, serverFactory as never);
 
 		await host.start({
+			hostPolicy: anyHostPolicy,
 			hostname: 'localhost',
 			port: 3000,
 			handleRequest: async () => new Response('ok'),
 		});
 
 		const res = { statusCode: 200, end: vi.fn() };
-		await requestHandler?.({ url: '/', method: 'GET', headers: {} }, res);
+		await requestHandler?.({ url: '/', method: 'GET', headers: { host: 'localhost:3000' } }, res);
 
 		expect(loggerSpy).not.toHaveBeenCalled();
 		expect(res.end).not.toHaveBeenCalled();
@@ -93,7 +96,12 @@ describe('NodeRuntimeHost', () => {
 		const host = new NodeRuntimeHost(requestBridge as never, serverFactory as never);
 
 		await expect(
-			host.start({ hostname: 'localhost', port: 3000, handleRequest: async () => new Response('ok') }),
+			host.start({
+				hostname: 'localhost',
+				port: 3000,
+				hostPolicy: anyHostPolicy,
+				handleRequest: async () => new Response('ok'),
+			}),
 		).rejects.toMatchObject({ code: 'EADDRINUSE' });
 	});
 
@@ -104,6 +112,7 @@ describe('NodeRuntimeHost', () => {
 				hostname: '127.0.0.1',
 				port: 0,
 				trustProxy,
+				hostPolicy: anyHostPolicy,
 				handleRequest: async (request) => new Response(request.url),
 			});
 			try {
@@ -138,6 +147,130 @@ describe('NodeRuntimeHost', () => {
 		expect(await seen(true)).toBe('https://proxy.example/probe');
 	});
 
+	describe('host policy', () => {
+		const hostPolicy = createHostPolicy({
+			allowedHosts: ['shop.example', '*.shop.example'],
+			baseUrl: 'https://shop.example',
+			development: false,
+		});
+
+		async function withServer<T>(
+			options: { trustProxy?: boolean; hostPolicy?: typeof hostPolicy },
+			run: (
+				send: (headers: Record<string, string>, path?: string) => Promise<{ status: number; body: string }>,
+				sendRaw: (text: string) => Promise<string>,
+			) => Promise<T>,
+		): Promise<{ result: T; handled: string[] }> {
+			const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
+			const handled: string[] = [];
+			const server = await host.start({
+				hostname: '127.0.0.1',
+				port: 0,
+				hostPolicy: anyHostPolicy,
+				...options,
+				handleRequest: async (request) => {
+					handled.push(request.url);
+					return new Response(request.url);
+				},
+			});
+			const { port } = server.address() as AddressInfo;
+			const send = (headers: Record<string, string>, path = '/probe') =>
+				new Promise<{ status: number; body: string }>((resolve, reject) => {
+					httpRequest({ host: '127.0.0.1', port, path, headers }, (res) => {
+						const chunks: Buffer[] = [];
+						res.on('data', (chunk: Buffer) => chunks.push(chunk));
+						res.on('end', () =>
+							resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString() }),
+						);
+					})
+						.on('error', reject)
+						.end();
+				});
+			const sendRaw = (text: string) =>
+				new Promise<string>((resolve, reject) => {
+					const socket = connect({ host: '127.0.0.1', port }, () => socket.write(text));
+					const chunks: Buffer[] = [];
+					socket.on('data', (chunk: Buffer) => chunks.push(chunk));
+					socket.on('close', () => resolve(Buffer.concat(chunks).toString()));
+					socket.on('error', reject);
+				});
+			try {
+				return { result: await run(send, sendRaw), handled };
+			} finally {
+				await host.stop(server);
+			}
+		}
+
+		it('answers HTTP 400 for a host the app does not serve, before the handler runs', async () => {
+			const { result, handled } = await withServer({ hostPolicy }, async (send) => [
+				await send({ Host: 'evil.example' }),
+				await send({ Host: 'evil.example:3000' }),
+				await send({ Host: 'shop.example.evil.example' }),
+			]);
+
+			expect(result.map((response) => response.status)).toEqual([400, 400, 400]);
+			expect(handled).toEqual([]);
+		});
+
+		it('passes an allowed host, with a port or a wildcard subdomain', async () => {
+			const { result, handled } = await withServer({ hostPolicy }, async (send) => [
+				await send({ Host: 'shop.example' }),
+				await send({ Host: 'shop.example:8080' }),
+				await send({ Host: 'eu.shop.example' }),
+			]);
+
+			expect(result.map((response) => response.status)).toEqual([200, 200, 200]);
+			expect(handled).toEqual([
+				'http://shop.example/probe',
+				'http://shop.example:8080/probe',
+				'http://eu.shop.example/probe',
+			]);
+		});
+
+		it('refuses a request without a usable Host', async () => {
+			const { result, handled } = await withServer({ hostPolicy }, async (send, sendRaw) => ({
+				malformed: await send({ Host: 'shop.example/evil' }),
+				missing: await sendRaw('GET /probe HTTP/1.0\r\n\r\n'),
+			}));
+
+			expect(result.malformed.status).toBe(400);
+			expect(result.missing).toMatch(/^HTTP\/1\.1 400 /u);
+			expect(handled).toEqual([]);
+		});
+
+		it('checks a forwarded host only when the proxy is trusted', async () => {
+			const headers = { Host: 'shop.example', 'X-Forwarded-Host': 'evil.example' };
+
+			const untrusted = await withServer({ hostPolicy, trustProxy: false }, (send) => send(headers));
+			const trusted = await withServer({ hostPolicy, trustProxy: true }, async (send) => [
+				await send(headers),
+				await send({ Host: 'internal:3000', 'X-Forwarded-Host': 'shop.example' }),
+			]);
+
+			expect(untrusted.result.status).toBe(200);
+			expect(untrusted.result.body).toBe('http://shop.example/probe');
+			expect(trusted.result.map((response) => response.status)).toEqual([400, 200]);
+			expect(trusted.handled).toEqual(['http://shop.example/probe']);
+		});
+
+		it('checks the host the request URL carries, not one named by the request target', async () => {
+			const { result, handled } = await withServer({ hostPolicy }, async (send) => [
+				await send({ Host: 'shop.example' }, '//evil.example/probe'),
+				await send({ Host: 'shop.example' }, 'http://evil.example/probe'),
+				await send({ Host: 'evil.example' }, 'http://shop.example/probe'),
+			]);
+
+			expect(result.map((response) => response.status)).toEqual([200, 200, 400]);
+			expect(handled).toEqual(['http://shop.example//evil.example/probe', 'http://shop.example/probe']);
+		});
+
+		it('serves every host when no policy is given', async () => {
+			const { result } = await withServer({}, (send) => send({ Host: 'evil.example' }));
+
+			expect(result.status).toBe(200);
+		});
+	});
+
 	it('delivers a QUERY request body to the handler through the bound server', async () => {
 		const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
 		const pipeline = new ApiRequestPipeline({
@@ -153,6 +286,7 @@ describe('NodeRuntimeHost', () => {
 			}),
 		];
 		const server = await host.start({
+			hostPolicy: anyHostPolicy,
 			hostname: '127.0.0.1',
 			port: 0,
 			handleRequest: async (request) =>
@@ -194,6 +328,7 @@ describe('NodeRuntimeHost', () => {
 	it('stops while a WebSocket client is still connected', async () => {
 		const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
 		const server = await host.start({
+			hostPolicy: anyHostPolicy,
 			hostname: '127.0.0.1',
 			port: 0,
 			handleRequest: async () => new Response('ok'),
@@ -202,6 +337,7 @@ describe('NodeRuntimeHost', () => {
 		const onClose = vi.fn();
 		attachNodeHttpWebSocketUpgrades(server, {
 			runtimeOrigin: origin,
+			hostPolicy: anyHostPolicy,
 			websocketHandlers: new Map([['/ws', { onClose }]]),
 		});
 		const client = new WebSocket(`${origin.replace('http', 'ws')}/ws`);
@@ -214,6 +350,41 @@ describe('NodeRuntimeHost', () => {
 		expect(server.listening).toBe(false);
 		await vi.waitFor(() => expect(onClose).toHaveBeenCalledOnce());
 	}, 2000);
+
+	it('refuses a WebSocket handshake from a page of another site with 403, and lets the own origin and a client without Origin connect', async () => {
+		const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
+		const server = await host.start({
+			hostname: '127.0.0.1',
+			port: 0,
+			hostPolicy: anyHostPolicy,
+			handleRequest: async () => new Response('ok'),
+		});
+		const origin = host.getOrigin(server, { hostname: '127.0.0.1' });
+		attachNodeHttpWebSocketUpgrades(server, {
+			runtimeOrigin: origin,
+			hostPolicy: anyHostPolicy,
+			websocketHandlers: new Map([['/ws', {}]]),
+		});
+		const handshake = (headers: Record<string, string>) =>
+			new Promise<number | 'open'>((resolve, reject) => {
+				const client = new WebSocket(`${origin.replace('http', 'ws')}/ws`, { headers });
+				client.on('open', () => {
+					resolve('open');
+					client.close();
+				});
+				client.on('unexpected-response', (_request, response) => resolve(response.statusCode ?? 0));
+				client.on('error', reject);
+			});
+
+		try {
+			expect(await handshake({ Origin: 'https://evil.example' })).toBe(403);
+			expect(await handshake({ Origin: 'null' })).toBe(403);
+			expect(await handshake({ Origin: origin })).toBe('open');
+			expect(await handshake({})).toBe('open');
+		} finally {
+			await host.stop(server);
+		}
+	});
 
 	describe('on a port already taken on localhost', () => {
 		const handleRequest = async () => new Response('ok');
@@ -236,7 +407,9 @@ describe('NodeRuntimeHost', () => {
 			const port = await takeLocalhostPort();
 			const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
 
-			await expect(host.start({ hostname: 'localhost', port, handleRequest })).rejects.toMatchObject({
+			await expect(
+				host.start({ hostname: 'localhost', port, hostPolicy: anyHostPolicy, handleRequest }),
+			).rejects.toMatchObject({
 				code: 'EADDRINUSE',
 			});
 		});
@@ -246,7 +419,7 @@ describe('NodeRuntimeHost', () => {
 			const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
 
 			const binding = await bindRuntimeServer(host, {
-				serveOptions: { hostname: 'localhost', port, handleRequest },
+				serveOptions: { hostname: 'localhost', port, hostPolicy: anyHostPolicy, handleRequest },
 				allowPortFallback: true,
 				usePortManager: true,
 			});
@@ -261,7 +434,7 @@ describe('NodeRuntimeHost', () => {
 
 			await expect(
 				bindRuntimeServer(host, {
-					serveOptions: { hostname: 'localhost', port, handleRequest },
+					serveOptions: { hostname: 'localhost', port, hostPolicy: anyHostPolicy, handleRequest },
 					allowPortFallback: false,
 					usePortManager: true,
 				}),

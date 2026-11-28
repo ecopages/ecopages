@@ -110,6 +110,31 @@ The `ApiHandlerContext` contains:
 - `headers`: The request headers validated by `schema.headers` and typed from it. Unset without a headers schema; read `request.headers` instead.
 - `services`: An object containing framework services like `cache`.
 
+### Same-origin requests
+
+A route that changes state for a browser, such as a cart form, should refuse a request another site started. Add `sameOrigin()` to its `middleware`:
+
+```typescript
+import { definePost, sameOrigin } from '@ecopages/core';
+import { z } from 'zod';
+
+export const POST = definePost({
+	middleware: [sameOrigin()],
+	schema: { body: z.object({ variantId: z.string() }) },
+	handler: async ({ body, response }) => response.json(await addToCart(body.variantId)),
+});
+```
+
+For a method other than `GET`, `HEAD`, `OPTIONS` or `QUERY`, it decides in this order and answers HTTP 403 otherwise:
+
+1. When the browser sends `Sec-Fetch-Site`, `same-origin` passes, and so does `none` (a request no site started: a typed URL, a bookmark, a reload or form resubmission). `same-site`, which includes a sibling subdomain, and `cross-site` are refused.
+2. Without it, `Origin` must equal the origin of `request.url`. `Origin: null` and any other value are refused.
+3. A request with neither header is refused, because a browser that strips both would otherwise be an open door.
+
+It runs before the body is read, so a refused request is never parsed against `schema.body`. Clients that are not browsers, such as an MCP client, a webhook sender or `curl`, send neither header, so a route that serves them and authenticates them itself passes `sameOrigin({ allowNonBrowser: true })`: they pass, and a browser request from another site is still refused. `onReject(request)` builds the 403 response when the route's clients expect a shape other than the default `{ "error": "Cross-origin request refused" }`.
+
+The `Origin` comparison is sound because the server refuses a request for a host it does not serve ([`allowedHosts`](/docs/getting-started/configuration#allowed-hosts)), so `request.url` is the address the visitor used. Behind a proxy that terminates TLS, set `trustProxy: { proto: true }`, or `request.url` is `http` and an `https` `Origin` does not match when `Sec-Fetch-Site` is missing.
+
 ### Accessing the Server Instance
 
 `server` is typed `unknown`, so narrow it with `instanceof Server` before calling Node APIs such as `address()`:

@@ -4,6 +4,8 @@ import type { Socket } from 'node:net';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
 import type { TrustProxy } from '../../config/user-config-types.ts';
 import { appLogger } from '../../global/app-logger.ts';
+import type { HostPolicy } from '../shared/http/host-policy.ts';
+import { refuseHost, resolveAllowedOrigin } from './request-host.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
 import { isNodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 
@@ -14,6 +16,14 @@ export type NodeRuntimeServeOptions = {
 	hostname?: string;
 	/** Which of `X-Forwarded-Host` and `X-Forwarded-Proto` a request URL may read. */
 	trustProxy?: TrustProxy;
+	/**
+	 * The hosts this server answers. A request for any other host gets HTTP 400 before `handleRequest`.
+	 *
+	 * @remarks
+	 * Required, so no server can start without deciding which hosts it answers. `NodeServerAdapter` builds it from
+	 * the config for the app server and for `ecopages preview`; `allowedHosts: true` allows every host.
+	 */
+	hostPolicy: HostPolicy;
 	handleRequest(request: Request): Promise<Response>;
 };
 
@@ -75,8 +85,19 @@ export class NodeRuntimeHost {
 		server = this.serverFactory(async (req, res) => {
 			try {
 				const runtimeOrigin = this.getOrigin(server, serveOptions);
+				const origin = resolveAllowedOrigin(
+					req,
+					runtimeOrigin,
+					serveOptions.trustProxy,
+					serveOptions.hostPolicy,
+				);
+				if (origin === null) {
+					refuseHost(res);
+					return;
+				}
 				const webRequest = this.requestBridge.createWebRequest(req, runtimeOrigin, {
 					trustProxy: serveOptions.trustProxy,
+					origin,
 				});
 				const response = await serveOptions.handleRequest(webRequest);
 				await this.requestBridge.sendNodeResponse(res, response);

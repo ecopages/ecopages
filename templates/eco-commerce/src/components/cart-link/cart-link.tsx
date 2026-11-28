@@ -5,10 +5,6 @@ import './cart-link.css';
 
 /**
  * Header link to the order page, with the cart count once the script reads it.
- *
- * @remarks
- * `/order` is a dynamic page, which the browser router never keeps, so a client navigation to it always shows the
- * current cart and the link needs no `data-eco-reload`.
  */
 export const CartLink = eco.component<{}, JsxRenderable>({
 	dependencies: {

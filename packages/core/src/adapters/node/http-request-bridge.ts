@@ -102,6 +102,56 @@ export function resolveRequestOrigin(
 	runtimeOrigin: string,
 	trustProxy: TrustProxy | undefined,
 ): string {
+	return pickRequestOrigin(req, runtimeOrigin, trustProxy).origin;
+}
+
+/**
+ * The origin the request names in its headers, or `null` when it names no usable host.
+ *
+ * @remarks
+ * Unlike {@link resolveRequestOrigin} it never substitutes the listen origin: a missing or malformed `Host` gives
+ * `null`, so the host policy refuses a request that does not say where it is going. `resolveAllowedOrigin()` checks
+ * this origin and hands it to the request URL and the upgrade, so the host that was checked is the host used.
+ */
+export function resolveHeaderOrigin(
+	req: IncomingMessage,
+	runtimeOrigin: string,
+	trustProxy: TrustProxy | undefined,
+): string | null {
+	const { origin, fromHeader } = pickRequestOrigin(req, runtimeOrigin, trustProxy);
+	return fromHeader ? origin : null;
+}
+
+/**
+ * The URL of a Node request on `origin`, taking only the path and query from the request target.
+ *
+ * @remarks
+ * The target is not resolved with `new URL(target, origin)`: a target such as `//evil.example/x` or the absolute
+ * form `http://evil.example/x` would replace the host the policy checked. The path and query are appended to the
+ * origin instead, so the URL always carries the host that was checked. A target that is neither an origin-form path
+ * nor an absolute URL with a path, such as `*` or `foo:@evil.example/x`, becomes `/`, so the answer does not depend
+ * on how the parser reads it.
+ */
+export function requestUrlOnOrigin(target: string | undefined, origin: string): URL {
+	const value = target ?? '/';
+	if (value.startsWith('/')) return new URL(`${origin}${value}`);
+	try {
+		const absolute = new URL(value);
+		const path = absolute.pathname.startsWith('/') ? `${absolute.pathname}${absolute.search}` : '/';
+		return new URL(`${origin}${path}`);
+	} catch {
+		return new URL(`${origin}/`);
+	}
+}
+
+/**
+ * The origin the request names, and whether a header gave it or the listen origin stands in for a missing one.
+ */
+function pickRequestOrigin(
+	req: IncomingMessage,
+	runtimeOrigin: string,
+	trustProxy: TrustProxy | undefined,
+): { origin: string; fromHeader: boolean } {
 	const trusted = typeof trustProxy === 'object' ? trustProxy : { host: trustProxy, proto: trustProxy };
 	const fallback = new URL(runtimeOrigin);
 	const forwardedProto = trusted.proto
@@ -114,9 +164,9 @@ export function resolveRequestOrigin(
 	];
 	for (const host of hosts) {
 		const origin = host ? originOfAuthority(protocol, host) : null;
-		if (origin) return origin;
+		if (origin) return { origin, fromHeader: true };
 	}
-	return `${protocol}//${fallback.host}`;
+	return { origin: `${protocol}//${fallback.host}`, fromHeader: false };
 }
 
 /**
@@ -153,15 +203,19 @@ export class NodeHttpRequestBridge {
 	 * The Node request is paused once a chunk is queued and resumed as the body is read, so a handler that waits
 	 * before it reads, such as one behind slow middleware, does not make the server queue the whole upload.
 	 *
-	 * The request URL carries the origin the visitor used: the `Host` header, or the forwarded headers
-	 * when `trustProxy` is set, and `runtimeOrigin` only when neither is usable.
+	 * The request URL carries `options.origin` when the caller already checked one, which is what the runtime host
+	 * does with the origin `resolveAllowedOrigin()` returned. Otherwise it carries the origin the visitor used: the
+	 * `Host` header, or the forwarded headers when `trustProxy` is set, and `runtimeOrigin` only when neither is usable.
 	 */
 	public createWebRequest(
 		req: IncomingMessage,
 		runtimeOrigin: string,
-		options: { trustProxy?: TrustProxy } = {},
+		options: { trustProxy?: TrustProxy; origin?: string } = {},
 	): Request {
-		const url = new URL(req.url ?? '/', resolveRequestOrigin(req, runtimeOrigin, options.trustProxy));
+		const url = requestUrlOnOrigin(
+			req.url,
+			options.origin ?? resolveRequestOrigin(req, runtimeOrigin, options.trustProxy),
+		);
 		const headers = new Headers();
 
 		for (const [key, value] of Object.entries(req.headers)) {

@@ -131,7 +131,7 @@ async function main(): Promise<void> {
 		],
 		{
 			cwd: kitchenSinkDir,
-			env: { ...env, ECOPAGES_PORT: String(port), ECOPAGES_HOSTNAME: '127.0.0.1' },
+			env: { ...env, ECOPAGES_PORT: String(port), ECOPAGES_HOSTNAME: '127.0.0.1', ECOPAGES_BASE_URL: baseUrl },
 			stdio: ['ignore', 'pipe', 'pipe'],
 		},
 	);

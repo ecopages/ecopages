@@ -1,0 +1,99 @@
+import { describe, expect, it } from 'vitest';
+import { normalizePreservedModuleOutput, type PreservedModuleChunk } from './preserved-module-output.ts';
+
+function chunk(fileName: string, code: string, extra: Partial<PreservedModuleChunk> = {}): PreservedModuleChunk {
+	return { fileName, code, facadeModuleId: `/app/${fileName}`, dynamicImports: [], ...extra };
+}
+
+describe('normalizePreservedModuleOutput', () => {
+	it('moves a namespace object out of the file that owns it and imports the real namespace where it is read', () => {
+		const dep = chunk(
+			'dep.js',
+			[
+				'import { __exportAll } from "./runtime.js";',
+				'var dep_exports = /* @__PURE__ */ __exportAll({ a: () => "a" });',
+				'const a = "a";',
+				'export { a, dep_exports };',
+				'',
+			].join('\n'),
+		);
+		const user = chunk(
+			'user.js',
+			[
+				'import { a, dep_exports as dep } from "./dep.js";',
+				'export const keys = Object.keys(dep);',
+				'export { dep };',
+				'',
+			].join('\n'),
+		);
+
+		const assets = normalizePreservedModuleOutput([dep, user], new Set());
+
+		expect(assets).toEqual([]);
+		expect(dep.code).toBe('const a = "a";\nexport { a };\n');
+		expect(user.code).toContain('import { a } from "./dep.js";');
+		expect(user.code).toContain('import * as dep from "./dep.js";');
+		expect(user.code).not.toContain('dep_exports');
+	});
+
+	it('leaves a file alone when the module also reads its own namespace', () => {
+		const code = [
+			'import { __exportAll } from "./runtime.js";',
+			'var self_exports = /* @__PURE__ */ __exportAll({ a: () => "a" });',
+			'const a = "a";',
+			'const keys = Object.keys(self_exports);',
+			'export { a, keys, self_exports };',
+			'',
+		].join('\n');
+		const self = chunk('self.js', code);
+
+		normalizePreservedModuleOutput([self], new Set());
+
+		expect(self.code).toBe(code);
+	});
+
+	it('stops a CommonJS module that is not an entry from running when its file loads, and exports its require function', () => {
+		const target = chunk(
+			'target.js',
+			'var require_target = __commonJSMin((exports, module) => {\n\tmodule.exports = 1;\n});\nexport default require_target();\n',
+		);
+
+		normalizePreservedModuleOutput([target], new Set());
+
+		expect(target.code).not.toContain('export default');
+		expect(target.code).toContain('export { require_target };');
+	});
+
+	it('keeps the line that runs a CommonJS module that is an entry', () => {
+		const code =
+			'var require_target = __commonJSMin(() => {});\nexport default require_target();\nexport { require_target };\n';
+		const target = chunk('target.js', code);
+
+		normalizePreservedModuleOutput([target], new Set(['/app/target.js']));
+
+		expect(target.code).toBe(code);
+	});
+
+	it('sends a dynamic import of a CommonJS module to a sibling file that runs it, once per module', () => {
+		const target = chunk(
+			'target.js',
+			'var require_target = __commonJSMin(() => {});\nexport default require_target();\nexport { require_target };\n',
+		);
+		const user = chunk(
+			'user.js',
+			'const lazy = () => import("./target.js").then((m) => m.default);\nconst again = () => import("./target.js");\n',
+			{ dynamicImports: ['target.js'] },
+		);
+
+		const assets = normalizePreservedModuleOutput([target, user], new Set());
+
+		expect(user.code).not.toContain('"./target.js"');
+		expect(user.code.match(/"\.\/target~dyn\.js"/gu)).toHaveLength(2);
+		expect(assets).toEqual([
+			{
+				fileName: 'target~dyn.js',
+				source: 'import { require_target } from "./target.js";\nexport default require_target();\n',
+			},
+		]);
+	});
+});

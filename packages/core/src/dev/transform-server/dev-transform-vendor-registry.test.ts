@@ -702,6 +702,70 @@ describe('DevTransformVendorRegistry', () => {
 		expect(onVendorGraphChange).not.toHaveBeenCalled();
 	});
 
+	it('keeps the file of a module as it was when a later package reads its namespace object as a value', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-namespace');
+		writePackage(
+			path.join(modules, 'ns-lib'),
+			'ns-lib',
+			{ type: 'module', exports: { '.': './index.js', './dep': './dep.js' } },
+			{
+				'index.js': "import { a } from './dep.js';\nexport const first = 'first-' + a;\n",
+				'dep.js': "export const a = 'a';\nexport const b = 'b';\n",
+			},
+		);
+		writePackage(
+			path.join(modules, 'ns-user'),
+			'ns-user',
+			{ type: 'module', exports: './index.js' },
+			{
+				'index.js':
+					"import * as dep from 'ns-lib/dep';\nexport const keys = Object.keys(dep);\nexport { dep };\n",
+			},
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const onVendorGraphChange = vi.fn();
+		const registry = new DevTransformVendorRegistry({ appConfig: config, onVendorGraphChange });
+		const libUrl = await registry.resolveVendorUrl('ns-lib');
+		const served = await readVendorGraph(registry, [libUrl]);
+
+		const userUrl = await registry.resolveVendorUrl('ns-user');
+
+		expect(await readVendorGraph(registry, [libUrl])).toEqual(served);
+		expect(onVendorGraphChange).not.toHaveBeenCalled();
+		const [, user] = (await importVendorGraph(registry, [libUrl, userUrl])) as [unknown, { keys: string[] }];
+		expect(user.keys).toEqual(['a', 'b']);
+	});
+
+	it('does not run a CommonJS module that a package reaches by both require() and a dynamic import()', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-mixed-require');
+		writePackage(
+			path.join(modules, 'mixed-lib'),
+			'mixed-lib',
+			{ main: 'index.cjs' },
+			{
+				'index.cjs':
+					"exports.sync = () => require('./target.cjs');\nexports.async = () => import('./target.cjs');\n",
+				'target.cjs':
+					'globalThis.__mixedTargetRuns = (globalThis.__mixedTargetRuns ?? 0) + 1;\nmodule.exports = { value: 7 };\n',
+			},
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const url = await registry.resolveVendorUrl('mixed-lib');
+		const runs = globalThis as { __mixedTargetRuns?: number };
+		delete runs.__mixedTargetRuns;
+
+		const [lib] = (await importVendorGraph(registry, [url])) as [
+			{ default: { sync: () => { value: number }; async: () => Promise<{ default: { value: number } }> } },
+		];
+
+		expect(runs.__mixedTargetRuns).toBeUndefined();
+		expect(lib.default.sync().value).toBe(7);
+		expect((await lib.default.async()).default.value).toBe(7);
+		expect(runs.__mixedTargetRuns).toBe(1);
+		delete runs.__mixedTargetRuns;
+	});
+
 	it('keeps the files of a package that has internal modules as they were when a package in another folder is added', async () => {
 		const { rootDir, modules } = createAppRoot('dev-transform-vendor-folders');
 		writePackage(

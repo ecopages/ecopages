@@ -199,7 +199,7 @@ export default defineConfig({
 	scheme, port or path; `*.example.com` matches any subdomain of `example.com`, not `example.com` itself. `true` allows every host.
 </ApiField>
 
-This is the defence against DNS rebinding: an attacker's domain resolves to your server, so the browser sends the attacker's name as `Host` and `Origin`, and a check that compares the two would pass. Once a host is allowed, `request.url` is the address the visitor used, so any handler that compares `Origin` with it is sound.
+This is the defence against DNS rebinding: an attacker's domain resolves to your server, so the browser sends the attacker's name as `Host` and `Origin`, and a check that compares the two would pass. Once a host is allowed, `request.url` is the address the visitor used, so [`sameOrigin()`](/docs/server/api-handlers#same-origin-requests) and any handler that compares `Origin` with it are sound.
 
 - In development (`ecopages dev`), `localhost`, its subdomains and IP addresses are always allowed, together with the host of `baseUrl`. `allowedHosts` adds to them.
 - In production (`ecopages start`, `node dist/server/app.mjs`), only the host of `baseUrl` (or `ECOPAGES_BASE_URL`) is allowed, so loopback and every other name are refused. `allowedHosts` replaces it: list the public host again, and `localhost` when a health check calls the server by that name.

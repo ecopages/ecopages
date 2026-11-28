@@ -96,8 +96,9 @@ export class CartForm extends RadiantElement {
 		}
 		this.pending = false;
 		if (result.isError) {
-			const reason = result.structuredContent.error;
-			this.status = typeof reason === 'string' ? reason : 'The cart could not be updated.';
+			const { error, issues } = result.structuredContent;
+			if (Array.isArray(issues)) this.status = issues.join('; ');
+			else this.status = typeof error === 'string' ? error : 'The cart could not be updated.';
 		}
 		return result;
 	}

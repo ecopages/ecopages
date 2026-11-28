@@ -54,10 +54,16 @@ describe('agent tools endpoint', () => {
 
 	it('returns the tool error and sets no cookie for invalid input', async () => {
 		const response = await call('add_to_cart', { item: { id: fieldShirtM }, quantity: 'two' });
-		const body = (await response.json()) as { result: { isError: boolean; content: Array<{ text: string }> } };
+		const body = (await response.json()) as {
+			result: { isError: boolean; content: Array<{ text: string }>; structuredContent: Record<string, unknown> };
+		};
 
 		expect(body.result.isError).toBe(true);
 		expect(body.result.content[0]?.text).toMatch(/quantity/u);
+		expect(body.result.structuredContent).toMatchObject({
+			error: 'invalid_input',
+			issues: [expect.stringMatching(/^quantity: /u)],
+		});
 		expect(response.headers.get('set-cookie')).toBeNull();
 	});
 

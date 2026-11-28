@@ -15,3 +15,5 @@ scripts/agent-skills
 templates/*/build/
 # Local bench output, gitignored in bench/results/.gitignore, which Prettier does not read.
 playground/kitchen-sink/bench/results/mitata-bench*.json
+# Written by `pnpm schemas` in the ecoshop template from its Zod definitions and compared byte for byte by a test.
+templates/ecoshop/src/lib/agents/store-tool-schemas.ts

@@ -9,7 +9,8 @@
 		"preview": "ecopages preview",
 		"dev:watch": "ecopages dev:watch",
 		"test": "vitest run",
-		"typecheck": "ecopages types && tsc --noEmit"
+		"typecheck": "ecopages types && tsc --noEmit",
+		"schemas": "vitest run src/lib/agents/store-tool-schemas.test.ts -u"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.32.2",

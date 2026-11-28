@@ -185,7 +185,7 @@ test.describe('ecoshop WebMCP tools', () => {
 		expect(await page.evaluate(() => (window as unknown as { __samePage?: boolean }).__samePage)).toBe(true);
 	});
 
-	test('invalid input is refused in the browser, naming the field, and nothing is sent', async ({ page }) => {
+	test('invalid input is refused by the server, naming the field, and the cart stays empty', async ({ page }) => {
 		const calls: string[] = [];
 		page.on('request', (request) => {
 			if (request.url().includes('/api/agent-tools')) calls.push(request.url());
@@ -193,18 +193,12 @@ test.describe('ecoshop WebMCP tools', () => {
 		await page.goto('/products/field-shirt');
 		await expect.poll(() => toolNames(page)).toContain('add_to_cart');
 
-		const error = await page.evaluate(async (variant) => {
-			const agent = (
-				window as unknown as { __agent: { execute(name: string, input: unknown): Promise<unknown> } }
-			).__agent;
-			return agent.execute('add_to_cart', { item: { id: variant }, quantity: 0 }).then(
-				() => null,
-				(reason: unknown) => String(reason),
-			);
-		}, fieldShirtM);
+		const result = await execute(page, 'add_to_cart', { item: { id: fieldShirtM }, quantity: 0 });
 
-		expect(error).toMatch(/quantity/u);
-		expect(calls).toEqual([]);
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toMatch(/Invalid input\. quantity: /u);
+		expect(calls).toHaveLength(1);
+		await expect(page.locator('cart-form .add-to-cart__status')).toContainText('quantity: ');
 		const cart = await execute(page, 'get_cart', {});
 		expect(cart.structuredContent).toMatchObject({ item_count: 0 });
 		await expect(page.locator('cart-count')).toBeHidden();
@@ -271,7 +265,7 @@ test.describe('ecoshop WebMCP tools', () => {
 		await expect(page.getByText('only 3 in stock, so the cart holds 3 instead of 5.')).toBeVisible();
 	});
 
-	test('the server checks the input again for a call that skips the browser', async ({ page }) => {
+	test('the server checks the input of a call that skips the browser', async ({ page }) => {
 		await page.goto('/products/field-shirt');
 
 		const response = await page.request.post('/api/agent-tools/add_to_cart?product=field-shirt', {

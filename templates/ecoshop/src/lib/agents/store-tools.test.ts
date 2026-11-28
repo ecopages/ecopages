@@ -416,6 +416,19 @@ describe('store tools: input validation', () => {
 		expect(outcome.cartId).toBeUndefined();
 	});
 
+	it('lists the first invalid fields and counts the rest, so the result stays within the size Chrome recommends', async () => {
+		const lineItems = Array.from({ length: 11 }, () => ({ item: { id: fieldShirtM }, quantity: 0 }));
+
+		const outcome = await call('create_cart', { cart: { line_items: lineItems } }, page());
+
+		const text = outcome.result.content[0]?.text ?? '';
+		expect(text).toMatch(/cart\.line_items\.0\.quantity: /u);
+		expect(text).toMatch(/; and 6 more\./u);
+		expect(JSON.stringify(outcome.result).length).toBeLessThanOrEqual(1500);
+		expect(outcome.result.structuredContent).toMatchObject({ error: 'invalid_input' });
+		expect(outcome.result.structuredContent.issues).toHaveLength(5);
+	});
+
 	it('refuses a tool that does not exist on the surface', async () => {
 		const outcome = await call('show_variant', { catalog: { handle: 'canvas-tote' } }, mcp);
 

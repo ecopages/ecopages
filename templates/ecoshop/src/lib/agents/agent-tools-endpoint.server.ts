@@ -9,10 +9,12 @@ import { findStoreTool, runStoreTool } from './store-tools.server';
  * and provider as `/mcp`.
  *
  * @remarks
- * The host that registered the tool parses an agent's input too, but a request can skip the browser, so the input
- * is checked here, where it is authoritative. Ecopages has already refused a request from another site and read
- * the JSON `input` within `maxRequestBodySize`. Results carry URLs on the origin of the request, which the
- * server's allowed-host check makes the address the visitor used, so the page opens them on the host that serves it.
+ * The input is validated here, with the Zod schema of the definition, and only here: the host that registered the tool
+ * sends an agent's input as it came, since a browser check would put the schema library in every page and a request
+ * can skip the browser anyway. Input the schema refuses comes back as a tool error naming the first invalid fields. Ecopages has
+ * already refused a request from another site and read the JSON `input` within `maxRequestBodySize`. Results carry
+ * URLs on the origin of the request, which the server's allowed-host check makes the address the visitor used, so the
+ * page opens them on the host that serves it.
  * `?product=<handle>` names the product of the calling page: `get_product` and `show_variant` default to it, and
  * `add_to_cart` requires it.
  */

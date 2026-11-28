@@ -4,9 +4,9 @@
  *
  * @remarks
  * The Radiant hosts that register the page tools with WebMCP import this module, so it holds no schema and imports
- * none: a browser without `document.modelContext` never downloads the schema library. `store-tool-definitions.ts`
- * adds each tool's input schema to these and is the module the server reads; the hosts reach it only through
- * `import()` in `agentToolConfig` (`agent-tool-config.ts`), once a tool registers.
+ * none: the schema library stays out of the browser. `store-tool-definitions.ts` adds each tool's input schema to
+ * these and is the module the server reads; `store-tool-schemas.ts` is its JSON Schema, which the hosts take through
+ * `agentToolConfig` (`agent-tool-config.ts`).
  *
  * @module
  */
@@ -40,7 +40,7 @@ export interface StoreToolInfo {
 }
 
 /**
- * Keeps the tool's name as a literal type, which `agentToolConfig` uses to find the tool's schema.
+ * Keeps the tool's name as a literal type, which `agentToolConfig` uses to find the tool's schema and input type.
  */
 function defineInfo<const Name extends string>(info: StoreToolInfo & { name: Name }): StoreToolInfo & { name: Name } {
 	return info;
@@ -126,6 +126,7 @@ export const updateCartInfo = defineInfo({
 	surfaces: ['page', 'mcp'],
 });
 
+// #region cancel-cart
 export const cancelCartInfo = defineInfo({
 	name: 'cancel_cart',
 	title: 'Empty the cart',
@@ -133,6 +134,7 @@ export const cancelCartInfo = defineInfo({
 	annotations: { readOnlyHint: false, consequentialHint: false, destructiveHint: true },
 	surfaces: ['page', 'mcp'],
 });
+// #endregion cancel-cart
 
 export const proceedToCheckoutInfo = defineInfo({
 	name: 'proceed_to_checkout',

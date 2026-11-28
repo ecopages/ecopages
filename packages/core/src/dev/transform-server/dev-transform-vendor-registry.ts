@@ -235,6 +235,8 @@ export class DevTransformVendorRegistry {
 	private readonly closureTraits = new Map<string, ModuleClosureTraits>();
 	private readonly warnedPackageCopies = new Set<string>();
 	private persistedContents?: string;
+	/** Entries that the previous dev process stored and nothing in this process has asked for yet. */
+	private readonly seeded = new Set<string>();
 
 	constructor(options: DevTransformVendorRegistryOptions) {
 		this.appConfig = options.appConfig;
@@ -392,8 +394,14 @@ export class DevTransformVendorRegistry {
 		resolveDir: string,
 		entryPath: string,
 		graphKey: VendorGraphKey = getVendorGraphKey(specifier),
+		seed = false,
 	): { graph: VendorGraph; entry: VendorEntry } {
 		const graph = this.requireGraph(graphKey);
+		if (seed) {
+			if (!graph.entries.has(entryPath)) this.seeded.add(entryPath);
+		} else {
+			this.seeded.delete(entryPath);
+		}
 		const existing = graph.entries.get(entryPath);
 		if (existing) {
 			if (
@@ -582,6 +590,11 @@ export class DevTransformVendorRegistry {
 			failed,
 			servedUrls: new Set(),
 		});
+		const dropStale = (errors: ReadonlyMap<string, Error>) => {
+			const dropped = this.dropStaleSeeds(graph, errors);
+			for (const entryPath of dropped) entryPaths.delete(entryPath);
+			return dropped;
+		};
 		const failGraph = (error: Error, entryErrors: ReadonlyMap<string, Error> = new Map()) =>
 			this.keepLastGoodBuild(graph, { generation, entries, entryPaths, failed, error, entryErrors });
 
@@ -597,24 +610,22 @@ export class DevTransformVendorRegistry {
 			}
 			const graphError = createPrebundleError(describeEntries(toBuild), result);
 			if (toBuild.length === 1) {
+				const only = toBuild[0]!;
+				if (dropStale(new Map([[only.entryPath, graphError]])).size > 0) return finish();
 				return failGraph(graphError);
 			}
 
-			const isolated = await Promise.all(
-				toBuild.map(async (entry) => ({ entry, result: await this.bundleGraph(graph, [entry]) })),
-			);
-			const isolatedErrors = new Map<string, Error>();
-			for (const { entry, result: entryResult } of isolated) {
-				if (!entryResult.success) {
-					isolatedErrors.set(entry.entryPath, createPrebundleError(entry.specifier, entryResult));
-				}
-			}
-			if (isolatedErrors.size === 0 || isolatedErrors.size === toBuild.length) {
+			const isolatedErrors = await this.isolateFailures(graph, toBuild);
+			const stale = dropStale(isolatedErrors);
+			for (const entryPath of stale) isolatedErrors.delete(entryPath);
+			const live = toBuild.filter((entry) => !stale.has(entry.entryPath));
+			if (live.length === 0) return finish();
+			if (isolatedErrors.size === live.length || (isolatedErrors.size === 0 && stale.size === 0)) {
 				return failGraph(graphError, isolatedErrors);
 			}
 
 			for (const [entryPath, error] of isolatedErrors) failed.set(entryPath, error);
-			const remaining = toBuild.filter((entry) => !failed.has(entry.entryPath));
+			const remaining = live.filter((entry) => !failed.has(entry.entryPath));
 			const retried = await this.bundleGraph(graph, remaining);
 			if (!retried.success) {
 				return failGraph(createPrebundleError(describeEntries(remaining), retried));
@@ -623,6 +634,18 @@ export class DevTransformVendorRegistry {
 		} catch (error) {
 			return failGraph(error instanceof Error ? error : new Error(String(error)));
 		}
+	}
+
+	/** The entries that fail to build alone, with their errors. */
+	private async isolateFailures(graph: VendorGraph, entries: readonly VendorEntry[]): Promise<Map<string, Error>> {
+		const isolated = await Promise.all(
+			entries.map(async (entry) => ({ entry, result: await this.bundleGraph(graph, [entry]) })),
+		);
+		const errors = new Map<string, Error>();
+		for (const { entry, result } of isolated) {
+			if (!result.success) errors.set(entry.entryPath, createPrebundleError(entry.specifier, result));
+		}
+		return errors;
 	}
 
 	/**
@@ -763,6 +786,11 @@ export class DevTransformVendorRegistry {
 		);
 	}
 
+	/** Whether a module, or one it imports from its own package, imports another package or is not an ES module. */
+	private importsOtherPackages(file: string): boolean {
+		return inspectModuleClosure(file, this.closureTraits).importsPackages;
+	}
+
 	/** Whether a module and the modules it imports from its package import no Node builtin. */
 	private canLoadInBrowser(file: string): boolean {
 		return !inspectModuleClosure(file, this.closureTraits).nodeBuiltin;
@@ -844,22 +872,28 @@ export class DevTransformVendorRegistry {
 	): Promise<VendorPackageBundle | BuildFailure> {
 		const requested = [...new Set(entries.map((entry) => entry.entryPath))].sort();
 		const bundled = this.countModules(packageDir) <= this.maxBundledModules;
-		const surface = bundled
-			? resolvePackageSurface(packageDir, graph.conditions, this.maxBundledModules).filter(
-					(file) => !requested.includes(file) && this.canLoadInBrowser(file),
+		const reachable = bundled
+			? resolvePackageSurface(packageDir, graph.conditions, this.maxBundledModules).filter((file) =>
+					this.canLoadInBrowser(file),
 				)
 			: [];
+		const surface = reachable.filter((file) => !requested.includes(file));
 		const scope: VendorBuildScope = {
 			id: packageDir,
 			name: getVendorModuleName(this.appConfig.rootDir, packageDir),
 			owns: (dir) => dir === packageDir,
 		};
-		const complete = await this.buildPackageFiles(graph, scope, [...requested, ...surface].sort(), bundled);
-		if (surface.length === 0) return complete;
-		const usable = 'outputs' in complete && complete.clean;
-		const sound = await this.findBuildableSurface(graph, scope, surface);
-		if (usable && sound.length === surface.length) return complete;
-		return this.buildPackageFiles(graph, scope, [...requested, ...sound].sort(), bundled);
+		const probe = () => this.findBuildableSurface(graph, scope, reachable);
+		const probeFirst = surface.length > 0 && reachable.some((file) => this.importsOtherPackages(file));
+		const [complete, probed] = await Promise.all([
+			this.buildPackageFiles(graph, scope, [...requested, ...surface].sort(), bundled),
+			probeFirst ? probe() : undefined,
+		]);
+		const built = 'outputs' in complete && complete.clean;
+		const sound = probed ?? (surface.length > 0 && !built ? await probe() : reachable);
+		const soundSurface = surface.filter((file) => sound.includes(file));
+		if (built && soundSurface.length === surface.length) return complete;
+		return this.buildPackageFiles(graph, scope, [...requested, ...soundSurface].sort(), bundled);
 	}
 
 	/**
@@ -873,7 +907,9 @@ export class DevTransformVendorRegistry {
 	 * The files are built with their imports inline, which fails on a Node builtin or an import the browser cannot
 	 * resolve, all together first and one at a time when that fails. A file that fails stays out of the surface, and
 	 * the package serves it only if an import asks. The builds do not depend on the files an app imports, so they
-	 * run once for a surface until the next invalidation.
+	 * run once for a surface until the next invalidation, and they run beside the build of the package's file. A
+	 * package whose surface files import no other package, and are all ES modules, is not probed: the build of its
+	 * file finds an unresolved import, and a Node builtin shows in the modules themselves.
 	 */
 	private async findBuildableSurface(
 		graph: VendorGraph,
@@ -1109,13 +1145,42 @@ export class DevTransformVendorRegistry {
 		for (const { specifier, resolveDir, conditions } of persisted.entries) {
 			if (getVendorGraphKey(specifier) !== conditions) continue;
 			const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, specifier, resolveDir);
-			if (resolved) this.addEntry(specifier, resolveDir, resolved.path);
+			if (resolved) this.addEntry(specifier, resolveDir, resolved.path, undefined, true);
 		}
 	}
 
 	/**
+	 * Removes the stored entries that failed to build, which nothing in this process asked for, from the graph and
+	 * from the stored file, and says which.
+	 *
 	 * @remarks
-	 * Every known entry is written, failing ones included, so a failure never costs the next process its seed.
+	 * An entry from an earlier dev process can be stale: its package changed what it imports, or the subpath is now
+	 * server-only. It would fail on every start and be written back each time, so it is dropped instead. A page
+	 * that imports it adds it again and gets the build error for that import.
+	 */
+	private dropStaleSeeds(graph: VendorGraph, errors: ReadonlyMap<string, Error>): Set<string> {
+		const dropped = new Set<string>();
+		for (const entryPath of errors.keys()) {
+			const entry = graph.entries.get(entryPath);
+			if (!entry || !this.seeded.has(entryPath)) continue;
+			dropped.add(entryPath);
+			this.seeded.delete(entryPath);
+			graph.entries.delete(entryPath);
+			this.entriesByUrl.delete(entry.url);
+		}
+		if (dropped.size > 0) {
+			appLogger.warn(
+				`[dev-transform] Dropped ${dropped.size} stored vendor ${dropped.size === 1 ? 'entry' : 'entries'} that no longer build: ${[...dropped].map((entryPath) => path.relative(this.appConfig.rootDir, entryPath)).join(', ')}.`,
+			);
+		}
+		return dropped;
+	}
+
+	/**
+	 * @remarks
+	 * Every known entry is written, failing ones included, so a failure never costs the next process its seed. An
+	 * entry stored by an earlier process that fails and that nothing asked for is the exception: see
+	 * {@link DevTransformVendorRegistry.dropStaleSeeds}.
 	 * The write is synchronous so it finishes before the build's waiters resume; a failed write only costs the
 	 * next process its seed, so it is logged at debug level.
 	 */

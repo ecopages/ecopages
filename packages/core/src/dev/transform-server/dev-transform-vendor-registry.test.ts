@@ -1741,6 +1741,72 @@ describe('DevTransformVendorRegistry', () => {
 		expect(outer.marker).toBe('inner-lib-code');
 	});
 
+	it('drops a persisted entry that no longer builds, and builds the others', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-persisted-stale');
+		writePackage(
+			path.join(modules, 'stale-lib'),
+			'stale-lib',
+			{ type: 'module', module: 'index.js' },
+			{ 'index.js': 'export const = ;\n' },
+		);
+		writePackage(
+			path.join(modules, 'fresh-lib'),
+			'fresh-lib',
+			{ type: 'module', module: 'index.js' },
+			{ 'index.js': "export const marker = 'fresh-lib-code';\n" },
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const entriesFile = path.join(config.absolutePaths.workDir, 'dev-vendor-entries.json');
+		fs.mkdirSync(config.absolutePaths.workDir, { recursive: true });
+		fs.writeFileSync(
+			entriesFile,
+			JSON.stringify({
+				entries: [
+					{ specifier: 'stale-lib', resolveDir: rootDir, conditions: 'module-first' },
+					{ specifier: 'fresh-lib', resolveDir: rootDir, conditions: 'module-first' },
+				],
+			}),
+		);
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+
+		const url = await registry.resolveVendorUrl('fresh-lib');
+
+		expect([...(await readVendorGraph(registry, [url])).values()].join('\n')).toContain('fresh-lib-code');
+		const persisted = fs.readFileSync(entriesFile, 'utf8');
+		expect(persisted).toContain('fresh-lib');
+		expect(persisted).not.toContain('stale-lib');
+		await expect(registry.resolveVendorUrl('stale-lib')).rejects.toThrow();
+	});
+
+	it('builds the one persisted entry the app needs when every stored entry fails', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-persisted-all-stale');
+		writePackage(
+			path.join(modules, 'stale-lib'),
+			'stale-lib',
+			{ type: 'module', module: 'index.js' },
+			{ 'index.js': 'export const = ;\n' },
+		);
+		writePackage(
+			path.join(modules, 'fresh-lib'),
+			'fresh-lib',
+			{ type: 'module', module: 'index.js' },
+			{ 'index.js': "export const marker = 'fresh-lib-code';\n" },
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		fs.mkdirSync(config.absolutePaths.workDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(config.absolutePaths.workDir, 'dev-vendor-entries.json'),
+			JSON.stringify({
+				entries: [{ specifier: 'stale-lib', resolveDir: rootDir, conditions: 'module-first' }],
+			}),
+		);
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+
+		const url = await registry.resolveVendorUrl('fresh-lib');
+
+		expect([...(await readVendorGraph(registry, [url])).values()].join('\n')).toContain('fresh-lib-code');
+	});
+
 	it('skips a persisted entry that no longer resolves', async () => {
 		const { rootDir, modules } = createAppRoot('dev-transform-vendor-persisted-missing');
 		writePackage(

@@ -64,6 +64,8 @@ export type ModuleClosureTraits = {
 	loadTimeEffects: boolean;
 	/** A module imports a Node builtin, which a browser cannot load. */
 	nodeBuiltin: boolean;
+	/** A module imports another package, or is not an ES module and so imports it in a way this cannot read. */
+	importsPackages: boolean;
 };
 
 function resolveRelative(fromFile: string, specifier: string): string | undefined {
@@ -139,6 +141,10 @@ function readModuleTraits(body: AstNode[]): ModuleClosureTraits {
 			const specifier = statement.source?.value;
 			return typeof specifier === 'string' && isNodeBuiltinSpecifier(specifier);
 		}),
+		importsPackages: body.some((statement) => {
+			const specifier = statement.source?.value;
+			return typeof specifier === 'string' && !specifier.startsWith('.') && !isNodeBuiltinSpecifier(specifier);
+		}),
 	};
 }
 
@@ -184,7 +190,7 @@ export function inspectModuleClosure(
 	entry: string,
 	cache = new Map<string, ModuleClosureTraits>(),
 ): ModuleClosureTraits {
-	const traits: ModuleClosureTraits = { loadTimeEffects: false, nodeBuiltin: false };
+	const traits: ModuleClosureTraits = { loadTimeEffects: false, nodeBuiltin: false, importsPackages: false };
 	const visited = new Set<string>();
 	const pending = [entry];
 	while (pending.length > 0 && visited.size <= MAX_CLOSURE_FILES) {
@@ -192,11 +198,15 @@ export function inspectModuleClosure(
 		if (visited.has(file)) continue;
 		visited.add(file);
 		const body = parseBody(file);
-		if (!body) continue;
+		if (!body) {
+			traits.importsPackages = true;
+			continue;
+		}
 		const own = cache.get(file) ?? readModuleTraits(body);
 		cache.set(file, own);
 		traits.loadTimeEffects ||= own.loadTimeEffects;
 		traits.nodeBuiltin ||= own.nodeBuiltin;
+		traits.importsPackages ||= own.importsPackages;
 		for (const specifier of readRelativeImports(body)) {
 			const resolved = resolveRelative(file, specifier);
 			if (resolved) pending.push(resolved);

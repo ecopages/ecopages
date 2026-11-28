@@ -191,4 +191,26 @@ describe('inspectModuleClosure', () => {
 		expect(builtin('old-style.js')).toBe(true);
 		expect(builtin('plain.js')).toBe(false);
 	});
+
+	it('flags a module that imports another package, also through its own imports, or that is not an ES module', () => {
+		const root = createPackage(
+			{},
+			{
+				'uses.js': "import { x } from 'other-pkg';\nexport const y = x;\n",
+				'indirect.js': "export { y } from './uses.js';\n",
+				'reexport.js': "export * from '@scope/other/sub';\n",
+				'plain.js':
+					"import { join } from './plain-helper.js';\nimport { readFileSync } from 'node:fs';\nexport const joined = [join, readFileSync];\n",
+				'plain-helper.js': 'export const join = (a, b) => a + b;\n',
+				'common.js': 'module.exports = { value: 1 };\n',
+			},
+		);
+		const imports = (file: string) => inspectModuleClosure(path.join(root, file)).importsPackages;
+
+		expect(imports('uses.js')).toBe(true);
+		expect(imports('indirect.js')).toBe(true);
+		expect(imports('reexport.js')).toBe(true);
+		expect(imports('common.js')).toBe(true);
+		expect(imports('plain.js')).toBe(false);
+	});
 });

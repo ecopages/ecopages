@@ -1,7 +1,7 @@
 import type { AgentToolConfig, AgentToolHost } from '@ecopages/radiant/helpers/create-agent-tool';
-import type { AgentToolParse } from '@ecopages/radiant/helpers/register-agent-tool';
 import type * as z from 'zod/mini';
 import { modelContextPresent } from './model-context';
+import { storeToolSchemas } from './store-tool-schemas';
 import type { toolsByName } from './store-tool-definitions';
 import type { StoreToolInfo } from './store-tool-info';
 
@@ -12,22 +12,16 @@ type ToolName = keyof ToolsByName & string;
 type KnownToolInfo = StoreToolInfo & { name: ToolName };
 
 /**
- * What a tool's Radiant host method receives: the input its schema parses, found from the tool's info.
+ * What a tool's Radiant host method receives: the input its schema accepts, found from the tool's info. It is the
+ * input as sent, not parsed, so a schema's defaults are not applied until the server parses it.
  */
-export type ToolInputOf<Info extends KnownToolInfo> = z.output<ToolsByName[Info['name']]['input']>;
+export type ToolInputOf<Info extends KnownToolInfo> = z.input<ToolsByName[Info['name']]['input']>;
 
 /**
  * What `@agentTool` takes for a store tool: its definition without `execute`, which the host's decorated method
- * supplies, and with the schema as `inputSchema` and `parse` promises, which load it only when the tool registers.
- * It has no `outputSchema`.
+ * supplies. `Input` types that method's argument; the config has no `parse` and no `outputSchema`.
  */
-export type StoreAgentToolConfig<Input, Host extends AgentToolHost> = Omit<
-	AgentToolConfig<Host, Input>,
-	'execute' | 'inputSchema' | 'outputSchema' | 'parse'
-> & {
-	inputSchema(): Promise<Record<string, unknown>>;
-	readonly parse: Promise<AgentToolParse<Input>>;
-};
+export type StoreAgentToolConfig<Input, Host extends AgentToolHost> = Omit<AgentToolConfig<Host, Input>, 'execute'>;
 
 /**
  * The config a Radiant host passes to `@agentTool`, for the tool `info` describes.
@@ -36,17 +30,15 @@ export type StoreAgentToolConfig<Input, Host extends AgentToolHost> = Omit<
  * @param options `getEnabled` replaces the default, which follows {@link modelContextPresent}.
  *
  * @remarks
- * Radiant reads `inputSchema` and `parse` each time the tool registers, never without `document.modelContext`, and
- * accepts a promise from either. Both load `store-tool-definitions.ts` with `import()`, so the schema library is a
- * chunk that only a browser with WebMCP downloads; the browser loads that module once, for all tools. This module
- * imports nothing from it except types, which is why a host imports its `info` from `store-tool-info.ts` and takes
- * the type of a tool's input from {@link ToolInputOf}.
+ * The input schema is the static JSON Schema in `store-tool-schemas.ts`, written from the Zod definitions in
+ * `store-tool-definitions.ts` by `pnpm schemas` and kept in step by a test. This module imports nothing from the
+ * definitions except types, which is why a host imports its `info` from `store-tool-info.ts` and takes the type of a
+ * tool's input from {@link ToolInputOf}: the schema library never reaches the browser, with or without WebMCP.
  *
- * Radiant runs `parse` on an agent's input in the browser, before the method runs and before a request is made; the
- * server checks it again, since a client can skip the browser. The UI calls the method with values of its own. The
- * default `getEnabled` lets the tool register when `document.modelContext` appears after the host connected. Do not
- * spread the returned config into another object: that calls the `parse` getter and loads the chunk at once. Pass
- * `options` instead.
+ * The config has no `parse`. The schema only tells an agent what to send; `/api/agent-tools/<name>` validates the
+ * input with Zod, where the tool runs, and answers input it refuses with a tool error naming the first invalid fields, which the
+ * host's method returns to the agent. The UI calls the method with values of its own. The default `getEnabled` lets
+ * the tool register when `document.modelContext` appears after the host connected.
  */
 export function agentToolConfig<Info extends KnownToolInfo, Host extends AgentToolHost = AgentToolHost>(
 	info: Info,
@@ -58,22 +50,12 @@ export function agentToolConfig<Info extends KnownToolInfo, Host extends AgentTo
 			([, hint]) => hint !== undefined,
 		),
 	);
-	const load = () => import('./store-tool-definitions');
 	return {
 		name: info.name,
 		title: info.title,
 		description: info.description,
 		annotations,
+		inputSchema: storeToolSchemas[info.name],
 		getEnabled: options.getEnabled ?? (() => modelContextPresent.get()),
-		inputSchema: async () => {
-			const definitions = await load();
-			return definitions.inputJsonSchema(definitions.toolsByName[info.name]);
-		},
-		get parse() {
-			return load().then((definitions) => {
-				const tool = definitions.toolsByName[info.name];
-				return (input: unknown) => definitions.readToolInput(tool, input) as ToolInputOf<Info>;
-			});
-		},
 	};
 }

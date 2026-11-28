@@ -607,11 +607,12 @@ export function findStoreTool(name: string, surface: ToolSurface): StoreTool | u
 	return tool?.surfaces.includes(surface) ? tool : undefined;
 }
 
+// #region run-store-tool
 /**
  * Validates an agent's input against the tool's schema and runs it.
  *
  * @remarks
- * Input that fails the schema is a tool error naming each invalid field, and the tool does not run, so nothing
+ * Input that fails the schema is a tool error naming the first invalid fields, and the tool does not run, so nothing
  * changes. A provider failure that is not a cart refusal propagates.
  */
 export async function runStoreTool(name: string, input: unknown, context: StoreToolContext): Promise<StoreToolOutcome> {
@@ -624,3 +625,4 @@ export async function runStoreTool(name: string, input: unknown, context: StoreT
 	}
 	return tool.run(parsed.data, context);
 }
+// #endregion run-store-tool

@@ -29,7 +29,7 @@ type StoreAgentToolsProps = {
  * navigations. Each tool is a method decorated with `@agentTool` of the shared definition, so Radiant registers it
  * while the host is connected; the tools that follow the visitor's page and cart live on `<cart-form>` and
  * `<cart-count>`. Where the browser has no `document.modelContext` Radiant registers nothing, so there is no request
- * and no log. Tools run on the server through `/api/agent-tools`, which validates the input again.
+ * and no log. Tools run on the server through `/api/agent-tools`, which validates the input.
  */
 @customElement('store-agent-tools')
 export class StoreAgentTools extends RadiantElement {

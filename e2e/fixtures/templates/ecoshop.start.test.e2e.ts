@@ -1,5 +1,8 @@
 import { createHmac } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { get as httpGet } from 'node:http';
+import path from 'node:path';
 import { expect, type Page } from '@playwright/test';
 import { test } from '../../app-fixture.ts';
 
@@ -48,12 +51,21 @@ async function schemaChunksDownloaded(page: Page, path: string, withModelContext
 	return (await Promise.all(reads)).filter((url): url is string => url !== null);
 }
 
+test('the marker still names the schema library, so the download tests below can fail', ({ app }) => {
+	const entry = createRequire(path.join(app.dir, 'package.json')).resolve('zod/mini');
+	const classes = readFileSync(path.join(path.dirname(entry), '..', 'v4', 'mini', 'schemas.js'), 'utf8');
+
+	expect(classes).toContain(SCHEMA_LIBRARY_MARKER);
+});
+
 test('a visitor without WebMCP downloads no schema library', async ({ page }) => {
 	expect(await schemaChunksDownloaded(page, '/products/field-shirt', false)).toEqual([]);
 });
 
-test('a browser with WebMCP downloads the schema library to register the tools', async ({ page }) => {
-	expect(await schemaChunksDownloaded(page, '/products/field-shirt', true)).toHaveLength(1);
+test('a browser with WebMCP registers the tools from a static schema and downloads no schema library', async ({
+	page,
+}) => {
+	expect(await schemaChunksDownloaded(page, '/products/field-shirt', true)).toEqual([]);
 });
 
 /** The status of a GET for `/` that names `host` as its `Host`, sent to the running server's port. */

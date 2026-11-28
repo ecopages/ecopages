@@ -20,16 +20,12 @@ import {
  * The store's tool definitions: each tool's {@link StoreToolInfo} from `store-tool-info.ts` with its input schema.
  *
  * @remarks
- * The `/mcp` server and the `/api/agent-tools` Endpoint import this module, and the Radiant hosts that register the
- * page tools with WebMCP reach it through `agentToolConfig` (`agent-tool-config.ts`), which finds a tool's schema in
- * {@link toolsByName} by the name its info carries. All three read the same info and the same schema, so they cannot
- * disagree about what a tool is called or what it takes. The module carries no server code and no `run`; what a tool
- * does lives in `store-tools.server.ts`.
- *
- * The schemas use `zod/mini`, whose functions a bundler can drop one by one, so the browser carries the few it uses
- * instead of the whole classic API: the Zod chunk of a built store is 14 kB gzipped, against 26 kB with classic Zod.
- * The hosts import this module only inside `import()`, which Radiant runs when a tool registers, so a visitor whose
- * browser has no `document.modelContext` never downloads that chunk.
+ * The `/mcp` server and the `/api/agent-tools` Endpoint import this module and validate with these schemas. The
+ * browser never does: the Radiant hosts that register the page tools with WebMCP take their JSON Schema from
+ * `store-tool-schemas.ts`, and only `agent-tool-config.ts` imports this module, for its types. `pnpm schemas` writes
+ * that file from these schemas, and `store-tool-schemas.test.ts` fails when the two differ. All of them read the same
+ * info and the same schema, so they cannot disagree about what a tool is called or what it takes. The module carries no server
+ * code and no `run`; what a tool does lives in `store-tools.server.ts`.
  *
  * @module
  */
@@ -63,6 +59,7 @@ const selectedOption = z.object({
 	value: z.string().check(z.describe('Option value, such as "M".')),
 });
 
+// #region line-item
 const lineItem = z.object({
 	item: z.object({
 		id: z
@@ -76,6 +73,7 @@ const lineItem = z.object({
 		.int()
 		.check(z.minimum(1), z.maximum(MAX_LINE_QUANTITY), z.describe('How many of this item the line holds.')),
 });
+// #endregion line-item
 
 const cartIdField = z.optional(
 	z
@@ -274,7 +272,8 @@ export const getUcpProfileTool = defineSpec({
 });
 
 /**
- * Every tool by its name, which is how `agentToolConfig` gets from the info a host holds to the schema.
+ * Every tool by its name: what `store-tool-schemas.ts` is written from, and what `agentToolConfig` takes the type of a
+ * host method's input from.
  */
 export const toolsByName = {
 	[searchCatalogTool.name]: searchCatalogTool,
@@ -292,30 +291,19 @@ export const toolsByName = {
 };
 
 /**
- * The tool's input schema as JSON Schema, which is what an agent reads.
+ * The most invalid fields a tool error lists, so that the error of a long cart stays within the size Chrome recommends
+ * for a tool result.
  */
-export function inputJsonSchema(tool: StoreToolSpec): Record<string, unknown> {
-	const { $schema: _schema, ...schema } = z.toJSONSchema(tool.input, { io: 'input' });
-	return schema;
-}
+const MAX_LISTED_ISSUES = 5;
 
 /**
- * The message a tool error carries for input that fails the schema, naming each invalid field.
+ * The message a tool error carries for input that fails the schema, naming the first invalid fields and counting the
+ * rest.
  */
 export function invalidInputMessage(error: z.core.$ZodError): { message: string; issues: string[] } {
-	const issues = error.issues.map((issue) => `${issue.path.join('.') || 'input'}: ${issue.message}`);
-	return { message: `Invalid input. ${issues.join('; ')}`, issues };
-}
-
-/**
- * Parses an agent's input against the tool's schema and throws an error naming each invalid field, so the agent can
- * correct the call.
- */
-export function readToolInput<Input extends z.ZodMiniObject>(
-	tool: StoreToolSpec<Input>,
-	input: unknown,
-): z.output<Input> {
-	const parsed = z.safeParse(tool.input, input ?? {});
-	if (!parsed.success) throw new Error(invalidInputMessage(parsed.error).message);
-	return parsed.data;
+	const issues = error.issues
+		.slice(0, MAX_LISTED_ISSUES)
+		.map((issue) => `${issue.path.join('.') || 'input'}: ${issue.message}`);
+	const more = error.issues.length - issues.length;
+	return { message: `Invalid input. ${issues.join('; ')}${more > 0 ? `; and ${more} more.` : ''}`, issues };
 }

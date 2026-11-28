@@ -24,9 +24,8 @@ None of them is exported from the root entry, so a page that does not use agent 
 ```ts
 import { RadiantElement, customElement, onEvent } from '@ecopages/radiant';
 import { agentTool } from '@ecopages/radiant/decorators/agent-tool';
-import { z } from 'zod';
-
-const AddItem = z.object({ sku: z.string() });
+import type { AddItem } from './add-item';
+import addItemSchema from './add-item.schema.json';
 
 @customElement('shop-cart')
 export class ShopCart extends RadiantElement {
@@ -36,10 +35,9 @@ export class ShopCart extends RadiantElement {
 		name: (host: ShopCart) => `add_to_cart_${host.id}`,
 		description: 'Adds a product to the cart by its SKU.',
 		annotations: { consequentialHint: false },
-		inputSchema: z.toJSONSchema(AddItem),
-		parse: AddItem.parse,
+		inputSchema: addItemSchema,
 	})
-	addItem(item: z.infer<typeof AddItem>) {
+	addItem(item: AddItem) {
 		this.items = [...this.items, item];
 		return { count: this.items.length };
 	}
@@ -73,25 +71,15 @@ const unregister = registerAgentTool({
 
 The config is the WebMCP tool dictionary passed through (`name`, `description`, `title`, `inputSchema`, `outputSchema`, `annotations`), plus `exposedTo`, which Radiant passes as a `registerTool` option, and:
 
-- `parse(input: unknown)` validates the agent's input before the method runs: it returns the typed value or throws to reject the call. Pass Zod's `schema.parse`, `(input) => v.parse(Schema, input)` for Valibot, ArkType's `schema.assert`, or hand-written code. `parse` fixes the input type, and the decorated method's parameter must accept it. Without it the input arrives unchecked. `inputSchema` is plain JSON Schema and advisory only; Radiant ships no schema library.
+- `parse(input: unknown)` validates the agent's input before the method runs: it returns the typed value or throws to reject the call. Pass a hand-written check, or a schema library's own parse (Zod's `schema.parse`, `(input) => v.parse(Schema, input)` for Valibot), which puts that library in the browser. `parse` fixes the input type, and the decorated method's parameter must accept it. Without it the input arrives unchecked. `inputSchema` is plain JSON Schema and advisory only; Radiant ships no schema library.
 - `getEnabled(host)` registers the tool only while it returns `true` (`@agentTool` and `createAgentTool`).
 - `name` may be a function of the host. `name` and `getEnabled` are read after the host's attributes have caught up and again when a signal they read changes, which registers the tool again. Annotate the host parameter (`(host: ShopCart) => ...`): the decorator config is written before TypeScript knows the class.
-- Everything but `name` and `getEnabled` is read each time the tool is registered, never at construction, and not at all where there is no `document.modelContext`. Give `inputSchema` or `outputSchema` a function and `parse` a getter (a function there is the parser itself) to defer building a schema until a tool registers. Each may return a promise, so the library that builds the schema is imported only where the tool registers:
 
-    ```ts
-    @agentTool({
-    	name: 'add_to_cart',
-    	description: 'Adds a product to the cart by its SKU.',
-    	annotations: { consequentialHint: false },
-    	inputSchema: () => import('./add-item').then((m) => m.addItemJsonSchema),
-    	get parse() {
-    		return import('./add-item').then((m) => m.parseAddItem);
-    	},
-    })
-    addItem(item: AddItem) {}
-    ```
+`inputSchema`, `outputSchema` and `parse` are read as given: JSON Schema objects and a synchronous function. A spread copy of a config, such as `{ ...shared, getEnabled }`, runs nothing.
 
-    The browser gets the tool once every promise has settled. A tool that is unregistered first, such as one whose element is removed meanwhile, is never registered, and a rejected promise is reported with `console.error` naming the tool. A config without a promise registers at once, and plain objects and a plain `parse` still work. The method's argument type comes from `parse`, which may be a promise of the parser.
+Recommended pattern: ship static JSON Schema to the browser and validate on the server the tool calls. `add-item.ts` defines the schema once, for example with Zod, and exports `type AddItem = z.infer<typeof AddItem>`. A build step writes `z.toJSONSchema(AddItem)` to `add-item.schema.json`, and the endpoint runs `AddItem.parse`. The browser then loads the schema as data and no schema library, and the type-only import costs nothing. Add `parse` only when the browser must reject a call before the method runs, and keep it a hand-written check, since a schema library's `parse` ships that library.
+
+Migrating from 0.13: a function for `inputSchema` or `outputSchema` becomes the schema object; a getter or promise for `parse` becomes a plain function, or moves to the server; a getter on any other field now runs when the element is constructed, in every browser, so replace it with the value. Registration no longer waits for a promise.
 
 ## Rules
 

@@ -9,7 +9,8 @@
 		"preview": "ecopages preview",
 		"dev:watch": "ecopages dev:watch",
 		"test": "vitest run",
-		"typecheck": "ecopages types && tsc --noEmit"
+		"typecheck": "ecopages types && tsc --noEmit",
+		"schemas": "vitest run src/lib/agents/store-tool-schemas.test.ts -u"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.32.2",
@@ -19,11 +20,11 @@
 		"@ecopages/browser-router": "workspace:*",
 		"@ecopages/core": "workspace:*",
 		"@ecopages/ecopages-jsx": "workspace:*",
-		"@ecopages/jsx": "^0.13.0",
+		"@ecopages/jsx": "^0.14.0",
 		"@ecopages/lightningcss-processor": "workspace:*",
-		"@ecopages/radiant": "^0.13.0",
+		"@ecopages/radiant": "^0.14.0",
 		"@ecopages/radiant-ui": "^0.7.0",
-		"@ecopages/signals": "^0.13.0",
+		"@ecopages/signals": "^0.14.0",
 		"@tailwindcss/node": "^4.0.0",
 		"@tailwindcss/oxide": "^4.0.0",
 		"@types/node": "^24.12.4",

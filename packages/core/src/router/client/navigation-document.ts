@@ -13,7 +13,15 @@ export type FetchNavigationPageOptions = {
 	priority?: 'high' | 'low' | 'auto';
 };
 
-const navigationHtmlCache = new Map<string, string>();
+type CachedNavigationHtml = {
+	html: string;
+	/** `Date.now()` when the copy was fetched. */
+	fetchedAt: number;
+	/** Milliseconds the copy may be reused for, or `null` when the response set no limit. */
+	maxAgeMs: number | null;
+};
+
+const navigationHtmlCache = new Map<string, CachedNavigationHtml>();
 const finalUrlByRequest = new Map<string, string>();
 
 function getCacheKey(href: string | URL): string {
@@ -22,15 +30,43 @@ function getCacheKey(href: string | URL): string {
 	return url.href;
 }
 
+/**
+ * Returns the cached document for a URL, or `null` when none is held or the copy outlived its `max-age`.
+ *
+ * @remarks
+ * An expired copy is dropped with its redirect aliases, so the caller fetches the page again.
+ */
 export function getCachedNavigationHtml(href: string | URL): string | null {
-	return navigationHtmlCache.get(getCacheKey(href)) ?? null;
+	const key = getCacheKey(href);
+	const entry = navigationHtmlCache.get(key);
+	if (!entry) return null;
+	if (entry.maxAgeMs !== null && Date.now() - entry.fetchedAt > entry.maxAgeMs) {
+		invalidateNavigationHtml(key);
+		return null;
+	}
+	return entry.html;
 }
 
-export function cacheNavigationHtml(href: string | URL, html: string, finalHref: string | URL = href): void {
+/**
+ * Stores a fetched document under its requested and final URLs.
+ *
+ * @param options.maxAge - Seconds the copy may be reused for, counted from now; no limit when omitted
+ */
+export function cacheNavigationHtml(
+	href: string | URL,
+	html: string,
+	finalHref: string | URL = href,
+	options: { maxAge?: number | null } = {},
+): void {
 	const requestedKey = getCacheKey(href);
 	const finalKey = getCacheKey(finalHref);
-	navigationHtmlCache.set(requestedKey, html);
-	navigationHtmlCache.set(finalKey, html);
+	const entry: CachedNavigationHtml = {
+		html,
+		fetchedAt: Date.now(),
+		maxAgeMs: options.maxAge == null ? null : options.maxAge * 1000,
+	};
+	navigationHtmlCache.set(requestedKey, entry);
+	navigationHtmlCache.set(finalKey, entry);
 	finalUrlByRequest.set(requestedKey, finalKey);
 	finalUrlByRequest.set(finalKey, finalKey);
 }
@@ -70,6 +106,20 @@ function forbidsReuse(headers: Headers): boolean {
 }
 
 /**
+ * Reads how many seconds a response's `Cache-Control` lets its body be reused, or `null` for no limit.
+ *
+ * @remarks
+ * Only a positive `max-age` limits reuse. `max-age=0` is how a static Page is sent, with `must-revalidate`,
+ * and that page is meant to be reused for the session, so zero means no limit here as well. `s-maxage` is
+ * for shared caches and is ignored.
+ */
+function readMaxAge(headers: Headers): number | null {
+	const match = /(?:^|,)\s*max-age\s*=\s*"?(\d+)"?\s*(?:,|$)/i.exec(headers.get('Cache-Control') ?? '');
+	const seconds = match ? Number(match[1]) : 0;
+	return seconds > 0 ? seconds : null;
+}
+
+/**
  * Parses a fetched document with an absolute base URL for relative assets.
  *
  * @remarks
@@ -100,7 +150,8 @@ export function parseNavigationDocument(html: string, finalUrl: URL): Document {
  * sent in HTTP requests. Cached HTML is shared by browser-router prefetch and
  * both navigation runtimes. A response with `Cache-Control: no-store` or an unqualified `no-cache` is parsed
  * and returned but not cached, and any copy held for its URLs is dropped, so the next navigation to that URL
- * fetches it again.
+ * fetches it again. A copy older than the positive `max-age` of its response counts as missing, so a page
+ * sent with `{ revalidate: N }` is fetched again once N seconds have passed.
  */
 export async function fetchNavigationPage(
 	href: string | URL,
@@ -139,7 +190,7 @@ export async function fetchNavigationPage(
 			invalidateNavigationHtml(requestedUrl);
 			invalidateNavigationHtml(finalUrl);
 		} else {
-			cacheNavigationHtml(requestedUrl, html, finalUrl);
+			cacheNavigationHtml(requestedUrl, html, finalUrl, { maxAge: readMaxAge(response.headers) });
 		}
 	}
 

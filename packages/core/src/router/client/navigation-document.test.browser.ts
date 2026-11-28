@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	clearNavigationHtmlCache,
 	fetchNavigationPage,
@@ -180,6 +180,103 @@ describe('shared navigation document loading', () => {
 			await fetchNavigationPage('https://example.test/order#b');
 
 			expect(fetchMock).toHaveBeenCalledTimes(2);
+		});
+
+		describe('max-age', () => {
+			const at = (seconds: number) => vi.setSystemTime(new Date(Date.UTC(2026, 0, 1, 0, 0, 0) + seconds * 1000));
+
+			beforeEach(() => {
+				vi.useFakeTimers({ toFake: ['Date'] });
+				at(0);
+			});
+
+			afterEach(() => {
+				vi.useRealTimers();
+			});
+
+			it('fetches a page again once it is older than its max-age', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('public, max-age=60, stale-while-revalidate=120'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/news');
+				at(61);
+				await fetchNavigationPage('https://example.test/news');
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('reuses a page that is younger than its max-age', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('public, max-age=60, stale-while-revalidate=120'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/news');
+				at(10);
+				await fetchNavigationPage('https://example.test/news');
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+			});
+
+			it('reports an expired copy as missing', async () => {
+				vi.stubGlobal(
+					'fetch',
+					vi.fn(async () => htmlResponse('max-age=60')),
+				);
+
+				await fetchNavigationPage('https://example.test/news');
+				at(61);
+
+				expect(getCachedNavigationHtml('https://example.test/news')).toBeNull();
+			});
+
+			it('measures the age from the latest fetch', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('max-age=60'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/news');
+				at(61);
+				await fetchNavigationPage('https://example.test/news');
+				at(100);
+				await fetchNavigationPage('https://example.test/news');
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('expires the redirect target together with the requested URL', async () => {
+				const fetchMock = vi.fn(async () => {
+					const response = htmlResponse('max-age=60');
+					Object.defineProperty(response, 'url', { value: 'https://example.test/news/today' });
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/news');
+				at(61);
+				await fetchNavigationPage('https://example.test/news/today');
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('keeps reusing a page sent with max-age=0 for the session', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('public, max-age=0, must-revalidate'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/about');
+				at(86_400);
+				await fetchNavigationPage('https://example.test/about');
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+			});
+
+			it('keeps reusing a page with no max-age', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('private'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/about');
+				at(86_400);
+				await fetchNavigationPage('https://example.test/about');
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+			});
 		});
 
 		it('stores the page again once its response allows reuse', async () => {

@@ -1778,6 +1778,28 @@ describe('DevTransformVendorRegistry', () => {
 		await expect(registry.resolveVendorUrl('stale-lib')).rejects.toThrow();
 	});
 
+	it('keeps a persisted entry that a page asks for and reports its build error', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-persisted-requested');
+		writePackage(
+			path.join(modules, 'broken-lib'),
+			'broken-lib',
+			{ type: 'module', module: 'index.js' },
+			{ 'index.js': 'export const = ;\n' },
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const entriesFile = path.join(config.absolutePaths.workDir, 'dev-vendor-entries.json');
+		fs.mkdirSync(config.absolutePaths.workDir, { recursive: true });
+		fs.writeFileSync(
+			entriesFile,
+			JSON.stringify({ entries: [{ specifier: 'broken-lib', resolveDir: rootDir, conditions: 'module-first' }] }),
+		);
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+
+		await expect(registry.resolveVendorUrl('broken-lib')).rejects.toThrow();
+
+		expect(fs.readFileSync(entriesFile, 'utf8')).toContain('broken-lib');
+	});
+
 	it('builds the one persisted entry the app needs when every stored entry fails', async () => {
 		const { rootDir, modules } = createAppRoot('dev-transform-vendor-persisted-all-stale');
 		writePackage(

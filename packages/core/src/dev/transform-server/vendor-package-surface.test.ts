@@ -100,6 +100,20 @@ describe('resolvePackageSurface', () => {
 		]);
 	});
 
+	it('leaves out the files of a wildcard subpath that a server name or an exact entry rules out', () => {
+		const root = createPackage(
+			{
+				exports: {
+					'./*': './dist/*.js',
+					'./worker': { node: './impl/worker.js' },
+				},
+			},
+			{ 'dist/button.js': '', 'dist/server.js': '', 'dist/worker.js': '', 'impl/worker.js': '' },
+		);
+
+		expect(resolvePackageSurface(root, ['import', 'default'], 100)).toEqual([path.join(root, 'dist/button.js')]);
+	});
+
 	it('has no surface without an exports field', () => {
 		const root = createPackage({ main: 'index.js' }, { 'index.js': '' });
 
@@ -203,6 +217,9 @@ describe('inspectModuleClosure', () => {
 					"import { join } from './plain-helper.js';\nimport { readFileSync } from 'node:fs';\nexport const joined = [join, readFileSync];\n",
 				'plain-helper.js': 'export const join = (a, b) => a + b;\n',
 				'common.js': 'module.exports = { value: 1 };\n',
+				'required.js': "export const load = () => require('server-only');\n",
+				'lazy.js': "export const load = () => import('other-pkg');\n",
+				'lazy-local.js': "export const load = () => import('./plain-helper.js');\n",
 			},
 		);
 		const imports = (file: string) => inspectModuleClosure(path.join(root, file)).importsPackages;
@@ -211,6 +228,9 @@ describe('inspectModuleClosure', () => {
 		expect(imports('indirect.js')).toBe(true);
 		expect(imports('reexport.js')).toBe(true);
 		expect(imports('common.js')).toBe(true);
+		expect(imports('required.js')).toBe(true);
+		expect(imports('lazy.js')).toBe(true);
+		expect(imports('lazy-local.js')).toBe(false);
 		expect(imports('plain.js')).toBe(false);
 	});
 });

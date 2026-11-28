@@ -77,6 +77,14 @@ function resolveRelative(fromFile: string, specifier: string): string | undefine
 	return undefined;
 }
 
+function readSource(file: string): string {
+	try {
+		return fileSystem.readFileSync(file);
+	} catch {
+		return '';
+	}
+}
+
 function isDirective(statement: AstNode): boolean {
 	return (
 		statement.type === 'ExpressionStatement' && typeof (statement as { directive?: unknown }).directive === 'string'
@@ -131,7 +139,10 @@ function declarationHasEffects(statement: AstNode): boolean {
 	);
 }
 
-function readModuleTraits(body: AstNode[]): ModuleClosureTraits {
+/** A `require()` call or a dynamic `import()` of a package, read from the source since the statements do not show it. */
+const DYNAMIC_PACKAGE_IMPORT = /\b(?:require|import)\s*\(\s*["'`](?![./])/u;
+
+function readModuleTraits(file: string, body: AstNode[]): ModuleClosureTraits {
 	return {
 		loadTimeEffects: body.some(
 			(statement) =>
@@ -141,10 +152,13 @@ function readModuleTraits(body: AstNode[]): ModuleClosureTraits {
 			const specifier = statement.source?.value;
 			return typeof specifier === 'string' && isNodeBuiltinSpecifier(specifier);
 		}),
-		importsPackages: body.some((statement) => {
-			const specifier = statement.source?.value;
-			return typeof specifier === 'string' && !specifier.startsWith('.') && !isNodeBuiltinSpecifier(specifier);
-		}),
+		importsPackages:
+			body.some((statement) => {
+				const specifier = statement.source?.value;
+				return (
+					typeof specifier === 'string' && !specifier.startsWith('.') && !isNodeBuiltinSpecifier(specifier)
+				);
+			}) || DYNAMIC_PACKAGE_IMPORT.test(readSource(file)),
 	};
 }
 
@@ -202,7 +216,7 @@ export function inspectModuleClosure(
 			traits.importsPackages = true;
 			continue;
 		}
-		const own = cache.get(file) ?? readModuleTraits(body);
+		const own = cache.get(file) ?? readModuleTraits(file, body);
 		cache.set(file, own);
 		traits.loadTimeEffects ||= own.loadTimeEffects;
 		traits.nodeBuiltin ||= own.nodeBuiltin;

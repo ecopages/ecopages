@@ -113,17 +113,17 @@ function listFiles(directory: string, limit: number, found: string[] = []): stri
 	return found;
 }
 
-/** The files a wildcard target such as `./dist/*.js` names, up to `limit + 1` of them. */
-function expandPattern(packageDir: string, target: string, limit: number): string[] {
+/** The files a wildcard target such as `./dist/*.js` names, up to `limit + 1` of them, with what the first `*` matched. */
+function expandPattern(packageDir: string, target: string, limit: number): { file: string; match: string }[] {
 	const wildcard = target.indexOf('*');
 	const base = path.resolve(packageDir, target.slice(0, wildcard).replace(/[^/]*$/u, ''));
 	if (!isInsidePackage(base, packageDir)) return [];
-	const escaped = target
-		.replace(/^\.\//u, '')
-		.replace(/[.+?^${}()|[\]\\]/gu, '\\$&')
-		.replace('*', '.*');
-	const pattern = new RegExp(`^${escaped.replaceAll('*', '.*')}$`, 'u');
-	return listFiles(base, limit).filter((file) => pattern.test(path.relative(packageDir, file)));
+	const escaped = target.replace(/^\.\//u, '').replace(/[.+?^${}()|[\]\\]/gu, '\\$&');
+	const pattern = new RegExp(`^${escaped.replace('*', '(.*)').replaceAll('*', '.*')}$`, 'u');
+	return listFiles(base, limit).flatMap((file) => {
+		const match = pattern.exec(path.relative(packageDir, file));
+		return match ? [{ file, match: match[1] ?? '' }] : [];
+	});
 }
 
 /**
@@ -139,12 +139,19 @@ export function resolvePackageSurface(packageDir: string, conditions: readonly s
 	const exportsField = readManifest(packageDir)?.exports;
 	const active = new Set(conditions);
 	const files = new Set<string>();
-	for (const [subpath, value] of readExportSubpaths(exportsField)) {
+	const subpaths = readExportSubpaths(exportsField);
+	const exact = new Set(subpaths.map(([subpath]) => subpath).filter((subpath) => !subpath.includes('*')));
+	for (const [subpath, value] of subpaths) {
 		if (NON_BROWSER_SUBPATH.test(subpath)) continue;
 		const target = resolveExportTarget(value, active);
 		if (target === undefined || !SCRIPT_FILE.test(target)) continue;
 		const candidates = target.includes('*')
 			? expandPattern(packageDir, target, limit)
+					.map(({ file, match }) => ({ file, subpath: subpath.replace('*', match) }))
+					.filter(
+						(candidate) => !exact.has(candidate.subpath) && !NON_BROWSER_SUBPATH.test(candidate.subpath),
+					)
+					.map((candidate) => candidate.file)
 			: [path.resolve(packageDir, target)];
 		for (const candidate of candidates) {
 			if (isInsidePackage(candidate, packageDir) && fileSystem.exists(candidate)) files.add(candidate);

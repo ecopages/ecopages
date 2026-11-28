@@ -133,7 +133,8 @@ type VendorGraphBundle = {
 
 type RunningVendorGraphBuild = {
 	generation: number;
-	entryPaths: ReadonlySet<string>;
+	/** The entries the build covers; an entry it drops leaves the set, so a request for it starts a build of its own. */
+	entryPaths: Set<string>;
 	promise: Promise<VendorGraphBuild>;
 };
 
@@ -233,6 +234,7 @@ export class DevTransformVendorRegistry {
 	private readonly moduleCounts = new Map<string, number>();
 	private readonly jsxSurfaces = new Map<string, boolean>();
 	private readonly closureTraits = new Map<string, ModuleClosureTraits>();
+	private readonly surfaceProbes = new Map<string, Promise<string[]>>();
 	private readonly warnedPackageCopies = new Set<string>();
 	private persistedContents?: string;
 	/** Entries that the previous dev process stored and nothing in this process has asked for yet. */
@@ -355,10 +357,14 @@ export class DevTransformVendorRegistry {
 		this.moduleCounts.clear();
 		this.jsxSurfaces.clear();
 		this.closureTraits.clear();
+		this.surfaceProbes.clear();
 		clearBarePackageResolverCaches();
 		for (const graph of this.graphs.values()) {
 			graph.failed.clear();
 			const previous = [...graph.entries.values()];
+			const seededBefore = new Set(
+				previous.filter((entry) => this.seeded.has(entry.entryPath)).map((entry) => entry.entryPath),
+			);
 			graph.entries.clear();
 			for (const entry of previous) this.entriesByUrl.delete(entry.url);
 			for (const entry of previous) {
@@ -372,7 +378,13 @@ export class DevTransformVendorRegistry {
 						source.resolveDir,
 					);
 					if (!resolved) continue;
-					this.addEntry(source.specifier, source.resolveDir, resolved.path);
+					this.addEntry(
+						source.specifier,
+						source.resolveDir,
+						resolved.path,
+						undefined,
+						seededBefore.has(entry.entryPath),
+					);
 					reached = true;
 				}
 				if (!reached && !graph.entries.has(entry.entryPath)) {
@@ -892,7 +904,7 @@ export class DevTransformVendorRegistry {
 		const built = 'outputs' in complete && complete.clean;
 		const sound = probed ?? (surface.length > 0 && !built ? await probe() : reachable);
 		const soundSurface = surface.filter((file) => sound.includes(file));
-		if (built && soundSurface.length === surface.length) return complete;
+		if (soundSurface.length === surface.length) return complete;
 		return this.buildPackageFiles(graph, scope, [...requested, ...soundSurface].sort(), bundled);
 	}
 
@@ -911,7 +923,21 @@ export class DevTransformVendorRegistry {
 	 * package whose surface files import no other package, and are all ES modules, is not probed: the build of its
 	 * file finds an unresolved import, and a Node builtin shows in the modules themselves.
 	 */
-	private async findBuildableSurface(
+	private findBuildableSurface(
+		graph: VendorGraph,
+		scope: VendorBuildScope,
+		surface: readonly string[],
+	): Promise<string[]> {
+		const key = `${this.generation}\0${graph.key}\0${scope.id}\0${surface.join('\0')}`;
+		let probe = this.surfaceProbes.get(key);
+		if (!probe) {
+			probe = this.probeSurface(graph, scope, surface);
+			this.surfaceProbes.set(key, probe);
+		}
+		return probe;
+	}
+
+	private async probeSurface(
 		graph: VendorGraph,
 		scope: VendorBuildScope,
 		surface: readonly string[],
@@ -1070,6 +1096,7 @@ export class DevTransformVendorRegistry {
 
 		const known = this.entriesByUrl.get(url);
 		if (known) {
+			this.seeded.delete(known.entry.entryPath);
 			const build = await this.waitForBuildContaining(known.graph, known.entry.entryPath);
 			const error = build.errors.get(known.entry.entryPath);
 			if (error) {
@@ -1165,6 +1192,7 @@ export class DevTransformVendorRegistry {
 			if (!entry || !this.seeded.has(entryPath)) continue;
 			dropped.add(entryPath);
 			this.seeded.delete(entryPath);
+			graph.running?.entryPaths.delete(entryPath);
 			graph.entries.delete(entryPath);
 			this.entriesByUrl.delete(entry.url);
 		}

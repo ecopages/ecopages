@@ -190,7 +190,9 @@ test.describe('eco-commerce template', () => {
 		const value = (await material.getAttribute('value')) ?? '';
 		await material.check({ force: true });
 
-		await expect(page).toHaveURL(new RegExp(`/search\\?in=lounge-chairs&material=${value}$`));
+		await expect(page).toHaveURL(
+			new RegExp(`/search\\?in=lounge-chairs&sort=featured&min=&max=&material=${value}$`),
+		);
 		await expect
 			.poll(async () => {
 				const titles = await page.locator('.product-card__title').allTextContents();

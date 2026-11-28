@@ -46,6 +46,42 @@ describe('resolvePackageSurface', () => {
 		]);
 	});
 
+	it('leaves out the subpaths that name a server, static, test or profiling build, and the targets that only a server condition reaches', () => {
+		const root = createPackage(
+			{
+				exports: {
+					'.': { 'react-server': './react-server.js', default: './index.js' },
+					'./client': './client.js',
+					'./server': { node: './server.node.js', bun: './server.bun.js' },
+					'./server.browser': './server.browser.js',
+					'./static': './static.js',
+					'./static.node': './static.node.js',
+					'./profiling': './profiling.js',
+					'./test-utils': './test-utils.js',
+					'./testing': './testing.js',
+					'./servers': './servers.js',
+				},
+			},
+			{
+				'index.js': '',
+				'client.js': '',
+				'server.browser.js': '',
+				'static.js': '',
+				'static.node.js': '',
+				'profiling.js': '',
+				'test-utils.js': '',
+				'testing.js': '',
+				'servers.js': '',
+			},
+		);
+
+		expect(resolvePackageSurface(root, ['browser', 'module', 'import', 'default'], 100)).toEqual([
+			path.join(root, 'index.js'),
+			path.join(root, 'client.js'),
+			path.join(root, 'servers.js'),
+		]);
+	});
+
 	it('expands a wildcard subpath to the files it names and leaves out a target that is missing or outside the package', () => {
 		const root = createPackage(
 			{

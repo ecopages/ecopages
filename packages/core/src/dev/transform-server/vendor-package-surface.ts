@@ -2,6 +2,17 @@ import { fileSystem } from '@ecopages/file-system';
 import { path } from '@ecopages/file-system/path';
 
 const SCRIPT_FILE = /\.(?:[cm]?[jt]s|[jt]sx)$/u;
+/**
+ * Subpaths that name a server, static, test or profiling build, such as `react-dom/server.browser` or
+ * `react-dom/test-utils`.
+ *
+ * @remarks
+ * A package lists these beside its browser entries, for the runtimes that use them, and a browser page does not.
+ * They stay out of the surface and are served when an import asks. The conditions of an entry already leave out the
+ * targets that resolve only under `node`, `react-server`, `worker`, `deno` or `bun`, since a browser build matches
+ * none of them.
+ */
+const NON_BROWSER_SUBPATH = /^\.\/(?:.*\/)?(?:server|static|profiling|test-utils|testing|test)(?:[./-].*)?$/u;
 const MODULE_FILE = /\.(?:[cm]?js)$/u;
 
 /**
@@ -128,7 +139,8 @@ export function resolvePackageSurface(packageDir: string, conditions: readonly s
 	const exportsField = readManifest(packageDir)?.exports;
 	const active = new Set(conditions);
 	const files = new Set<string>();
-	for (const [, value] of readExportSubpaths(exportsField)) {
+	for (const [subpath, value] of readExportSubpaths(exportsField)) {
+		if (NON_BROWSER_SUBPATH.test(subpath)) continue;
 		const target = resolveExportTarget(value, active);
 		if (target === undefined || !SCRIPT_FILE.test(target)) continue;
 		const candidates = target.includes('*')

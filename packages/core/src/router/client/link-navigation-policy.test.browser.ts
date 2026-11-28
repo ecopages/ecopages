@@ -479,6 +479,15 @@ const formRows: FormRow[] = [
 		expected: formIntercepted('/search?note=a%0D%0Ab'),
 	},
 	{
+		name: 'an action path that reads as another origin once it is a bare path',
+		form: {
+			action: 'https://localhost//other.test/search'.replace('https://localhost', window.location.origin),
+			method: 'get',
+		},
+		html: '<input name="q" value="chair">',
+		expected: formIgnored('ambiguous-path'),
+	},
+	{
 		name: 'a submission another handler already cancelled',
 		form: { action: '/search', method: 'get' },
 		html: '<input name="q" value="chair">',
@@ -506,6 +515,25 @@ describe('getFormNavigationDecision', () => {
 					expected: formIntercepted('/shop/results?q=chair'),
 				}),
 			).toEqual(formIntercepted('/shop/results?q=chair'));
+		} finally {
+			base.remove();
+		}
+	});
+
+	it('leaves a form to the browser when the base element sends submissions to another context', () => {
+		const base = document.createElement('base');
+		base.target = '_blank';
+		document.head.append(base);
+		try {
+			const row: FormRow = {
+				name: 'base target',
+				form: { action: '/search', method: 'get' },
+				html: '<input name="q" value="chair">',
+				expected: formIgnored('external-target'),
+			};
+			expect(decideFormSubmission(row)).toEqual(row.expected);
+			const own: FormRow = { ...row, form: { action: '/search', method: 'get', target: '_self' } };
+			expect(decideFormSubmission(own)).toEqual(formIntercepted('/search?q=chair'));
 		} finally {
 			base.remove();
 		}

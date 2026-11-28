@@ -39,7 +39,7 @@ A handoff carries the already fetched `Document`, so the receiving runtime commi
 | Module | Role |
 | --- | --- |
 | `link-intent` | Finds the anchor for a click, pointer or hover event across Shadow DOM boundaries, and remembers the last valid target while a navigation is in flight. |
-| `link-navigation-policy` | Decides whether a link click or a GET form submission is intercepted. It returns the refusal reason: modified or non-left click, external target, explicit reload attribute, download, no-prefetch, invalid or cross-origin href, static asset, or same-page hash. For a form submission the reasons are a non-form target, a cancelled submission, a method other than GET, an external target, the reload attribute, a cross-origin action and a static-asset action. |
+| `link-navigation-policy` | Decides whether a link click or a GET form submission is intercepted. It returns the refusal reason: modified or non-left click, external target, explicit reload attribute, download, no-prefetch, invalid or cross-origin href, static asset, or same-page hash. For a form submission the reasons are a non-form target, a cancelled submission, a method other than GET, an external target, the reload attribute, a cross-origin action, a static-asset action and an ambiguous action path. |
 | `navigation-document` | Fetches and parses the next page, with an HTML cache and a final-URL map for redirects. |
 | `navigation-head` | Reconciles the document head and activates staged stylesheets before the swap. |
 | `navigation-commit`, `navigation-pipeline` | The shared commit pipeline that each router plugs its page swap into. |

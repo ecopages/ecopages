@@ -513,10 +513,79 @@ describe('shared navigation document loading', () => {
 				const prefetch = fetchNavigationPage(href, { prefetch: true });
 				const navigation = fetchNavigationPage(href, { signal: controller.signal });
 				controller.abort();
-				release();
-				await prefetch;
 
 				await expect(navigation).rejects.toMatchObject({ name: 'AbortError' });
+				release();
+				await prefetch;
+			});
+
+			it('does not hold a prefetched page that arrived with its max-age used up', async () => {
+				const fetchMock = vi.fn(async () => {
+					const response = htmlResponse('max-age=60');
+					response.headers.set('Age', '61');
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('keeps a prefetch that redirected from storing over a newer fetch of its final URL', async () => {
+				let release!: () => void;
+				const gate = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				let visit = 0;
+				const fetchMock = vi.fn(async (input: string | URL | Request) => {
+					visit += 1;
+					const current = visit;
+					const isOld = String(input).endsWith('/old');
+					if (isOld) await gate;
+					const response = new Response(`<html><body>visit ${current}</body></html>`, {
+						headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=60' },
+					});
+					Object.defineProperty(response, 'url', { value: 'https://example.test/new' });
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				const prefetch = fetchNavigationPage('https://example.test/old', { prefetch: true });
+				await fetchNavigationPage('https://example.test/new', { bypassCache: true });
+				release();
+				await prefetch;
+				const next = await fetchNavigationPage('https://example.test/new');
+
+				expect(next?.html).toContain('visit 2');
+			});
+
+			it('does not let a navigation wait for a prefetch that was invalidated while in flight', async () => {
+				let release!: () => void;
+				const gate = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				let visit = 0;
+				const fetchMock = vi.fn(async () => {
+					visit += 1;
+					const current = visit;
+					if (current === 1) await gate;
+					return new Response(`<html><body>visit ${current}</body></html>`, {
+						headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' },
+					});
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				const prefetch = fetchNavigationPage(href, { prefetch: true });
+				invalidateNavigationHtml(href);
+				const next = await fetchNavigationPage(href);
+				release();
+				await prefetch;
+				const after = await fetchNavigationPage(href);
+
+				expect(next?.html).toContain('visit 2');
+				expect(after?.html).toContain('visit 3');
 			});
 
 			it('keeps a prefetch that a newer fetch of the URL overtook from storing its older copy', async () => {

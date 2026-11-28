@@ -103,6 +103,10 @@ export function cacheNavigationHtml(
 /**
  * Drops the cached document for a URL, its redirect target, and every other
  * requested URL that redirected to the same target.
+ *
+ * @remarks
+ * A prefetch of the URL still in flight is disowned: it stores nothing, and a navigation does not wait for it,
+ * so the next navigation fetches a page newer than the invalidation.
  */
 export function invalidateNavigationHtml(href: string | URL): void {
 	const key = getCacheKey(href);
@@ -115,6 +119,10 @@ export function invalidateNavigationHtml(href: string | URL): void {
 	}
 	navigationHtmlCache.delete(key);
 	navigationHtmlCache.delete(finalKey);
+	for (const urlKey of new Set([key, finalKey])) {
+		latestNetworkFetch.set(urlKey, ++networkFetchSequence);
+		pendingPrefetches.delete(urlKey);
+	}
 	for (const [heldKey, held] of heldNavigationHtml) {
 		if (heldKey === key || heldKey === finalKey || held.finalHref === finalKey) {
 			heldNavigationHtml.delete(heldKey);
@@ -134,6 +142,8 @@ type NavigationCacheControl = {
 	forbidsReuse: boolean;
 	/** Seconds the body may be reused for, or `undefined` when the response sets no limit. */
 	maxAge: number | undefined;
+	/** Whether a shared cache's `Age` had already used up the `max-age` when the body arrived. */
+	staleOnArrival: boolean;
 };
 
 /**
@@ -145,7 +155,7 @@ type NavigationCacheControl = {
  * alone do not: a static page is sent that way and is meant to be reused for the session, so only a positive
  * `max-age` limits reuse. A qualified `no-cache="field"` only covers the named header fields and leaves the
  * body reusable. A shared cache in front of the server reports the time it already held the body in `Age`,
- * which counts against the `max-age`; a body that arrives with none of it left is not reusable. `s-maxage`
+ * which counts against the `max-age`; a body that arrives with none of it left is stale on arrival. `s-maxage`
  * is for shared caches and is ignored.
  */
 function readCacheControl(headers: Headers): NavigationCacheControl {
@@ -157,11 +167,11 @@ function readCacheControl(headers: Headers): NavigationCacheControl {
 		const match = /^max-age\s*=\s*"?(\d+)"?$/.exec(name);
 		if (match) maxAge = Number(match[1]);
 	}
-	if (maxAge <= 0) return { forbidsReuse, maxAge: undefined };
+	if (maxAge <= 0) return { forbidsReuse, maxAge: undefined, staleOnArrival: false };
 
 	const age = Number.parseInt(headers.get('Age') ?? '', 10);
 	const remaining = maxAge - (Number.isFinite(age) && age > 0 ? age : 0);
-	return { forbidsReuse: forbidsReuse || remaining <= 0, maxAge: remaining };
+	return { forbidsReuse, maxAge: remaining, staleOnArrival: remaining <= 0 };
 }
 
 /**
@@ -196,16 +206,20 @@ export function parseNavigationDocument(html: string, finalUrl: URL): Document {
  * not request the page again.
  */
 function storeFetchedHtml(requestedUrl: URL, html: string, finalUrl: URL, headers: Headers, prefetch: boolean): void {
-	const { forbidsReuse, maxAge } = readCacheControl(headers);
-	if (!forbidsReuse) {
+	const { forbidsReuse, maxAge, staleOnArrival } = readCacheControl(headers);
+	if (!forbidsReuse && !staleOnArrival) {
 		cacheNavigationHtml(requestedUrl, html, finalUrl, { maxAge });
 		return;
 	}
 
 	invalidateNavigationHtml(requestedUrl);
 	invalidateNavigationHtml(finalUrl);
-	if (!prefetch) return;
+	if (!prefetch || !forbidsReuse) return;
 
+	const now = Date.now();
+	for (const [heldKey, held] of heldNavigationHtml) {
+		if (held.expiresAt < now) heldNavigationHtml.delete(heldKey);
+	}
 	const finalHref = new URL(finalUrl);
 	finalHref.hash = '';
 	heldNavigationHtml.set(getCacheKey(requestedUrl), {
@@ -252,10 +266,28 @@ export async function fetchNavigationPage(
 
 	const pending = options.bypassCache ? undefined : pendingPrefetches.get(requestCacheKey);
 	if (pending) {
-		await pending;
-		options.signal?.throwIfAborted();
+		await waitUnlessAborted(pending, options.signal);
 	}
 	return loadNavigationPage(requestedUrl, options);
+}
+
+/** Waits for `pending`, and rejects as soon as `signal` aborts, so a cancelled navigation does not hold up the next. */
+async function waitUnlessAborted(pending: Promise<void>, signal: AbortSignal | undefined): Promise<void> {
+	if (!signal) {
+		await pending;
+		return;
+	}
+	signal.throwIfAborted();
+	let onAbort: (() => void) | undefined;
+	const aborted = new Promise<never>((_, reject) => {
+		onAbort = () => reject(signal.reason);
+		signal.addEventListener('abort', onAbort, { once: true });
+	});
+	try {
+		await Promise.race([pending, aborted]);
+	} finally {
+		if (onAbort) signal.removeEventListener('abort', onAbort);
+	}
 }
 
 /**
@@ -272,6 +304,14 @@ function readReusableHtml(
 
 	const held = prefetch ? null : takeHeldNavigationHtml(key);
 	return held ? { html: held.html, finalHref: held.finalHref } : null;
+}
+
+/**
+ * Reports whether a fetch that started as number `sequence` has been overtaken: a later fetch or an
+ * invalidation of its requested URL, or a later fetch of the URL it redirected to, makes its response older.
+ */
+function isOvertaken(requestKey: string, finalKey: string, sequence: number): boolean {
+	return latestNetworkFetch.get(requestKey) !== sequence || (latestNetworkFetch.get(finalKey) ?? 0) > sequence;
 }
 
 async function loadNavigationPage(
@@ -311,7 +351,7 @@ async function loadNavigationPage(
 		if (requestedUrl.hash) {
 			finalUrl.hash = requestedUrl.hash;
 		}
-		const overtaken = options.prefetch === true && latestNetworkFetch.get(requestCacheKey) !== sequence;
+		const overtaken = options.prefetch === true && isOvertaken(requestCacheKey, getCacheKey(finalUrl), sequence);
 		if (!overtaken) {
 			storeFetchedHtml(requestedUrl, html, finalUrl, response.headers, options.prefetch === true);
 		}

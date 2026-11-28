@@ -336,7 +336,7 @@ A same-origin `<form method="get">` is submitted as a client navigation. The rou
 The router follows the browser's own rules for where the form goes: a button's `formaction`, `formmethod` and `formtarget` win over the form's attributes, a file field is sent as its file name, and a query already in the action is replaced. It leaves the submission to the browser when:
 
 - the method is not GET, so a POST form always loads the document;
-- the `target` is not `_self`;
+- the `target` is not `_self`, or the page has a `<base target>` and the form names none;
 - the action is on another origin or names a static file such as `/report.pdf`;
 - the form, or the button that submitted it, has `data-eco-reload` (or your `reloadAttribute`), which is the opt-out;
 - a `submit` listener of your page already called `preventDefault()`, so a form your own script handles stays yours.

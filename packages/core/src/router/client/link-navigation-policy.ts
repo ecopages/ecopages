@@ -162,7 +162,8 @@ export type FormNavigationDecision =
 				| 'external-target'
 				| 'explicit-reload'
 				| 'cross-origin'
-				| 'static-asset';
+				| 'static-asset'
+				| 'ambiguous-path';
 	  };
 
 /**
@@ -203,6 +204,9 @@ export function getFormNavigationDecision(
 	if (isStaticAssetHref(url.href)) {
 		return { shouldIntercept: false, reason: 'static-asset' };
 	}
+	if (url.pathname.startsWith('//')) {
+		return { shouldIntercept: false, reason: 'ambiguous-path' };
+	}
 
 	const params = new URLSearchParams();
 	for (const [name, value] of new FormData(form, submitter)) {
@@ -218,16 +222,16 @@ export function getFormNavigationDecision(
  *
  * @remarks
  * An empty `formaction` is the document URL and an empty `formtarget` is the current browsing context, so neither
- * falls back to the form's value the way a missing attribute does.
+ * falls back to the form's value the way a missing attribute does. `null` means neither element has it.
  */
 function readSubmissionAttribute(
 	form: HTMLFormElement,
 	submitter: HTMLElement | null,
 	submitterName: 'formaction' | 'formmethod' | 'formtarget',
 	formName: 'action' | 'method' | 'target',
-): string {
+): string | null {
 	const owner = submitter?.hasAttribute(submitterName) ? submitter : form;
-	return owner.getAttribute(owner === form ? formName : submitterName) ?? '';
+	return owner.getAttribute(owner === form ? formName : submitterName);
 }
 
 /** Writes line breaks as the form encoding does, CRLF, so a textarea reaches the server as a browser sends it. */
@@ -241,12 +245,13 @@ function getFormOwnershipReason(
 	submitter: HTMLElement | null,
 	options: LinkNavigationPolicyOptions,
 ): 'non-get-method' | 'external-target' | 'explicit-reload' | null {
-	const method = readSubmissionAttribute(form, submitter, 'formmethod', 'method').toLowerCase();
+	const method = (readSubmissionAttribute(form, submitter, 'formmethod', 'method') ?? '').toLowerCase();
 	if (method === 'post' || method === 'dialog') {
 		return 'non-get-method';
 	}
 
-	const target = readSubmissionAttribute(form, submitter, 'formtarget', 'target').toLowerCase();
+	const baseTarget = document.querySelector('base[target]')?.getAttribute('target');
+	const target = (readSubmissionAttribute(form, submitter, 'formtarget', 'target') ?? baseTarget ?? '').toLowerCase();
 	if (target && target !== '_self') {
 		return 'external-target';
 	}

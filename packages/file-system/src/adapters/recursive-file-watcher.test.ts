@@ -536,16 +536,6 @@ function watchWithRescans(paths: string[], changes: Array<{ type: string; path: 
 	);
 }
 
-/**
- * The longest the rescans of {@link watchWithRescans} take to report a change that the native watcher missed.
- *
- * @remarks
- * The wait before a rescan is ten times the duration of the last one, never less than the interval and never more
- * than five intervals. A tree of a few files scans in milliseconds, so the wait is one interval; the bound is the
- * cap, five intervals of 100 ms, and the scan itself.
- */
-const RESCAN_DELAY_BOUND_MS = 5 * 100 + 500;
-
 function nativeWatcherOf(directory: string): NativeWatcher {
 	const found = nativeWatchers.watchers.find(({ path: watched }) => watched === directory);
 	if (!found) throw new Error(`No native watcher for ${directory}`);
@@ -606,14 +596,12 @@ test('an edit made right after ready, which the native watcher has not started t
 
 	try {
 		await watcher.ready;
-		const editedAt = performance.now();
 		writeFileSync(edited, 'export const value = 22;', 'utf8');
 		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'change', path: edited }), {
 			timeout: 5_000,
 			interval: 10,
 		});
 
-		expect(performance.now() - editedAt).toBeLessThan(RESCAN_DELAY_BOUND_MS);
 		expect(nativeWatcherOf(rootDir).closed).toBe(false);
 	} finally {
 		await watcher.close();

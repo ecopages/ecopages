@@ -121,7 +121,7 @@ async function installIfAbsent(source: string, destination: string): Promise<boo
 	} catch (error) {
 		const code = errorCode(error);
 		if (typeof code !== 'string' || !LINK_UNSUPPORTED_ERRORS.has(code)) throw error;
-		if (fileSystem.exists(destination)) return false;
+		if (await fileSystem.existsAsync(destination)) return false;
 		fileSystem.rename(source, destination);
 		return true;
 	}

@@ -46,6 +46,7 @@ describe('RescanReports', () => {
 		reports.remember('/a.ts', version);
 
 		expect(reports.consumeIfRepeat('/a.ts', { ...version, ...changed })).toBe(false);
+		expect(reports.consumeIfRepeat('/a.ts', version)).toBe(false);
 	});
 
 	it('does not know a file it never reported', () => {

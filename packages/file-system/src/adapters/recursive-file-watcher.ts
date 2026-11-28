@@ -56,6 +56,7 @@ type PendingPathChange = {
 type NativeWatchOptions = WatchOptionsWithStringEncoding & { ignore?: (relativePath: string) => boolean };
 
 const CHANGE_COALESCING_MS = 50;
+
 /**
  * Where a change came from: a native event, or a safety rescan that found what the native watcher dropped.
  */

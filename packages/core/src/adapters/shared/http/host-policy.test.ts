@@ -150,6 +150,8 @@ describe('assertAllowedHosts', () => {
 		['a bracketed name that is not an address', ['[foo]']],
 		['a wildcard on an address', ['*.127.0.0.1']],
 		['credentials', ['user@example.com']],
+		['a percent-encoded wildcard', ['%2a.example.com']],
+		['a percent-encoded dot', ['example%2ecom']],
 	])('rejects %s', (_label, value) => {
 		expect(() => assertAllowedHosts(value as never)).toThrow(/allowedHosts/);
 	});

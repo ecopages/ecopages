@@ -51,7 +51,7 @@ function canonicalEntry(entry: unknown): string | null {
 	if (typeof entry !== 'string') return null;
 	const wildcard = entry.startsWith('*.');
 	const name = wildcard ? entry.slice(2) : entry;
-	if (name === '' || /[\s/?#@\\*]/u.test(name)) return null;
+	if (name === '' || /[\s/?#@\\*%]/u.test(name)) return null;
 	if (name.includes(':') && !isBracketedIp(name)) return null;
 	let hostname: string;
 	try {

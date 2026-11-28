@@ -141,7 +141,7 @@ describe('the UCP profile of a connected store', () => {
 		const served = await handleUcpProfile(profileRequest('https://preview.test'), { provider: shopify });
 
 		expect(JSON.stringify(await served.json())).toContain('https://preview.test/api/ucp/mcp');
-		expect(served.headers.get('vary')).toBe('Host, X-Forwarded-Host');
+		expect(served.headers.get('vary')).toBe('Host, X-Forwarded-Host, X-Forwarded-Proto');
 	});
 
 	it('is what get_ucp_profile returns to an agent in the browser', async () => {

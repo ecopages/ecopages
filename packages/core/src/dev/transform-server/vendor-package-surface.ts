@@ -147,7 +147,7 @@ export function resolvePackageSurface(packageDir: string, conditions: readonly s
 		if (target === undefined || !SCRIPT_FILE.test(target)) continue;
 		const candidates = target.includes('*')
 			? expandPattern(packageDir, target, limit)
-					.map(({ file, match }) => ({ file, subpath: subpath.replace('*', match) }))
+					.map(({ file, match }) => ({ file, subpath: subpath.replace('*', () => match) }))
 					.filter(
 						(candidate) => !exact.has(candidate.subpath) && !NON_BROWSER_SUBPATH.test(candidate.subpath),
 					)

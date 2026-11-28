@@ -140,7 +140,7 @@ function declarationHasEffects(statement: AstNode): boolean {
 }
 
 /** A `require()` call or a dynamic `import()` of a package, read from the source since the statements do not show it. */
-const DYNAMIC_PACKAGE_IMPORT = /\b(?:require|import)\s*\(\s*["'`](?![./])/u;
+const DYNAMIC_PACKAGE_IMPORT = /\b(?:require|import)\s*\(\s*(?:\/\*[\s\S]*?\*\/\s*|\/\/[^\n]*\n\s*)*["'`](?![./])/u;
 
 function readModuleTraits(file: string, body: AstNode[]): ModuleClosureTraits {
 	return {

@@ -106,9 +106,17 @@ describe('resolvePackageSurface', () => {
 				exports: {
 					'./*': './dist/*.js',
 					'./worker': { node: './impl/worker.js' },
+					'./$&': { node: './impl/dollar.js' },
 				},
 			},
-			{ 'dist/button.js': '', 'dist/server.js': '', 'dist/worker.js': '', 'impl/worker.js': '' },
+			{
+				'dist/button.js': '',
+				'dist/server.js': '',
+				'dist/worker.js': '',
+				'dist/$&.js': '',
+				'impl/worker.js': '',
+				'impl/dollar.js': '',
+			},
 		);
 
 		expect(resolvePackageSurface(root, ['import', 'default'], 100)).toEqual([path.join(root, 'dist/button.js')]);
@@ -218,6 +226,7 @@ describe('inspectModuleClosure', () => {
 				'plain-helper.js': 'export const join = (a, b) => a + b;\n',
 				'common.js': 'module.exports = { value: 1 };\n',
 				'required.js': "export const load = () => require('server-only');\n",
+				'commented.js': "export const load = () => require(/* optional */ 'cli-lib');\n",
 				'lazy.js': "export const load = () => import('other-pkg');\n",
 				'lazy-local.js': "export const load = () => import('./plain-helper.js');\n",
 			},
@@ -229,6 +238,7 @@ describe('inspectModuleClosure', () => {
 		expect(imports('reexport.js')).toBe(true);
 		expect(imports('common.js')).toBe(true);
 		expect(imports('required.js')).toBe(true);
+		expect(imports('commented.js')).toBe(true);
 		expect(imports('lazy.js')).toBe(true);
 		expect(imports('lazy-local.js')).toBe(false);
 		expect(imports('plain.js')).toBe(false);

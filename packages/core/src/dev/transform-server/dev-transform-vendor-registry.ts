@@ -603,6 +603,7 @@ export class DevTransformVendorRegistry {
 			servedUrls: new Set(),
 		});
 		const dropStale = (errors: ReadonlyMap<string, Error>) => {
+			if (generation !== this.generation) return new Set<string>();
 			const dropped = this.dropStaleSeeds(graph, errors);
 			for (const entryPath of dropped) entryPaths.delete(entryPath);
 			return dropped;
@@ -933,6 +934,7 @@ export class DevTransformVendorRegistry {
 		if (!probe) {
 			probe = this.probeSurface(graph, scope, surface);
 			this.surfaceProbes.set(key, probe);
+			probe.catch(() => this.surfaceProbes.delete(key));
 		}
 		return probe;
 	}
@@ -1089,6 +1091,8 @@ export class DevTransformVendorRegistry {
 	}
 
 	private async findOutput(url: string): Promise<VendorOutputLookup> {
+		const requested = this.entriesByUrl.get(url);
+		if (requested) this.seeded.delete(requested.entry.entryPath);
 		const built = this.findBuiltOutput(url);
 		if (built) {
 			return built;

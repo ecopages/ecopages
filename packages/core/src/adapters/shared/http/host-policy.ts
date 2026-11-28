@@ -91,9 +91,9 @@ export function assertAllowedHosts(allowedHosts: unknown): asserts allowedHosts 
  * Builds the host policy of a server from the `allowedHosts` and `baseUrl` options.
  *
  * @remarks
- * The list is `allowedHosts` when it is set, and the host of `baseUrl` otherwise, so in production loopback is
- * refused unless one of them names it, and a list that leaves out the `baseUrl` host refuses it. Development also
- * allows `localhost`, its subdomains and IP literals. An IP literal is safe to allow because DNS rebinding needs a
+ * The list is the host of `baseUrl` plus `allowedHosts`, so the address the app declares is always served and in
+ * production loopback is refused unless one of them names it. Development also allows `localhost`, its subdomains
+ * and IP literals. An IP literal is safe to allow because DNS rebinding needs a
  * name that resolves to the server, which an IP address is not. `true` allows every named host.
  *
  * A `*.example.com` entry matches a subdomain of any depth but not `example.com`. Ports are not compared; a
@@ -105,10 +105,11 @@ export function createHostPolicy(input: {
 	development: boolean;
 }): HostPolicy {
 	if (input.allowedHosts === true) return { allows: () => true };
+	const listed = input.allowedHosts ?? [];
 
 	const exact = new Set<string>();
 	const suffixes: string[] = [];
-	const entries = input.allowedHosts ?? [hostnameOfBaseUrl(input.baseUrl)];
+	const entries = [hostnameOfBaseUrl(input.baseUrl), ...listed];
 	for (const entry of entries) {
 		const hostname = canonicalEntry(entry);
 		if (hostname === null) continue;

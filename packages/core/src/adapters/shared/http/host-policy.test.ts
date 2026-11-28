@@ -30,12 +30,13 @@ describe('createHostPolicy', () => {
 			expect(policy({ baseUrl: 'http://localhost:3000' }).allows('localhost')).toBe(true);
 		});
 
-		it('replaces the baseUrl host with allowedHosts when it is configured', () => {
+		it('adds allowedHosts to the baseUrl host and never replaces it', () => {
 			const hosts = policy({ allowedHosts: ['www.example.com', 'localhost'] });
 
 			expect(hosts.allows('www.example.com')).toBe(true);
 			expect(hosts.allows('localhost')).toBe(true);
-			expect(hosts.allows('shop.example.com')).toBe(false);
+			expect(hosts.allows('shop.example.com')).toBe(true);
+			expect(hosts.allows('evil.example')).toBe(false);
 		});
 
 		it('matches a wildcard against subdomains of any depth but not the bare domain', () => {
@@ -65,7 +66,8 @@ describe('createHostPolicy', () => {
 
 		it('refuses an empty hostname', () => {
 			expect(policy({}).allows('')).toBe(false);
-			expect(policy({ allowedHosts: [] }).allows('shop.example.com')).toBe(false);
+			expect(policy({ allowedHosts: [] }).allows('shop.example.com')).toBe(true);
+			expect(policy({ allowedHosts: [] }).allows('other.example.com')).toBe(false);
 		});
 	});
 
@@ -94,12 +96,13 @@ describe('createHostPolicy', () => {
 			expect(policy({ development: true }).allows('shop.example.com')).toBe(true);
 		});
 
-		it('adds allowedHosts to the defaults instead of replacing them', () => {
+		it('adds allowedHosts to the local defaults and the baseUrl host', () => {
 			const hosts = policy({ development: true, allowedHosts: ['dev.example.test'] });
 
 			expect(hosts.allows('dev.example.test')).toBe(true);
 			expect(hosts.allows('localhost')).toBe(true);
-			expect(hosts.allows('shop.example.com')).toBe(false);
+			expect(hosts.allows('shop.example.com')).toBe(true);
+			expect(hosts.allows('evil.example')).toBe(false);
 		});
 
 		it('allows every host for allowedHosts: true', () => {

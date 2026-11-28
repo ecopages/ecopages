@@ -173,16 +173,18 @@ export type EcoPagesUserConfig = {
 	 * the browser sends the attacker's name as `Host` and `Origin`. Once a host is allowed, `request.url` is the address the visitor
 	 * used, so `sameOrigin()` and any handler comparing `Origin` with it are sound.
 	 *
-	 * The list is `allowedHosts` when it is set, and the host of `baseUrl` (`ECOPAGES_BASE_URL` when `baseUrl` is
-	 * unset) otherwise. A list replaces the `baseUrl` host, so name the public host in it, and `localhost` when a
-	 * health check calls the server by that name. `ecopages dev` also allows `localhost`, its subdomains and IP
-	 * addresses; `ecopages start` allows only the list. Ports are not compared. `*.example.com` matches a subdomain
+	 * The list is the host of `baseUrl` (`ECOPAGES_BASE_URL` when `baseUrl` is unset) plus `allowedHosts`, which adds
+	 * to it and never replaces it; add `localhost` when a health check calls the server by that name. `ecopages dev`
+	 * and `ecopages preview` also allow `localhost`, its subdomains and IP addresses; `ecopages start` allows only the
+	 * list. Ports are not compared. `*.example.com` matches a subdomain
 	 * of any depth, not `example.com`. A value that is not `true` or a list of hostnames fails the config load.
 	 *
 	 * `true` turns the host check off, so a rebinding attacker can reach the server by name; a request that names no
 	 * usable `Host` is still refused. Use it only when a proxy in front of the server already refuses unknown
-	 * hosts. `app.fetch()` and `ecopages preview` are not checked: the first takes the URL it is given, the second
-	 * serves only static files.
+	 * hosts. `app.fetch()` is not checked: it takes the URL it is given.
+	 *
+	 * A WebSocket upgrade whose `Origin` is not the origin of the request, such as one from a page of another site,
+	 * is refused with HTTP 403; an upgrade without `Origin` passes.
 	 *
 	 * @default the host of `baseUrl`, plus `localhost` and IP addresses in development
 	 */

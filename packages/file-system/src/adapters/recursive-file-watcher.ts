@@ -25,6 +25,11 @@ type WatchedPath = {
 	scope: PathScope;
 };
 
+/**
+ * The paths of one scan that `ignored` accepted, with every ancestor up to the watched path, for each watched path.
+ */
+type AcceptedPaths = Map<WatchedPath, Set<string>>;
+
 type WatchRoot = {
 	path: string;
 	recursive: boolean;
@@ -632,9 +637,10 @@ export class RecursiveFileWatcher implements FileWatcher {
 			}
 			throw error;
 		}
+		const accepted: AcceptedPaths = new Map();
 		let canRecurse = !root.recursive;
 		if (root.recursive && rootStats)
-			canRecurse = this.collectReconciliationEntry(root.path, rootStats, entries, changedEntries);
+			canRecurse = this.collectReconciliationEntry(root.path, rootStats, entries, changedEntries, accepted);
 		if (rootStats?.isDirectory() && canRecurse)
 			await this.collectReconciliationChildren(
 				root.path,
@@ -642,6 +648,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 				entries,
 				changedEntries,
 				unreadableDirectories,
+				accepted,
 			);
 		return { entries, changedEntries, unreadableDirectories };
 	}
@@ -710,6 +717,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 		entries: Set<string>,
 		changedEntries: Set<string>,
 		unreadableDirectories: Set<string>,
+		accepted: AcceptedPaths,
 	): Promise<void> {
 		let children;
 		try {
@@ -736,7 +744,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 				throw error;
 			}
 			if (!stats) continue;
-			const canRecurse = this.collectReconciliationEntry(childPath, stats, entries, changedEntries);
+			const canRecurse = this.collectReconciliationEntry(childPath, stats, entries, changedEntries, accepted);
 			if (recursive && canRecurse && stats.isDirectory() && !stats.isSymbolicLink()) {
 				await this.collectReconciliationChildren(
 					childPath,
@@ -744,6 +752,7 @@ export class RecursiveFileWatcher implements FileWatcher {
 					entries,
 					changedEntries,
 					unreadableDirectories,
+					accepted,
 				);
 			}
 		}
@@ -758,8 +767,9 @@ export class RecursiveFileWatcher implements FileWatcher {
 		stats: Stats,
 		entries: Set<string>,
 		changedEntries: Set<string>,
+		accepted: AcceptedPaths,
 	): boolean {
-		const mappedPaths = this.getMappedPaths(entryPath, stats);
+		const mappedPaths = this.getMappedPaths(entryPath, stats, accepted);
 		if (mappedPaths.length) {
 			entries.add(entryPath);
 			if (this.hasReconciliationChanged(entryPath, stats)) changedEntries.add(entryPath);
@@ -1093,7 +1103,11 @@ export class RecursiveFileWatcher implements FileWatcher {
 		}
 	}
 
-	private getMappedPaths(canonicalPath: string, stats?: Stats): string[] {
+	/**
+	 * @param accepted - The paths a scan has accepted so far. A scan walks a folder before its children, so the
+	 * ancestors of an entry are already accepted and `ignored` runs once for the entry instead of once per ancestor.
+	 */
+	private getMappedPaths(canonicalPath: string, stats?: Stats, accepted?: AcceptedPaths): string[] {
 		const mappedPaths: string[] = [];
 		let hasMatchingPath = false;
 		for (const watchedPath of this.watchedPaths) {
@@ -1108,7 +1122,12 @@ export class RecursiveFileWatcher implements FileWatcher {
 				? path.join(watchedPath.requestedPath, relativePath)
 				: watchedPath.requestedPath;
 			hasMatchingPath = true;
-			if (this.isIgnored(reportedPath, watchedPath, stats)) continue;
+			if (this.isIgnored(reportedPath, watchedPath, stats, accepted?.get(watchedPath))) continue;
+			if (accepted) {
+				const acceptedForPath = accepted.get(watchedPath) ?? new Set<string>();
+				acceptedForPath.add(reportedPath);
+				accepted.set(watchedPath, acceptedForPath);
+			}
 			mappedPaths.push(reportedPath);
 		}
 		if (hasMatchingPath && !mappedPaths.length && stats?.isDirectory()) this.ignoredDirectories.add(canonicalPath);
@@ -1140,10 +1159,16 @@ export class RecursiveFileWatcher implements FileWatcher {
 		}
 	}
 
-	private isIgnored(reportedPath: string, watchedPath: WatchedPath, stats?: Stats): boolean {
+	private isIgnored(
+		reportedPath: string,
+		watchedPath: WatchedPath,
+		stats?: Stats,
+		accepted?: ReadonlySet<string>,
+	): boolean {
 		if (!this.options.ignored) return false;
 		let currentPath = reportedPath;
 		while (isSameOrInside(currentPath, watchedPath.requestedPath)) {
+			if (currentPath !== reportedPath && accepted?.has(currentPath)) return false;
 			const currentStats =
 				currentPath === reportedPath ? stats : (this.knownStats.get(currentPath) ?? tryStat(currentPath));
 			try {

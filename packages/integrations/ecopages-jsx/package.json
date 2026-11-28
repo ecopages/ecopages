@@ -41,8 +41,8 @@
 	"devDependencies": {
 		"@kitajs/html": "^4.2.13",
 		"@ecopages/core": "workspace:*",
-		"@ecopages/jsx": "^0.13.0",
-		"@ecopages/radiant": "^0.13.0",
+		"@ecopages/jsx": "^0.14.0",
+		"@ecopages/radiant": "^0.14.0",
 		"@ecopages/testing": "workspace:*",
 		"lit": "^3.3.3",
 		"react": "^19.2.6",
@@ -56,7 +56,7 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/jsx": "^0.13.0",
-		"@ecopages/radiant": "^0.13.0"
+		"@ecopages/jsx": "^0.14.0",
+		"@ecopages/radiant": "^0.14.0"
 	}
 }

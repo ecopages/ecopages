@@ -115,6 +115,8 @@ export function invalidateNavigationHtml(href: string | URL): void {
 		if (mappedFinalKey === finalKey) {
 			navigationHtmlCache.delete(requestKey);
 			finalUrlByRequest.delete(requestKey);
+			latestNetworkFetch.set(requestKey, ++networkFetchSequence);
+			pendingPrefetches.delete(requestKey);
 		}
 	}
 	navigationHtmlCache.delete(key);
@@ -214,7 +216,7 @@ function storeFetchedHtml(requestedUrl: URL, html: string, finalUrl: URL, header
 
 	invalidateNavigationHtml(requestedUrl);
 	invalidateNavigationHtml(finalUrl);
-	if (!prefetch || !forbidsReuse) return;
+	if (!prefetch || !forbidsReuse || staleOnArrival) return;
 
 	const now = Date.now();
 	for (const [heldKey, held] of heldNavigationHtml) {
@@ -288,6 +290,7 @@ async function waitUnlessAborted(pending: Promise<void>, signal: AbortSignal | u
 	} finally {
 		if (onAbort) signal.removeEventListener('abort', onAbort);
 	}
+	signal.throwIfAborted();
 }
 
 /**
@@ -312,6 +315,32 @@ function readReusableHtml(
  */
 function isOvertaken(requestKey: string, finalKey: string, sequence: number): boolean {
 	return latestNetworkFetch.get(requestKey) !== sequence || (latestNetworkFetch.get(finalKey) ?? 0) > sequence;
+}
+
+/**
+ * Records that the fetch numbered `sequence` has finished and, unless a prefetch has been overtaken, stores its
+ * document.
+ *
+ * @remarks
+ * A navigation fetch marks the URL it ended on as fetched at its sequence, so a prefetch that started earlier
+ * and reaches the same page through another URL cannot store its older copy over it.
+ */
+function settleFetchedHtml(
+	requestedUrl: URL,
+	html: string,
+	finalUrl: URL,
+	headers: Headers,
+	prefetch: boolean,
+	sequence: number,
+): void {
+	const requestKey = getCacheKey(requestedUrl);
+	const finalKey = getCacheKey(finalUrl);
+	if (prefetch) {
+		if (isOvertaken(requestKey, finalKey, sequence)) return;
+	} else {
+		latestNetworkFetch.set(finalKey, Math.max(latestNetworkFetch.get(finalKey) ?? 0, sequence));
+	}
+	storeFetchedHtml(requestedUrl, html, finalUrl, headers, prefetch);
 }
 
 async function loadNavigationPage(
@@ -351,10 +380,7 @@ async function loadNavigationPage(
 		if (requestedUrl.hash) {
 			finalUrl.hash = requestedUrl.hash;
 		}
-		const overtaken = options.prefetch === true && isOvertaken(requestCacheKey, getCacheKey(finalUrl), sequence);
-		if (!overtaken) {
-			storeFetchedHtml(requestedUrl, html, finalUrl, response.headers, options.prefetch === true);
-		}
+		settleFetchedHtml(requestedUrl, html, finalUrl, response.headers, options.prefetch === true, sequence);
 	}
 
 	return {

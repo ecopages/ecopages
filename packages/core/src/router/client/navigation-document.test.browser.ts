@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+	cacheNavigationHtml,
 	clearNavigationHtmlCache,
 	fetchNavigationPage,
 	getCachedNavigationHtml,
@@ -586,6 +587,102 @@ describe('shared navigation document loading', () => {
 
 				expect(next?.html).toContain('visit 2');
 				expect(after?.html).toContain('visit 3');
+			});
+
+			it('does not hold a prefetched page that forbids reuse and arrived with its max-age used up', async () => {
+				const fetchMock = vi.fn(async () => {
+					const response = htmlResponse('no-cache, max-age=60');
+					response.headers.set('Age', '61');
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('keeps a prefetch from storing over a newer fetch that reached the same page through another URL', async () => {
+				let release!: () => void;
+				const gate = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				let visit = 0;
+				const fetchMock = vi.fn(async (input: string | URL | Request) => {
+					visit += 1;
+					const current = visit;
+					if (String(input).endsWith('/promo')) await gate;
+					const response = new Response(`<html><body>visit ${current}</body></html>`, {
+						headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=60' },
+					});
+					Object.defineProperty(response, 'url', { value: 'https://example.test/products' });
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				const prefetch = fetchNavigationPage('https://example.test/promo', { prefetch: true });
+				await fetchNavigationPage('https://example.test/featured');
+				release();
+				await prefetch;
+				const next = await fetchNavigationPage('https://example.test/products');
+
+				expect(next?.html).toContain('visit 2');
+			});
+
+			it('disowns a prefetch of an alias when the page it redirects to is invalidated', async () => {
+				let release!: () => void;
+				const gate = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				let visit = 0;
+				const fetchMock = vi.fn(async () => {
+					visit += 1;
+					const current = visit;
+					if (current === 1) await gate;
+					const response = new Response(`<html><body>visit ${current}</body></html>`, {
+						headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' },
+					});
+					Object.defineProperty(response, 'url', { value: 'https://example.test/landing' });
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+				cacheNavigationHtml('https://example.test/offer', '<html></html>', 'https://example.test/landing');
+
+				const prefetch = fetchNavigationPage('https://example.test/offer', {
+					prefetch: true,
+					bypassCache: true,
+				});
+				invalidateNavigationHtml('https://example.test/landing');
+				const next = await fetchNavigationPage('https://example.test/offer');
+				release();
+				await prefetch;
+
+				expect(next?.html).toContain('visit 2');
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('rejects a navigation that was aborted by the time its prefetch settled, and leaves the copy for the next', async () => {
+				const controller = new AbortController();
+				let visit = 0;
+				const fetchMock = vi.fn(async () => {
+					visit += 1;
+					return new Response(`<html><body>visit ${visit}</body></html>`, {
+						headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' },
+					});
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				const prefetch = fetchNavigationPage(href, { prefetch: true }).then((page) => {
+					controller.abort();
+					return page;
+				});
+				const navigation = fetchNavigationPage(href, { signal: controller.signal });
+				await prefetch;
+
+				await expect(navigation).rejects.toMatchObject({ name: 'AbortError' });
+				const next = await fetchNavigationPage(href);
+				expect(next?.html).toContain('visit 1');
 			});
 
 			it('keeps a prefetch that a newer fetch of the URL overtook from storing its older copy', async () => {

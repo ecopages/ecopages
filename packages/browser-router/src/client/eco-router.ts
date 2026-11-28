@@ -256,20 +256,7 @@ export class EcoRouter {
 			: this.getRecoveredPointerHref();
 		this.pendingPointerNavigation = null;
 		if (!href) return;
-		this.queuedNavigationHref = null;
-
-		if (this.isAnotherNavigationRuntimeActive()) {
-			event.preventDefault();
-			event.stopImmediatePropagation();
-			void getEcoNavigationRuntime(window).requestNavigation({
-				href,
-				direction: 'forward',
-				source: 'browser-router',
-			});
-			return;
-		}
-
-		this.startForwardNavigation(event, href);
+		this.interceptNavigation(event, href, true);
 	}
 
 	/**
@@ -278,18 +265,29 @@ export class EcoRouter {
 	 * @remarks
 	 * Listens in the bubble phase, after the form's own `submit` listeners, so a handler that took the
 	 * submission over with `preventDefault()` keeps it. The browser validates a form before it fires
-	 * `submit`, so an invalid form never gets here. A POST form, a form that opts out with the reload
-	 * attribute on it or on its submit button, and a form with another `target` stay with the browser. The
-	 * submission follows the link path from there: another runtime that owns the document is asked to
-	 * navigate, and a submission during a navigation replaces it.
+	 * `submit`, so an invalid form never gets here. `getFormNavigationDecision()` in core decides which
+	 * forms stay with the browser.
 	 */
 	private handleSubmit(event: SubmitEvent): void {
 		const href = getNavigableHrefFromSubmit(event, { reloadAttribute: this.options.reloadAttribute });
 		if (!href) return;
+		this.interceptNavigation(event, href, false);
+	}
+
+	/**
+	 * Takes over the browser's handling of a click or submission and navigates to `href`.
+	 *
+	 * @remarks
+	 * Another runtime that owns the document is asked to navigate. Otherwise the navigation starts, or, when
+	 * one is in flight, replaces it once it is cancelled. `stopPropagation` keeps a click from the listeners
+	 * that follow the router's; a submission has none that need it.
+	 */
+	private interceptNavigation(event: Event, href: string, stopPropagation: boolean): void {
 		this.queuedNavigationHref = null;
+		event.preventDefault();
 
 		if (this.isAnotherNavigationRuntimeActive()) {
-			event.preventDefault();
+			if (stopPropagation) event.stopImmediatePropagation();
 			void getEcoNavigationRuntime(window).requestNavigation({
 				href,
 				direction: 'forward',
@@ -298,15 +296,6 @@ export class EcoRouter {
 			return;
 		}
 
-		this.startForwardNavigation(event, href);
-	}
-
-	/**
-	 * Cancels the browser's own handling of an event and navigates to `href`, or queues it behind the navigation
-	 * in flight, which it cancels.
-	 */
-	private startForwardNavigation(event: Event, href: string): void {
-		event.preventDefault();
 		if (this.pendingNavigations > 0) {
 			this.queuedNavigationHref = href;
 			this.cancelNavigationTransaction();

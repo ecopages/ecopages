@@ -445,6 +445,40 @@ const formRows: FormRow[] = [
 		expected: formIgnored('static-asset'),
 	},
 	{
+		name: 'an empty formaction, which is the current page and not the action of the form',
+		form: { action: '/search', method: 'get' },
+		html: '<input name="q" value="chair"><button formaction="">Search</button>',
+		submitter: 'button',
+		pathname: '/blog',
+		expected: formIntercepted('/blog?q=chair'),
+	},
+	{
+		name: 'a formmethod that is not a method, which is GET and not the method of the form',
+		form: { action: '/search', method: 'post' },
+		html: '<input name="q" value="chair"><button formmethod="bogus">Search</button>',
+		submitter: 'button',
+		expected: formIntercepted('/search?q=chair'),
+	},
+	{
+		name: 'an empty formtarget, which is the current page and not the target of the form',
+		form: { action: '/search', method: 'get', target: '_blank' },
+		html: '<input name="q" value="chair"><button formtarget="">Search</button>',
+		submitter: 'button',
+		expected: formIntercepted('/search?q=chair'),
+	},
+	{
+		name: 'controls named action and method, which shadow the properties of the form',
+		form: { action: '/search', method: 'get' },
+		html: '<input name="method" value="x"><input name="action" value="y">',
+		expected: formIntercepted('/search?method=x&action=y'),
+	},
+	{
+		name: 'a textarea, whose line breaks are sent as CRLF',
+		form: { action: '/search', method: 'get' },
+		html: '<textarea name="note">a\nb</textarea>',
+		expected: formIntercepted('/search?note=a%0D%0Ab'),
+	},
+	{
 		name: 'a submission another handler already cancelled',
 		form: { action: '/search', method: 'get' },
 		html: '<input name="q" value="chair">',
@@ -456,6 +490,25 @@ const formRows: FormRow[] = [
 describe('getFormNavigationDecision', () => {
 	it.each(formRows)('$name', (row) => {
 		expect(decideFormSubmission(row)).toEqual(row.expected);
+	});
+
+	it('resolves a relative action against the base element, as a full page load would', () => {
+		const base = document.createElement('base');
+		base.href = `${window.location.origin}/shop/`;
+		document.head.append(base);
+		try {
+			expect(
+				decideFormSubmission({
+					form: { action: 'results', method: 'get' },
+					html: '<input name="q" value="chair">',
+					pathname: '/docs/intro',
+					name: 'base',
+					expected: formIntercepted('/shop/results?q=chair'),
+				}),
+			).toEqual(formIntercepted('/shop/results?q=chair'));
+		} finally {
+			base.remove();
+		}
 	});
 
 	it('ignores an event whose target is not a form', () => {

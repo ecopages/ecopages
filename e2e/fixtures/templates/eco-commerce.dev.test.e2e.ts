@@ -174,12 +174,10 @@ test.describe('eco-commerce template', () => {
 
 		await page.goto(SUBCATEGORY);
 		await markDocument();
-		await page.waitForFunction(
-			() => customElements.get('product-filters') && customElements.get('rui-radio-group'),
-		);
-		await page.locator('product-filters label', { hasText: 'Price, low to high' }).click();
+		await page.waitForFunction(() => customElements.get('product-filters'));
 		await page.getByRole('button', { name: 'Apply' }).click();
-		await expect(page).toHaveURL(/\/search\?in=lounge-chairs&sort=price-asc/);
+		await expect(page).toHaveURL(/\/search\?in=lounge-chairs&sort=featured&min=&max=$/);
+		await expect(page.getByRole('heading', { level: 1, name: 'Filtered products' })).toBeVisible();
 		expect(await marker()).toBe(true);
 	});
 

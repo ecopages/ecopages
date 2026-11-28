@@ -78,6 +78,7 @@ describe('EcoRouter form submission', () => {
 
 			await Promise.all([waitForNavigation(), userEvent.click(form.querySelector('button')!)]);
 
+			expect(pushStateSpy).toHaveBeenCalledOnce();
 			expect(pushStateSpy).toHaveBeenCalledWith({}, '', `${window.location.origin}/search?q=chair`);
 			expect(fetchedUrls()).toEqual([`${window.location.origin}/search?q=chair`]);
 			expect(document.body.innerHTML).toContain('New Content');
@@ -128,16 +129,6 @@ describe('EcoRouter form submission', () => {
 			await Promise.all([waitForNavigation(), userEvent.click(form.querySelector('button')!)]);
 
 			expect(pushStateSpy).toHaveBeenCalledWith({}, '', `${window.location.origin}/shop?q=chair`);
-		});
-
-		it('adds one history entry per submission', async () => {
-			fixtures.router = createRouter();
-			const pushStateSpy = spyPushState();
-			const form = createForm({ action: '/search', method: 'get' });
-
-			await Promise.all([waitForNavigation(), userEvent.click(form.querySelector('button')!)]);
-
-			expect(pushStateSpy).toHaveBeenCalledTimes(1);
 		});
 
 		it('replays the last of two quick submissions, like two link clicks', async () => {

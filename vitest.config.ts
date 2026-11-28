@@ -1,5 +1,5 @@
 /**
- * Root Vitest config: `shared-core` (node), `native-watchers` (node, run last and alone), `browser`, and one project per app or template that keeps its own `@` alias:
+ * Root Vitest config: `shared-core` (node), `browser`, and one project per app or template that keeps its own `@` alias:
  * `docs`, `docs-starter`, `llm-wiki`, `eco-commerce` and `ecoshop`.
  */
 import { defineConfig, configDefaults } from 'vitest/config';
@@ -10,23 +10,6 @@ import { defineConfig, configDefaults } from 'vitest/config';
  * (measured on 10 cores: 33.4 s at half against 31.8 s at the default). CI keeps Vitest's default.
  */
 const localMaxWorkers = process.env.CI ? undefined : '50%';
-
-/**
- * Tests that watch real directories with the platform's native file watcher.
- *
- * @remarks
- * On macOS, `fseventsd` drops events for a watched directory while other processes write many files, which is what
- * the other projects' workers do. The watcher reports a dropped event at its next rescan, but these tests also
- * assert how soon and how often events arrive, so they run in their own project, after the others and one file at
- * a time, and the one file that writes beside a watcher does so on purpose.
- */
-const nativeWatcherTests = [
-	'packages/file-system/src/adapters/node.test.ts',
-	'packages/file-system/src/adapters/recursive-file-watcher.test.ts',
-	'packages/file-system/src/adapters/recursive-file-watcher.churn.test.ts',
-	'packages/core/src/watchers/project-watcher-workspace.test.ts',
-	'packages/core/src/watchers/project-watcher.integration.test.ts',
-];
 
 const sharedCoreOptions = {
 	environment: 'node',
@@ -74,21 +57,7 @@ export default defineConfig({
 						'playground/kitchen-sink/bench/*.test.ts',
 						'playground/kitchen-sink/bench/lib/**/*.test.ts',
 					],
-					exclude: [
-						...configDefaults.exclude,
-						...nativeWatcherTests,
-						'packages/**/*.test.node.ts',
-						'packages/**/*.test.bun.ts',
-					],
-				},
-			},
-			{
-				test: {
-					name: 'native-watchers',
-					...sharedCoreOptions,
-					include: nativeWatcherTests,
-					fileParallelism: false,
-					sequence: { groupOrder: 1 },
+					exclude: [...configDefaults.exclude, 'packages/**/*.test.node.ts', 'packages/**/*.test.bun.ts'],
 				},
 			},
 		],

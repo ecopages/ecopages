@@ -99,6 +99,11 @@ export class NodeServerAdapter {
 	private readonly runtime: AppRuntime;
 	private readonly options: { watch?: boolean };
 	private readonly hostPolicy: HostPolicy;
+	/**
+	 * The hosts `ecopages preview` answers: the same `allowedHosts` and `baseUrl` as the app server, plus the local
+	 * defaults, since a preview is a local look at an export whose `baseUrl` names the production site.
+	 */
+	private readonly previewHostPolicy: HostPolicy;
 	private serveOptions: NodeServeAdapterServerOptions;
 	private readonly requestPipeline: ServerRequestPipeline;
 	private serverInstance: NodeServerInstance | undefined;
@@ -138,6 +143,11 @@ export class NodeServerAdapter {
 			allowedHosts: this.appConfig.allowedHosts,
 			baseUrl: this.appConfig.baseUrl,
 			development: this.options.watch === true,
+		});
+		this.previewHostPolicy = createHostPolicy({
+			allowedHosts: this.appConfig.allowedHosts,
+			baseUrl: this.appConfig.baseUrl,
+			development: true,
 		});
 		this.requestReadiness = new Promise<void>((resolve, reject) => {
 			this.resolveRequestReadiness = resolve;
@@ -251,7 +261,7 @@ export class NodeServerAdapter {
 		});
 	}
 
-	public getServerOptions(): NodeServeAdapterServerOptions {
+	public getServerOptions(): NodeServeAdapterServerOptions & { hostPolicy: HostPolicy } {
 		return {
 			...this.serveOptions,
 			trustProxy: this.appConfig.trustProxy,
@@ -323,6 +333,7 @@ export class NodeServerAdapter {
 				serveOptions: {
 					hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
 					port: Number(this.serveOptions.port ?? DEFAULT_ECOPAGES_PORT),
+					hostPolicy: this.previewHostPolicy,
 					handleRequest: async (request) =>
 						applyResponseHeaders(
 							await serveDistFile(request, {

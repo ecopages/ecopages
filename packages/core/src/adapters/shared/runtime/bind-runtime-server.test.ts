@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Server as NodeHttpServer } from 'node:http';
 import type { RuntimeHost } from '../../node/runtime-host.ts';
+import { anyHostPolicy } from '../../node/host-policy.fixture.ts';
 import { bindRuntimeServer } from './bind-runtime-server.ts';
 import { isPortAvailable } from './port-manager.ts';
 
@@ -34,7 +35,7 @@ function createRuntimeHost(actualPort?: number): RuntimeHost {
 describe('bindRuntimeServer', () => {
 	it('returns one coherent binding result when PortManager owns startup', async () => {
 		const runtimeHost = createRuntimeHost();
-		const serveOptions = { hostname: '127.0.0.1', port: 3000, handleRequest };
+		const serveOptions = { hostname: '127.0.0.1', port: 3000, hostPolicy: anyHostPolicy, handleRequest };
 
 		const result = await bindRuntimeServer(runtimeHost, {
 			serveOptions,
@@ -54,7 +55,7 @@ describe('bindRuntimeServer', () => {
 		const runtimeHost = createRuntimeHost(4317);
 
 		const result = await bindRuntimeServer(runtimeHost, {
-			serveOptions: { hostname: 'localhost', port: 0, handleRequest },
+			serveOptions: { hostname: 'localhost', port: 0, hostPolicy: anyHostPolicy, handleRequest },
 			allowPortFallback: false,
 			usePortManager: false,
 		});
@@ -78,7 +79,7 @@ describe('bindRuntimeServer', () => {
 		};
 
 		const result = await bindRuntimeServer(runtimeHost, {
-			serveOptions: { hostname: 'localhost', port: 3000, handleRequest },
+			serveOptions: { hostname: 'localhost', port: 3000, hostPolicy: anyHostPolicy, handleRequest },
 			allowPortFallback: true,
 			usePortManager: true,
 		});
@@ -108,7 +109,7 @@ describe('bindRuntimeServer', () => {
 		vi.mocked(isPortAvailable).mockClear();
 
 		await bindRuntimeServer(runtimeHost, {
-			serveOptions: { hostname, port: 3000, handleRequest },
+			serveOptions: { hostname, port: 3000, hostPolicy: anyHostPolicy, handleRequest },
 			allowPortFallback: true,
 			usePortManager: true,
 		});

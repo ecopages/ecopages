@@ -6,11 +6,12 @@ import { WebSocket } from 'ws';
 import { parseSearchParams } from '../../../router/server/parse-search-params.ts';
 import type { EcopagesSocket, EcopagesWebSocketHandler } from '../../../types/contracts.ts';
 import { createHostPolicy } from '../http/host-policy.ts';
+import { anyHostPolicy } from '../../node/host-policy.fixture.ts';
 import { attachNodeHttpWebSocketUpgrades } from './node-http-websocket-upgrades.ts';
 
 function emitUpgrade(server: EventEmitter, url: string) {
 	const socket = { destroy: vi.fn(), end: vi.fn() };
-	server.emit('upgrade', { url, headers: {} }, socket, Buffer.alloc(0));
+	server.emit('upgrade', { url, headers: { host: 'localhost:3000' } }, socket, Buffer.alloc(0));
 	return socket;
 }
 
@@ -21,6 +22,7 @@ describe('attachNodeHttpWebSocketUpgrades', () => {
 		const server = new EventEmitter();
 		attachNodeHttpWebSocketUpgrades(server as unknown as NodeHttpServer, {
 			runtimeOrigin: 'http://localhost:3000',
+			hostPolicy: anyHostPolicy,
 			websocketHandlers,
 			preflight: hmrPreflight,
 		});
@@ -58,6 +60,7 @@ describe('attachNodeHttpWebSocketUpgrades request origin', () => {
 		attachNodeHttpWebSocketUpgrades(server as unknown as NodeHttpServer, {
 			runtimeOrigin: 'http://127.0.0.1:3000',
 			trustProxy,
+			hostPolicy: anyHostPolicy,
 			websocketHandlers: new Map([['/ws/:room', handler]]),
 		});
 		const socket = { destroy: vi.fn(), end: vi.fn(), write: vi.fn() };
@@ -137,6 +140,48 @@ describe('attachNodeHttpWebSocketUpgrades host policy', () => {
 		expect(upgrade(headers, { trustProxy: true }).socket.end).toHaveBeenCalledWith(refusal);
 	});
 
+	const forbidden = 'HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n';
+
+	it('refuses an upgrade from a page of another site with 403, before the preflight and context()', () => {
+		for (const origin of ['http://evil.example', 'null', 'https://shop.example', 'http://shop.example:8080']) {
+			const { socket, context, preflight } = upgrade({ host: 'shop.example', origin });
+
+			expect(socket.end).toHaveBeenCalledWith(forbidden);
+			expect(preflight).not.toHaveBeenCalled();
+			expect(context).not.toHaveBeenCalled();
+		}
+	});
+
+	it('refuses a cross-site page the HMR socket as well as the app sockets, since the preflight comes after the check', () => {
+		const hmr = upgrade({ host: 'shop.example', origin: 'http://evil.example' }, { url: '/_hmr' });
+
+		expect(hmr.socket.end).toHaveBeenCalledWith(forbidden);
+		expect(hmr.preflight).not.toHaveBeenCalled();
+	});
+
+	it('lets a page of the checked origin and a client without Origin go on', async () => {
+		const page = upgrade({ host: 'shop.example', origin: 'http://shop.example' });
+		const client = upgrade({ host: 'shop.example' });
+
+		expect(page.socket.end).not.toHaveBeenCalledWith(forbidden);
+		expect(client.socket.end).not.toHaveBeenCalledWith(forbidden);
+		expect(page.preflight).toHaveBeenCalledOnce();
+		expect(client.preflight).toHaveBeenCalledOnce();
+		await vi.waitFor(() => expect(client.context).toHaveBeenCalledOnce());
+	});
+
+	it('compares Origin with the forwarded origin only when the proxy is trusted', () => {
+		const headers = {
+			host: 'internal',
+			'x-forwarded-host': 'shop.example',
+			'x-forwarded-proto': 'https',
+			origin: 'https://shop.example',
+		};
+
+		expect(upgrade(headers, { trustProxy: true }).socket.end).not.toHaveBeenCalledWith(forbidden);
+		expect(upgrade({ ...headers, host: 'shop.example' }).socket.end).toHaveBeenCalledWith(forbidden);
+	});
+
 	it('does not match a route on a host named in the request target', () => {
 		const { socket, context } = upgrade({ host: 'shop.example' }, { url: '//evil.example/ws/lobby' });
 
@@ -163,6 +208,7 @@ describe('attachNodeHttpWebSocketUpgrades query parsing', () => {
 		const server = createServer();
 		attachNodeHttpWebSocketUpgrades(server, {
 			runtimeOrigin: 'http://localhost',
+			hostPolicy: anyHostPolicy,
 			websocketHandlers: new Map([['/ws/:room', handler]]),
 		});
 		await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -207,6 +253,7 @@ describe('attachNodeHttpWebSocketUpgrades context()', () => {
 		const server = createServer();
 		attachNodeHttpWebSocketUpgrades(server, {
 			runtimeOrigin: 'http://localhost',
+			hostPolicy: anyHostPolicy,
 			websocketHandlers: new Map([['/ws/items/:itemId', handler as EcopagesWebSocketHandler]]),
 		});
 		await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

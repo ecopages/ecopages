@@ -106,20 +106,20 @@ export function resolveRequestOrigin(
 }
 
 /**
- * The hostname the request URL carries, or `null` when the request names no usable host.
+ * The origin the request names in its headers, or `null` when it names no usable host.
  *
  * @remarks
- * This is the value the host policy checks, read from the same header {@link resolveRequestOrigin} uses, so the
- * host that was checked is the host `request.url` has. A missing or malformed `Host` gives `null`, not the listen
- * hostname: the policy refuses a request that does not say where it is going.
+ * Unlike {@link resolveRequestOrigin} it never substitutes the listen origin: a missing or malformed `Host` gives
+ * `null`, so the host policy refuses a request that does not say where it is going. `resolveAllowedOrigin()` checks
+ * this origin and hands it to the request URL and the upgrade, so the host that was checked is the host used.
  */
-export function resolveRequestHostname(
+export function resolveHeaderOrigin(
 	req: IncomingMessage,
 	runtimeOrigin: string,
 	trustProxy: TrustProxy | undefined,
 ): string | null {
 	const { origin, fromHeader } = pickRequestOrigin(req, runtimeOrigin, trustProxy);
-	return fromHeader ? new URL(origin).hostname : null;
+	return fromHeader ? origin : null;
 }
 
 /**
@@ -203,15 +203,19 @@ export class NodeHttpRequestBridge {
 	 * The Node request is paused once a chunk is queued and resumed as the body is read, so a handler that waits
 	 * before it reads, such as one behind slow middleware, does not make the server queue the whole upload.
 	 *
-	 * The request URL carries the origin the visitor used: the `Host` header, or the forwarded headers
-	 * when `trustProxy` is set, and `runtimeOrigin` only when neither is usable.
+	 * The request URL carries `options.origin` when the caller already checked one, which is what the runtime host
+	 * does with the origin `resolveAllowedOrigin()` returned. Otherwise it carries the origin the visitor used: the
+	 * `Host` header, or the forwarded headers when `trustProxy` is set, and `runtimeOrigin` only when neither is usable.
 	 */
 	public createWebRequest(
 		req: IncomingMessage,
 		runtimeOrigin: string,
-		options: { trustProxy?: TrustProxy } = {},
+		options: { trustProxy?: TrustProxy; origin?: string } = {},
 	): Request {
-		const url = requestUrlOnOrigin(req.url, resolveRequestOrigin(req, runtimeOrigin, options.trustProxy));
+		const url = requestUrlOnOrigin(
+			req.url,
+			options.origin ?? resolveRequestOrigin(req, runtimeOrigin, options.trustProxy),
+		);
 		const headers = new Headers();
 
 		for (const [key, value] of Object.entries(req.headers)) {

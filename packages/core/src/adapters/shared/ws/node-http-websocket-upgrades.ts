@@ -11,9 +11,14 @@ import type {
 	IncomingWebSocketMessage,
 	PageQuery,
 } from '../../../types/contracts.ts';
-import { isRequestHostAllowed, refuseUpgradeHost } from '../../node/request-host.ts';
+import {
+	isUpgradeOriginAllowed,
+	refuseUpgradeHost,
+	refuseUpgradeOrigin,
+	resolveAllowedOrigin,
+} from '../../node/request-host.ts';
 import type { HostPolicy } from '../http/host-policy.ts';
-import { requestUrlOnOrigin, resolveRequestOrigin } from '../../node/http-request-bridge.ts';
+import { requestUrlOnOrigin } from '../../node/http-request-bridge.ts';
 import { compileWebSocketRoutes, findWebSocketRoute, type WebSocketRouteMatch } from './ws-pattern-matcher.ts';
 import { createEcopagesSocket, invokeWebSocketHandlerHook, toWebSocketCloseInfo } from './websocket-lifecycle.ts';
 
@@ -27,9 +32,11 @@ export type AttachNodeHttpWebSocketUpgradesOptions = {
 	 * The hosts the server answers. An upgrade for another host is refused with HTTP 400 before the preflight.
 	 *
 	 * @remarks
-	 * The server adapter and the dev session always set it. Without one every host is served.
+	 * Required, so no upgrade path can run without one. After the host check, an `Origin` that is not the checked
+	 * origin is refused with HTTP 403: a handshake from a page on another site, the HMR socket's included. A
+	 * handshake without `Origin` comes from a client that is not a browser and passes.
 	 */
-	hostPolicy?: HostPolicy;
+	hostPolicy: HostPolicy;
 	websocketHandlers: Map<string, EcopagesWebSocketHandler<unknown, Record<string, string>>>;
 	preflight?: NodeHttpWebSocketUpgradePreflight;
 };
@@ -158,8 +165,13 @@ export function attachNodeHttpWebSocketUpgrades(
 	const websocketRoutes = compileWebSocketRoutes(options.websocketHandlers);
 
 	server.on('upgrade', (req, socket, head) => {
-		if (!isRequestHostAllowed(req, options.runtimeOrigin, options.trustProxy, options.hostPolicy)) {
+		const origin = resolveAllowedOrigin(req, options.runtimeOrigin, options.trustProxy, options.hostPolicy);
+		if (origin === null) {
 			refuseUpgradeHost(socket);
+			return;
+		}
+		if (!isUpgradeOriginAllowed(req, origin)) {
+			refuseUpgradeOrigin(socket);
 			return;
 		}
 
@@ -167,7 +179,7 @@ export function attachNodeHttpWebSocketUpgrades(
 			return;
 		}
 
-		const url = requestUrlOnOrigin(req.url, resolveRequestOrigin(req, options.runtimeOrigin, options.trustProxy));
+		const url = requestUrlOnOrigin(req.url, origin);
 		let wsMatch: WebSocketRouteMatch | null;
 		try {
 			wsMatch = findWebSocketRoute(websocketRoutes, url.pathname);

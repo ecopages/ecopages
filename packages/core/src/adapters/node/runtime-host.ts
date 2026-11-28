@@ -5,7 +5,7 @@ import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constant
 import type { TrustProxy } from '../../config/user-config-types.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { HostPolicy } from '../shared/http/host-policy.ts';
-import { isRequestHostAllowed, refuseHost } from './request-host.ts';
+import { refuseHost, resolveAllowedOrigin } from './request-host.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
 import { isNodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 
@@ -20,10 +20,10 @@ export type NodeRuntimeServeOptions = {
 	 * The hosts this server answers. A request for any other host gets HTTP 400 before `handleRequest`.
 	 *
 	 * @remarks
-	 * `NodeServerAdapter` sets it for the app server. Without one every host is served, which the static `ecopages
-	 * preview` server and tests that bind the host directly rely on.
+	 * Required, so no server can start without deciding which hosts it answers. `NodeServerAdapter` builds it from
+	 * the config for the app server and for `ecopages preview`; `allowedHosts: true` allows every host.
 	 */
-	hostPolicy?: HostPolicy;
+	hostPolicy: HostPolicy;
 	handleRequest(request: Request): Promise<Response>;
 };
 
@@ -85,12 +85,19 @@ export class NodeRuntimeHost {
 		server = this.serverFactory(async (req, res) => {
 			try {
 				const runtimeOrigin = this.getOrigin(server, serveOptions);
-				if (!isRequestHostAllowed(req, runtimeOrigin, serveOptions.trustProxy, serveOptions.hostPolicy)) {
+				const origin = resolveAllowedOrigin(
+					req,
+					runtimeOrigin,
+					serveOptions.trustProxy,
+					serveOptions.hostPolicy,
+				);
+				if (origin === null) {
 					refuseHost(res);
 					return;
 				}
 				const webRequest = this.requestBridge.createWebRequest(req, runtimeOrigin, {
 					trustProxy: serveOptions.trustProxy,
+					origin,
 				});
 				const response = await serveOptions.handleRequest(webRequest);
 				await this.requestBridge.sendNodeResponse(res, response);

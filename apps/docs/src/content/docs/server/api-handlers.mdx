@@ -125,7 +125,7 @@ export const POST = definePost({
 });
 ```
 
-For a method other than `GET`, `HEAD` or `OPTIONS`, it decides in this order and answers HTTP 403 otherwise:
+For a method other than `GET`, `HEAD`, `OPTIONS` or `QUERY`, it decides in this order and answers HTTP 403 otherwise:
 
 1. When the browser sends `Sec-Fetch-Site`, `same-origin` passes, and so does `none` (a request no site started: a typed URL, a bookmark, a reload or form resubmission). `same-site`, which includes a sibling subdomain, and `cross-site` are refused.
 2. Without it, `Origin` must equal the origin of `request.url`. `Origin: null` and any other value are refused.

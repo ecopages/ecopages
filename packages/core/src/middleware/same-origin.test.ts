@@ -76,7 +76,7 @@ describe('sameOrigin', () => {
 
 	describe('a request with neither header', () => {
 		it('is refused on an unsafe method, because only a browser that strips both could be tricked into one', async () => {
-			for (const method of ['POST', 'PUT', 'PATCH', 'DELETE', 'QUERY']) {
+			for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
 				const { response, reached } = await run(post({}, method));
 
 				expect(reached).toBe(false);
@@ -100,7 +100,7 @@ describe('sameOrigin', () => {
 	});
 
 	describe('safe methods', () => {
-		it.each(['GET', 'HEAD', 'OPTIONS'])('lets a cross-site %s through', async (method) => {
+		it.each(['GET', 'HEAD', 'OPTIONS', 'QUERY'])('lets a cross-site %s through', async (method) => {
 			const { reached } = await run(
 				post({ 'sec-fetch-site': 'cross-site', origin: 'https://evil.example' }, method),
 			);

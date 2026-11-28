@@ -23,7 +23,7 @@ export type SameOriginOptions = {
 	onReject?: (request: Request) => Response;
 };
 
-const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'QUERY']);
 
 /**
  * Whether the browser says a user or the site itself sent the request: `same-origin`, or `none` for a request no
@@ -37,7 +37,8 @@ function isFromThisSite(secFetchSite: string): boolean {
  * Refuses a state-changing request that another site started, with HTTP 403 and before the body is read.
  *
  * @remarks
- * Safe methods (`GET`, `HEAD`, `OPTIONS`) always pass. For any other method:
+ * Safe methods (`GET`, `HEAD`, `OPTIONS` and `QUERY`, which core's `defineQuery` treats as safe and idempotent)
+ * always pass: they change nothing, and a page of another site cannot read their answer. For any other method:
  *
  * 1. `Sec-Fetch-Site`, when the browser sends it, decides: `same-origin` passes, and so does `none`, which only
  *    the user agent sets (a typed URL, a bookmark, a reload or form resubmission), so no site can cause it.

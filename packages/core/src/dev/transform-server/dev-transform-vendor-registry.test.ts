@@ -1107,6 +1107,36 @@ describe('DevTransformVendorRegistry', () => {
 		expect(owner.registry.get('shared')).toBe(true);
 	});
 
+	it('does not load a package that another package imports only through bindings it never uses', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-unused-import');
+		writePackage(
+			path.join(modules, 'unused-owner'),
+			'unused-owner',
+			{ type: 'module', exports: './index.js' },
+			{ 'index.js': "export const marker = 'unused-owner-code';\n" },
+		);
+		writePackage(
+			path.join(modules, 'unused-user'),
+			'unused-user',
+			{ type: 'module', exports: './index.js' },
+			{ 'index.js': "import { marker } from 'unused-owner';\nexport const user = 'unused-user-code';\n" },
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+
+		const url = await registry.resolveVendorUrl('unused-user');
+
+		const code = [...(await readVendorGraph(registry, [url])).values()].join('\n');
+		expect(code).toContain('unused-user-code');
+		expect(code).not.toContain('unused-owner');
+		expect(
+			bundleEntriesUnder(bundle, rootDir)
+				.flat()
+				.filter((entry) => entry.includes('unused-owner')),
+		).toEqual([]);
+	});
+
 	it('shares one copy of a CommonJS package between the packages that import and require it', async () => {
 		const { rootDir, modules } = createAppRoot('dev-transform-vendor-cjs-sibling');
 		writePackage(

@@ -905,12 +905,18 @@ export class DevTransformVendorRegistry {
 		});
 		if (!result.success) return result;
 
+		const outputs = this.collectOutputs(result);
+		const code = [...outputs.values()];
 		const bundle: VendorPackageBundle = {
-			outputs: this.collectOutputs(result),
+			outputs,
 			commonJsEntryPaths: new Set(
 				(result.dependencyGraph.commonJsEntrypoints ?? []).map((entryPath) => path.resolve(entryPath)),
 			),
-			dependencies: [...dependencies.values()],
+			dependencies: [...dependencies.values()].filter((dependency) =>
+				code.some((content) =>
+					content.includes(getVendorEntryUrl(rootDir, dependency.graphKey, dependency.entryPath)),
+				),
+			),
 			entryPaths: new Set(files),
 			clean: !(result.warnings ?? []).some((warning) => warning.code === 'UNRESOLVED_IMPORT'),
 		};

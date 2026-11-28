@@ -55,6 +55,12 @@ export function hasSameEntryVersion(previous: EntryVersion, next: EntryVersion):
  * another version and is reported. A report nobody consumed is forgotten when the file is removed, and dropped by
  * {@link RescanReports.prune} once ten intervals old, so the ledger does not grow with the files a long session
  * touches.
+ *
+ * The ledger exists because a native `change` event bypasses the stat comparison that would otherwise tell a late
+ * event from a new one. Its limit is the resolution of the file's timestamps: a rewrite of the same size within one
+ * timestamp tick of the reported version, on a filesystem with coarse timestamps (HFS+ or exFAT, a second or two),
+ * has the reported {@link EntryVersion} and is taken for the late event, so that edit is swallowed. The next edit
+ * differs and is reported.
  */
 export class RescanReports {
 	private readonly reports = new Map<string, { version: EntryVersion; reportedAt: number }>();

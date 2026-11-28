@@ -4,7 +4,7 @@ Client-side navigation and view transitions for Ecopages. It intercepts same-ori
 
 ## Features
 
-- **Client-side navigation**: Intercepts `<a>` clicks for robust, fast navigation.
+- **Client-side navigation**: Intercepts `<a>` clicks and same-origin `<form method="get">` submissions for robust, fast navigation.
 - **Efficient DOM diffing**: Uses [morphdom](https://github.com/patrick-steele-idem/morphdom) to update only what changed, preserving scroll positions and internal state.
 - **State persistence**: Elements with `data-eco-persist` are never recreated, preserving Web Component state, event listeners, and form values.
 - **View Transitions**: Optional integration with the View Transition API.
@@ -12,7 +12,7 @@ Client-side navigation and view transitions for Ecopages. It intercepts same-ori
 
 The core navigation pipeline shares document fetching, parsing, head reconciliation, stylesheet staging, script activation, named view transitions, and lifecycle events with `@ecopages/react-router`. Browser-router always morphs the incoming body, preserving persisted elements across navigation regardless of view-transition settings or rerun scripts. View transitions only wrap the morph; scroll restoration uses the shared post-swap hook.
 
-Browser-router keeps its own cache of prefetched and visited pages: a revisit renders the cached HTML immediately, and the cached copy is not refreshed in the background. A page served with `Cache-Control: no-store` or an unqualified `no-cache`, such as a `cache: 'dynamic'` Page, is never cached and is fetched on every navigation. Set `prefetch: false` to turn the cache off, so every navigation fetches fresh HTML. `@ecopages/react-router` does not read this cache and always fetches fresh HTML.
+Browser-router keeps its own cache of prefetched and visited pages: a revisit renders the cached HTML immediately, and the cached copy is not refreshed in the background. A page served with `Cache-Control: no-store` or an unqualified `no-cache`, such as a `cache: 'dynamic'` Page, is never cached and is fetched on every navigation, except that a hover prefetch of it is kept for five seconds and used once for the click that follows. A page served with a positive `max-age`, such as a `cache: { revalidate: N }` Page, is fetched again once its copy is older than that. Set `prefetch: false` to turn the cache off, so every navigation fetches fresh HTML. `@ecopages/react-router` does not read this cache and always fetches fresh HTML.
 
 ## Compatibility
 
@@ -141,12 +141,24 @@ To force a head script to re-execute on every navigation (e.g., analytics), add 
 > [!NOTE]
 > `data-eco-script-id` is optional. Use it when you want an explicit stable identity for a rerun script. Without it, an HTML `id` takes precedence; otherwise the router matches by original `src` or inline content. When matching by a relative `src`, the identity stays the same across different `<base>` URLs, while an external module reruns from the incoming page's resolved URL.
 
+## GET forms
+
+A same-origin `<form method="get">` (the default method) is submitted as a client navigation to its action with the fields as the query, the URL the browser would load, so a search box or a filter form needs no script of its own. The form still works without JavaScript. The router leaves a form alone when its method is not GET, its `target` is not `_self`, its action is on another origin or is a static file, or a `submit` listener of the page called `preventDefault()`.
+
+```html
+<form action="/search" method="get">
+	<input type="search" name="q" />
+	<button type="submit">Search</button>
+</form>
+```
+
 ## Force Full Reload
 
-Use `data-eco-reload` on an anchor tag to bypass the router and force a full page reload:
+Use `data-eco-reload` on an anchor tag, or on a form or its submit button, to bypass the router and force a full page reload:
 
 ```html
 <a href="/logout" data-eco-reload>Logout</a>
+<form action="/export" method="get" data-eco-reload>...</form>
 ```
 
 ## Events

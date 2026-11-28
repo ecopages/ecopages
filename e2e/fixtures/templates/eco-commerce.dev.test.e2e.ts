@@ -157,6 +157,32 @@ test.describe('eco-commerce template', () => {
 		await expect(page.getByRole('heading', { level: 1, name: 'Results for “chair”' })).toBeVisible();
 	});
 
+	test('the search form and the Apply button of the filters are client navigations', async ({ page }) => {
+		const marker = () => page.evaluate(() => (window as Window & { __loadMarker?: boolean }).__loadMarker);
+		const markDocument = () =>
+			page.evaluate(() => {
+				(window as Window & { __loadMarker?: boolean }).__loadMarker = true;
+			});
+
+		await page.goto('/');
+		await markDocument();
+		await page.locator('search-box input[name="q"]').fill('chair');
+		await page.locator('search-box input[name="q"]').press('Enter');
+		await expect(page).toHaveURL(/\/search\?q=chair$/);
+		await expect(page.getByRole('heading', { level: 1, name: 'Results for \u201cchair\u201d' })).toBeVisible();
+		expect(await marker()).toBe(true);
+
+		await page.goto(SUBCATEGORY);
+		await markDocument();
+		await page.waitForFunction(
+			() => customElements.get('product-filters') && customElements.get('rui-radio-group'),
+		);
+		await page.locator('product-filters label', { hasText: 'Price, low to high' }).click();
+		await page.getByRole('button', { name: 'Apply' }).click();
+		await expect(page).toHaveURL(/\/search\?in=lounge-chairs&sort=price-asc/);
+		expect(await marker()).toBe(true);
+	});
+
 	test('checking a material filters the listing without a submit', async ({ page }) => {
 		await page.goto(SUBCATEGORY);
 		await page.waitForFunction(

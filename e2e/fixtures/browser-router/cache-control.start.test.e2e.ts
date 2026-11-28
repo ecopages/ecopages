@@ -92,3 +92,52 @@ test.describe('Browser Router Cache-Control', () => {
 		expect(staticFetches()).toBe(1);
 	});
 });
+
+/**
+ * Dynamic pages again: the page answers with its query, so a GET form submission shows what the router sent.
+ * A marker set on `window` is lost by a document load and survives a client navigation.
+ */
+test.describe('Browser Router GET forms', () => {
+	async function markDocument(page: Page): Promise<void> {
+		await gotoAndWait(page, '/forms/search');
+		await page.evaluate(() => Object.assign(window, { documentMarker: true }));
+	}
+
+	const isMarked = (page: Page) => page.evaluate(() => 'documentMarker' in window);
+
+	test('submits a GET form as a client navigation, and goes back to the page it left', async ({ page }) => {
+		await markDocument(page);
+
+		await page.getByLabel('Term', { exact: true }).fill('chair & table');
+		await page.getByRole('button', { name: 'Search', exact: true }).click();
+
+		await expect(page).toHaveURL(/\/forms\/search\?q=chair\+%26\+table$/);
+		await expect(page.locator('[data-testid="term"]')).toHaveText('chair & table');
+		expect(await isMarked(page)).toBe(true);
+
+		await page.goBack();
+		await expect(page).toHaveURL(/\/forms\/search$/);
+		await expect(page.locator('[data-testid="term"]')).toHaveText('');
+		expect(await isMarked(page)).toBe(true);
+	});
+
+	test('submits with Enter in the field', async ({ page }) => {
+		await markDocument(page);
+
+		await page.getByLabel('Term', { exact: true }).fill('lamp');
+		await page.getByLabel('Term', { exact: true }).press('Enter');
+
+		await expect(page.locator('[data-testid="term"]')).toHaveText('lamp');
+		expect(await isMarked(page)).toBe(true);
+	});
+
+	test('loads the document for a form marked data-eco-reload', async ({ page }) => {
+		await markDocument(page);
+
+		await page.getByLabel('Reload term').fill('rug');
+		await page.getByRole('button', { name: 'Search with a reload' }).click();
+
+		await expect(page.locator('[data-testid="term"]')).toHaveText('rug');
+		expect(await isMarked(page)).toBe(false);
+	});
+});

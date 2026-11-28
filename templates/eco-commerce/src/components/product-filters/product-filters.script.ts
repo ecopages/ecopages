@@ -31,7 +31,7 @@ function readForm(form: HTMLFormElement): ListingFilters {
  *
  * @remarks
  * The form inside is a plain `GET /search`, so filters work without JavaScript and every filtered listing has a
- * shareable URL. The `filter_products` agent tool changes the same filters and returns the first page.
+ * shareable URL. Its Apply button is that form's submit, which browser-router turns into a client navigation. The `filter_products` agent tool changes the same filters and returns the first page.
  */
 @customElement('product-filters')
 export class ProductFiltersElement extends RadiantElement {
@@ -41,13 +41,6 @@ export class ProductFiltersElement extends RadiantElement {
 	@debounce(250)
 	onChange(): void {
 		if (this.form) void navigate(listingUrl({ ...readForm(this.form), page: 1 }));
-	}
-
-	@onEvent({ ref: 'form', type: 'submit' })
-	onSubmit(event: SubmitEvent): void {
-		if (!this.form) return;
-		event.preventDefault();
-		void navigate(listingUrl({ ...readForm(this.form), page: 1 }));
 	}
 
 	@agentTool(filterProductsTool)

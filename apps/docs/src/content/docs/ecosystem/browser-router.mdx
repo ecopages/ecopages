@@ -88,7 +88,7 @@ You can customize the router behavior by passing an options object:
 | `linkSelector`                    | `string`                        | `'a[href]'`                                  | Selector for links to intercept.                                                                                                                                |
 | `documentElementAttributesToSync` | `string[]`                      | `['lang', 'dir', 'data-eco-document-owner']` | `<html>` attributes to sync from the incoming document. Attributes not listed here are preserved on the live page.                                              |
 | `persistAttribute`                | `string`                        | `'data-eco-persist'`                         | Attribute to mark elements that should persist across navigations.                                                                                              |
-| `reloadAttribute`                 | `string`                        | `'data-eco-reload'`                          | Attribute (on link or element) to force a full hard reload.                                                                                                     |
+| `reloadAttribute`                 | `string`                        | `'data-eco-reload'`                          | Attribute (on a link, a form or its submit button) to force a full hard reload.                                                                                                     |
 | `scrollBehavior`                  | `'top' \| 'preserve' \| 'auto'` | `'top'`                                      | Controls scroll behavior after navigation.                                                                                                                      |
 | `smoothScroll`                    | `boolean`                       | `false`                                      | Enables smooth scrolling.                                                                                                                                       |
 | `viewTransitions`                 | `boolean`                       | `true`                                       | Enables [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API). Disables UA root crossfade by default. `false` disables. |
@@ -321,6 +321,27 @@ The router keeps the pages it fetches or prefetches in memory for the session, s
 Hovering a link to a `no-store` page still prefetches it once, because the header is known only from the response. The router keeps that one response for five seconds and uses it for the click that follows, so a hover and a click request the page once. It is used once: a second click, or a click after the five seconds, fetches the page again, so the router never shows a copy older than a few seconds. Set `data-eco-no-prefetch` on links to pages that are costly to render.
 
 The page the visitor lands on is not kept, because a script cannot read the headers of its own document and so cannot tell whether it may be reused. The first link back to it fetches it, and later visits reuse that copy when its response allows. With `prefetch: false` the router keeps no pages at all.
+
+### GET forms
+
+A same-origin `<form method="get">` is submitted as a client navigation. The router goes to the form's action with the fields as the query, the URL the browser would load, and morphs the page like a link click, so a search box or a filter form needs no script of its own. Without JavaScript the form works as it always did.
+
+```html
+<form action="/search" method="get">
+	<input type="search" name="q" />
+	<button type="submit">Search</button>
+</form>
+```
+
+The router follows the browser's own rules for where the form goes: a button's `formaction`, `formmethod` and `formtarget` win over the form's attributes, a file field is sent as its file name, and a query already in the action is replaced. It leaves the submission to the browser when:
+
+- the method is not GET, so a POST form always loads the document;
+- the `target` is not `_self`;
+- the action is on another origin or names a static file such as `/report.pdf`;
+- the form, or the button that submitted it, has `data-eco-reload` (or your `reloadAttribute`), which is the opt-out;
+- a `submit` listener of your page already called `preventDefault()`, so a form your own script handles stays yours.
+
+The router listens after the form's own listeners, and only for forms in the light DOM, since a `submit` event does not leave a shadow root. Like a link click, a submission made while a navigation is running replaces it.
 
 ### View Transitions
 

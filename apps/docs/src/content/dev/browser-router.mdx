@@ -17,7 +17,7 @@ sources:
 
 ```mermaid
 flowchart TD
-  C[Click or popstate] --> P{"Link policy: intercept?"}
+  C["Click, GET form submit or popstate"] --> P{"Link or form policy: intercept?"}
   P -->|no| B[Browser default]
   P -->|"another runtime owns the document"| Q["Coordinator requestNavigation"]
   P -->|yes| T[Begin navigation transaction]
@@ -35,6 +35,12 @@ Listeners are capture-phase `pointerdown` and `click` on `document`, plus `popst
 `pointerdown` records the intended href with a timestamp. If a navigation is already in flight, the click is queued: the router cancels the running transaction and, once it settles, replays the queued href through `decideQueuedNavigationReplay()` (skipped when it is the same page with the same hash). The recorded intent also recovers the href when the DOM changed between press and click, for up to one second.
 
 When another runtime owns the document (`isAnotherNavigationRuntimeActive()`), the click is stopped and routed through `requestNavigation()`, so a page shell with both routers has one navigating at a time.
+
+### Form submission
+
+A capture-phase `click` and `pointerdown` handle links; a bubble-phase `submit` listener on `document` handles forms. `getFormNavigationDecision()` in core is the form policy and `getNavigableHrefFromSubmit()` returns its href. It declines a submission that is already `defaultPrevented`, a method other than GET (the submitter's `formmethod`, then the form's `method`, then GET), a `target` or `formtarget` other than `_self`, `data-eco-reload` (the `reloadAttribute`) on the form or the submitter, a cross-origin action and a static-asset action. It reads attributes by name, since a control named `action` or `method` shadows the form's properties. Otherwise it resolves the action (the submitter's `formaction`, then the form's `action`, then the current URL) against the document base, replaces its query with `new FormData(form, submitter)` serialized by `URLSearchParams` (a file as its name), keeps the fragment, and returns the same-origin path, query and hash.
+
+The listener is in the bubble phase on purpose: the form's own `submit` listeners run first, so a component that took the submission over with `preventDefault()` keeps it and the router never navigates twice. The browser checks validity before it fires `submit`, so an invalid form never reaches the router. Past the policy a submission takes the click path: `startForwardNavigation()` queues it behind a running navigation (cancelling that one) or calls `performNavigation()`, and another runtime that owns the document gets `requestNavigation()`. A shadow-root form is out of reach, since `submit` does not cross the root.
 
 ## Fetch, cache and prefetch
 

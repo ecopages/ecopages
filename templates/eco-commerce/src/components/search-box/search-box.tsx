@@ -25,7 +25,7 @@ export const SearchBox = eco.component<SearchBoxProps, JsxRenderable>({
 	},
 	render: ({ query = '' }) => (
 		<search-box class="search-box">
-			<form role="search" action="/search" method="get" data-ref="form">
+			<form role="search" action="/search" method="get">
 				<RuiCombobox label="Search products" class="search-box__combobox" data-ref="combobox">
 					<RuiComboboxControl>
 						<RuiComboboxInput name="q" value={query} placeholder="Search products" />

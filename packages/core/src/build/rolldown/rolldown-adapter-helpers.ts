@@ -38,6 +38,7 @@ import { isNodeBuiltinSpecifier, nodeBuiltinSpecifiers } from '../../utils/node-
 import { createFileRoleGrammarPlugin } from './file-role-grammar-plugin.ts';
 import { createSsrScriptEntriesPlugin } from './ssr-script-entries-plugin.ts';
 import { getPreservedModuleFileName } from './preserved-module-file-name.ts';
+import { createPreservedModuleSignaturesPlugin } from './preserved-module-signatures-plugin.ts';
 import { createWorkerEntriesPlugin } from './worker-entries-plugin.ts';
 import { createStylesheetModulePlugin } from './stylesheet-module-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -590,6 +591,9 @@ async function buildRolldownInputPlugins(
 		...appPlugins,
 		...(options.environment === 'browser' && options.workerEntries !== false ? [createWorkerEntriesPlugin()] : []),
 		...(options.ssrScriptEntries === true ? [createSsrScriptEntriesPlugin()] : []),
+		...(options.preserveModules && options.preserveModuleSignatures
+			? [createPreservedModuleSignaturesPlugin()]
+			: []),
 	];
 }
 
@@ -719,6 +723,24 @@ export function getInstalledPackageChunkName(moduleId: string): string | null {
 	return `vendor-${packageName}`;
 }
 
+/**
+ * The chunk groups of {@link BuildOptions.singleChunk}.
+ *
+ * @remarks
+ * Rolldown puts a module into the first group that matches it, together with the modules it imports that no earlier
+ * group claimed, so the main group comes first and claims every module but the separate ones, and the separate group
+ * takes what is left.
+ */
+function createSingleChunkGroups(singleChunk: NonNullable<BuildOptions['singleChunk']>) {
+	const separate = singleChunk.separate;
+	if (!separate) return [{ name: singleChunk.name, test: /./u }];
+	const separateModules = new Set(separate.modules);
+	return [
+		{ name: singleChunk.name, test: (id: string) => !separateModules.has(path.fromNative(id)) },
+		{ name: separate.name, test: /./u },
+	];
+}
+
 function buildRolldownOutputOptions(options: BuildOptions, outdir: string): OutputOptions {
 	const entryFileNames = resolveRolldownEntryFileNames(options);
 	return {
@@ -745,7 +767,7 @@ function buildRolldownOutputOptions(options: BuildOptions, outdir: string): Outp
 		...(options.singleChunk ? { sanitizeFileName: sanitizePreservedModuleName } : {}),
 		sourcemap: mapRolldownSourcemap(options.sourcemap),
 		...(shouldDisableRolldownCodeSplitting(options) ? { codeSplitting: false } : {}),
-		...(options.singleChunk ? { codeSplitting: { groups: [{ name: options.singleChunk.name, test: /./u }] } } : {}),
+		...(options.singleChunk ? { codeSplitting: { groups: createSingleChunkGroups(options.singleChunk) } } : {}),
 		...(options.packageChunks && options.splitting !== false
 			? {
 					codeSplitting: {

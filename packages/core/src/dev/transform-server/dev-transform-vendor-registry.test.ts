@@ -1137,6 +1137,67 @@ describe('DevTransformVendorRegistry', () => {
 		).toEqual([]);
 	});
 
+	it('keeps the import of a package that declares side effects when the importing module uses none of its bindings', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-declared-effects');
+		writePackage(
+			path.join(modules, 'effects-owner'),
+			'effects-owner',
+			{ type: 'module', exports: './index.js', sideEffects: true },
+			{ 'index.js': "globalThis.effectsOwnerReady = 'ready';\nexport const marker = 'effects-owner-code';\n" },
+		);
+		writePackage(
+			path.join(modules, 'effects-user'),
+			'effects-user',
+			{ type: 'module', exports: './index.js' },
+			{
+				'index.js':
+					"import { marker } from 'effects-owner';\nexport const ready = () => globalThis.effectsOwnerReady;\n",
+			},
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const url = await registry.resolveVendorUrl('effects-user');
+		delete (globalThis as { effectsOwnerReady?: string }).effectsOwnerReady;
+
+		const [user] = (await importVendorGraph(registry, [url])) as [{ ready: () => string | undefined }];
+
+		expect(user.ready()).toBe('ready');
+		delete (globalThis as { effectsOwnerReady?: string }).effectsOwnerReady;
+	});
+
+	it('keeps the code a subpath runs when it loads out of the package file the other subpaths share', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-effects-chunk');
+		writePackage(
+			path.join(modules, 'effects-chunk-lib'),
+			'effects-chunk-lib',
+			{ type: 'module', exports: { '.': './index.js', './register': './register.js' } },
+			{
+				'index.js': "export const value = 'plain-value';\n",
+				'register.js':
+					"import { value } from './index.js';\nglobalThis.effectsChunkRan = value;\nexport const registered = true;\n",
+			},
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const onVendorGraphChange = vi.fn();
+		const registry = new DevTransformVendorRegistry({ appConfig: config, onVendorGraphChange });
+		const rootUrl = await registry.resolveVendorUrl('effects-chunk-lib');
+		const served = await readVendorGraph(registry, [rootUrl]);
+		delete (globalThis as { effectsChunkRan?: string }).effectsChunkRan;
+
+		const [lib] = (await importVendorGraph(registry, [rootUrl])) as [{ value: string }];
+		const ranAfterRoot = (globalThis as { effectsChunkRan?: string }).effectsChunkRan;
+		const registerUrl = await registry.resolveVendorUrl('effects-chunk-lib/register');
+		const [register] = (await importVendorGraph(registry, [registerUrl])) as [{ registered: boolean }];
+
+		expect(lib.value).toBe('plain-value');
+		expect(ranAfterRoot).toBeUndefined();
+		expect(register.registered).toBe(true);
+		expect((globalThis as { effectsChunkRan?: string }).effectsChunkRan).toBe('plain-value');
+		expect(await readVendorGraph(registry, [rootUrl])).toEqual(served);
+		expect(onVendorGraphChange).not.toHaveBeenCalled();
+		delete (globalThis as { effectsChunkRan?: string }).effectsChunkRan;
+	});
+
 	it('shares one copy of a CommonJS package between the packages that import and require it', async () => {
 		const { rootDir, modules } = createAppRoot('dev-transform-vendor-cjs-sibling');
 		writePackage(

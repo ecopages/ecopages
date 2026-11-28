@@ -16,7 +16,7 @@ const MODULE_FILE = /\.(?:[cm]?js)$/u;
 export const VENDOR_PACKAGE_BUNDLE_MAX_MODULES = 1_000;
 
 /** A package manifest, as far as the vendor graph reads it. */
-type PackageManifest = { name?: unknown; exports?: unknown };
+type PackageManifest = { name?: unknown; exports?: unknown; sideEffects?: unknown };
 
 function readManifest(directory: string): PackageManifest | undefined {
 	const manifest = path.join(directory, 'package.json');
@@ -44,6 +44,12 @@ export function findOwningPackageDir(file: string): string {
 		if (parent === directory) return path.dirname(file);
 		directory = parent;
 	}
+}
+
+/** Whether the package declares in `package.json` that importing its modules does something (`"sideEffects"` set and not `false`). */
+export function declaresSideEffects(packageDir: string): boolean {
+	const declared = readManifest(packageDir)?.sideEffects;
+	return declared !== undefined && declared !== false;
 }
 
 function isInsidePackage(file: string, packageDir: string): boolean {

@@ -15,10 +15,11 @@ import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { formatBuildLog } from '../../build/build-log.ts';
 import { getPreservedModuleFileName } from '../../build/rolldown/preserved-module-file-name.ts';
-import { inspectModuleClosure, type ModuleClosureTraits } from './vendor-module-effects.ts';
+import { collectModuleClosure, inspectModuleClosure, type ModuleClosureTraits } from './vendor-module-effects.ts';
 import { createVendorPackageExternalsPlugin } from './vendor-package-externals.ts';
 import {
 	countPackageModules,
+	declaresSideEffects,
 	findOwningPackageDir,
 	resolvePackageSurface,
 	VENDOR_PACKAGE_BUNDLE_MAX_MODULES,
@@ -762,13 +763,29 @@ export class DevTransformVendorRegistry {
 		);
 	}
 
+	/** Whether a module and the modules it imports from its package import no Node builtin. */
+	private canLoadInBrowser(file: string): boolean {
+		return !inspectModuleClosure(file, this.closureTraits).nodeBuiltin;
+	}
+
 	/**
-	 * Whether a module can load inside the one file of its package: it and the modules it imports from the package
-	 * run nothing but declarations, and import no Node builtin.
+	 * The modules that only entries which run code when they load reach, which go to a chunk of their own.
+	 *
+	 * @remarks
+	 * The package's main chunk is evaluated by every page that imports the package, so it holds no module that
+	 * registers a custom element, opens a socket or sets a global. Those entries are part of the surface from the
+	 * first build, and their modules are in a second chunk that only their own files import, so an import of such a
+	 * subpath later adds no file and changes none.
 	 */
-	private isLoadableWithPackage(file: string): boolean {
-		const { loadTimeEffects, nodeBuiltin } = inspectModuleClosure(file, this.closureTraits);
-		return !loadTimeEffects && !nodeBuiltin;
+	private findEffectModules(files: readonly string[]): string[] {
+		const effectful = files.filter((file) => inspectModuleClosure(file, this.closureTraits).loadTimeEffects);
+		if (effectful.length === 0) return [];
+		const shared = new Set(
+			files.filter((file) => !effectful.includes(file)).flatMap((file) => [...collectModuleClosure(file)]),
+		);
+		return [...new Set(effectful.flatMap((file) => [...collectModuleClosure(file)]))].filter(
+			(file) => !shared.has(file),
+		);
 	}
 
 	private bundleScope(
@@ -808,7 +825,7 @@ export class DevTransformVendorRegistry {
 		const bundled = this.countModules(packageDir) <= this.maxBundledModules;
 		const surface = bundled
 			? resolvePackageSurface(packageDir, graph.conditions, this.maxBundledModules).filter(
-					(file) => !requested.includes(file) && this.isLoadableWithPackage(file),
+					(file) => !requested.includes(file) && this.canLoadInBrowser(file),
 				)
 			: [];
 		const scope: VendorBuildScope = {
@@ -893,10 +910,11 @@ export class DevTransformVendorRegistry {
 			treeshaking: true,
 			quietWarnings: inline,
 			...(bundled
-				? { singleChunk: { name: `${packageName}~package` } }
+				? { singleChunk: this.createSingleChunk(packageName, files) }
 				: {
 						preserveModules: true,
 						modulePathFileNames: true,
+						preserveModuleSignatures: true,
 						preserveModulesRoot: path.parse(rootDir).root,
 					}),
 			conditions: [...graph.conditions],
@@ -938,7 +956,7 @@ export class DevTransformVendorRegistry {
 		specifier: string,
 		importer: string,
 		dependencies: Map<string, VendorDependency>,
-	): VendorImport | undefined {
+	): (VendorImport & { declaresSideEffects: boolean }) | undefined {
 		const resolveDir = resolveImporterDir(importer);
 		const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, specifier, resolveDir);
 		if (!resolved) return undefined;
@@ -953,6 +971,15 @@ export class DevTransformVendorRegistry {
 		return {
 			url: getVendorEntryUrl(this.appConfig.rootDir, graphKey, resolved.path),
 			commonJs: !hasModuleSyntax(resolved.path),
+			declaresSideEffects: declaresSideEffects(findOwningPackageDir(resolved.path)),
+		};
+	}
+
+	private createSingleChunk(packageName: string, files: readonly string[]) {
+		const modules = this.findEffectModules(files);
+		return {
+			name: `${packageName}~package`,
+			...(modules.length > 0 ? { separate: { name: `${packageName}~effects`, modules } } : {}),
 		};
 	}
 

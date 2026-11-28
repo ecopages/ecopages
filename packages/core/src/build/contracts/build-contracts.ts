@@ -133,6 +133,8 @@ export interface BuildOptions {
 	preserveModulesRoot?: string;
 	/** With `preserveModules`, names each file after its module's path from `preserveModulesRoot`, with no two paths sharing a name. */
 	modulePathFileNames?: boolean;
+	/** With `preserveModules`, keeps every export of every module, so a file does not depend on which entries exist. */
+	preserveModuleSignatures?: boolean;
 	root?: string;
 	externalPackages?: boolean;
 	/**
@@ -195,7 +197,11 @@ export interface BuildOptions {
 	 * @remarks
 	 * The chunk's file name has no content hash, so the files that import it keep a stable import path.
 	 */
-	singleChunk?: { name: string };
+	singleChunk?: {
+		name: string;
+		/** Modules that go to a second chunk, which only the entries that reach them load, instead of the first. */
+		separate?: { name: string; modules: readonly string[] };
+	};
 	/** Collects the warnings of the build into the result without printing them, for a build that only checks. */
 	quietWarnings?: boolean;
 }

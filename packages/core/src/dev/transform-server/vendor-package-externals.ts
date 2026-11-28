@@ -23,7 +23,10 @@ export type VendorPackageExternalsOptions = {
 	 * The vendor file of a bare specifier that another package owns, or `undefined` when the package that is being
 	 * built owns it, or nothing resolves it.
 	 */
-	resolveDependency: (specifier: string, importer: string) => VendorImport | undefined;
+	resolveDependency: (
+		specifier: string,
+		importer: string,
+	) => (VendorImport & { declaresSideEffects: boolean }) | undefined;
 };
 
 function isBareSpecifier(specifier: string): boolean {
@@ -119,6 +122,7 @@ export function createVendorPackageExternalsPlugin(options: VendorPackageExterna
 						? { path: `${SHIM_MODULE_PREFIX}${JSX_SHIM_PREFIX}${dependency.url}` }
 						: undefined;
 				}
+				if (dependency.declaresSideEffects) sideEffectImports.add(dependency.url);
 				return { path: dependency.url, external: true, sideEffects: sideEffectImports.has(dependency.url) };
 			});
 			build.onLoad({ filter: JSX_SHIM_MODULE }, (args) => {

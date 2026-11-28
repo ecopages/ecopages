@@ -23,6 +23,41 @@ const EFFECT_STATEMENTS = new Set([
 	'ThrowStatement',
 ]);
 
+const PAGE_GLOBAL_NAMES = [
+	'window',
+	'document',
+	'globalThis',
+	'self',
+	'navigator',
+	'localStorage',
+	'sessionStorage',
+	'customElements',
+] as const;
+
+/** Browser globals that a module reads or sets by their members when it loads. */
+const PAGE_GLOBALS: ReadonlySet<string> = new Set(PAGE_GLOBAL_NAMES);
+
+/** Browser globals whose construction or call does something beyond making a value. */
+const EFFECTFUL_GLOBALS = new Set([
+	'WebSocket',
+	'EventSource',
+	'Worker',
+	'SharedWorker',
+	'XMLHttpRequest',
+	'BroadcastChannel',
+	'MutationObserver',
+	'ResizeObserver',
+	'IntersectionObserver',
+	'PerformanceObserver',
+	'fetch',
+	'setTimeout',
+	'setInterval',
+	'requestAnimationFrame',
+	'queueMicrotask',
+	'addEventListener',
+	...PAGE_GLOBAL_NAMES,
+]);
+
 /** What loading an ES module and the modules it imports from its own package does. */
 export type ModuleClosureTraits = {
 	/** A top-level statement that is not a declaration runs. */
@@ -55,9 +90,50 @@ function parseBody(file: string): AstNode[] | undefined {
 	}
 }
 
+/** The name at the root of a callee or member chain: `window` for `window.localStorage.getItem`. */
+function rootName(node: unknown): string | undefined {
+	let current = node;
+	while (typeof current === 'object' && current !== null) {
+		const candidate = current as { type?: string; name?: string; object?: unknown; callee?: unknown };
+		if (candidate.type === 'Identifier') return candidate.name;
+		current = candidate.object ?? candidate.callee;
+	}
+	return undefined;
+}
+
+/** Whether evaluating an expression, outside the bodies of functions and classes, calls or constructs an effectful global. */
+function expressionHasEffects(node: unknown): boolean {
+	if (Array.isArray(node)) return node.some(expressionHasEffects);
+	if (typeof node !== 'object' || node === null) return false;
+	const candidate = node as { type?: string; callee?: unknown };
+	if (candidate.type && /Function|Class/u.test(candidate.type)) return false;
+	if (
+		(candidate.type === 'CallExpression' || candidate.type === 'NewExpression') &&
+		EFFECTFUL_GLOBALS.has(rootName(candidate.callee) ?? '')
+	) {
+		return true;
+	}
+	if (candidate.type === 'MemberExpression' && PAGE_GLOBALS.has(rootName(candidate) ?? '')) return true;
+	return Object.values(node).some(
+		(child) => typeof child === 'object' && child !== null && expressionHasEffects(child),
+	);
+}
+
+/** Whether a top-level declaration, possibly exported, initializes a binding with an effectful call. */
+function declarationHasEffects(statement: AstNode): boolean {
+	const declaration = (statement.declaration ?? statement) as { type?: string; declarations?: { init?: unknown }[] };
+	return (
+		declaration.type === 'VariableDeclaration' &&
+		(declaration.declarations ?? []).some((declarator) => expressionHasEffects(declarator.init))
+	);
+}
+
 function readModuleTraits(body: AstNode[]): ModuleClosureTraits {
 	return {
-		loadTimeEffects: body.some((statement) => EFFECT_STATEMENTS.has(statement.type) && !isDirective(statement)),
+		loadTimeEffects: body.some(
+			(statement) =>
+				(EFFECT_STATEMENTS.has(statement.type) && !isDirective(statement)) || declarationHasEffects(statement),
+		),
 		nodeBuiltin: body.some((statement) => {
 			const specifier = statement.source?.value;
 			return typeof specifier === 'string' && isNodeBuiltinSpecifier(specifier);
@@ -72,6 +148,24 @@ function readRelativeImports(body: AstNode[]): string[] {
 		if (typeof specifier === 'string' && specifier.startsWith('.')) imports.push(specifier);
 	}
 	return imports;
+}
+
+/**
+ * The modules a module imports from its own package, followed through their own imports, itself included.
+ */
+export function collectModuleClosure(entry: string): Set<string> {
+	const visited = new Set<string>();
+	const pending = [entry];
+	while (pending.length > 0 && visited.size <= MAX_CLOSURE_FILES) {
+		const file = pending.pop()!;
+		if (visited.has(file)) continue;
+		visited.add(file);
+		for (const specifier of readRelativeImports(parseBody(file) ?? [])) {
+			const resolved = resolveRelative(file, specifier);
+			if (resolved) pending.push(resolved);
+		}
+	}
+	return visited;
 }
 
 /**

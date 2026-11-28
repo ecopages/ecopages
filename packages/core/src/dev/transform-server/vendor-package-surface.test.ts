@@ -113,6 +113,26 @@ describe('inspectModuleClosure', () => {
 		expect(effects('commonjs.js')).toBe(false);
 	});
 
+	it('flags a declaration whose initializer opens a connection or reads the page, and not one that only makes a value', () => {
+		const root = createPackage(
+			{},
+			{
+				'socket.js': "export const socket = new WebSocket('ws://localhost');\n",
+				'page.js': 'const title = document.title;\nexport { title };\n',
+				'lazy.js':
+					"export const open = () => new WebSocket('ws://localhost');\nexport class Client { start() { return fetch('/x'); } }\n",
+				'values.js':
+					"export const map = new Map();\nexport const symbol = Symbol('x');\nexport const context = makeContext({ a: 1 });\nfunction makeContext(value) { return value; }\n",
+			},
+		);
+		const effects = (file: string) => inspectModuleClosure(path.join(root, file)).loadTimeEffects;
+
+		expect(effects('socket.js')).toBe(true);
+		expect(effects('page.js')).toBe(true);
+		expect(effects('lazy.js')).toBe(false);
+		expect(effects('values.js')).toBe(false);
+	});
+
 	it('flags a module that imports a Node builtin, also through its own imports', () => {
 		const root = createPackage(
 			{},

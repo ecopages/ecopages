@@ -116,7 +116,6 @@ export default eco.page<ProductPageProps, JsxRenderable>({
 							href={storePaths.productMarkdown(product.handle)}
 							rel="alternate"
 							type="text/markdown"
-							data-eco-reload
 						>
 							View as Markdown
 						</a>

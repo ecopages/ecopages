@@ -6,13 +6,7 @@ import { inArray } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import * as schema from './schema.ts';
-import {
-	CATALOG_VERSION,
-	generateCatalog,
-	resolveCatalogSize,
-	type CatalogSizeName,
-	type GeneratedCatalog,
-} from './seed/generator.ts';
+import { CATALOG_VERSION, generateCatalog, resolveCatalogSize, type CatalogSizeName } from './seed/generator.ts';
 
 export type CatalogDb = LibSQLDatabase<typeof schema>;
 
@@ -27,11 +21,6 @@ export type OpenCatalogDatabaseOptions = {
 	authToken?: string;
 	migrationsFolder: string;
 	sizeName: CatalogSizeName;
-	/**
-	 * Builds the rows to seed. Defaults to the generated demo catalog for `sizeName`; pass your own to seed real
-	 * data.
-	 */
-	generate?: (sizeName: CatalogSizeName) => GeneratedCatalog;
 };
 
 /** Rows per insert statement, well under SQLite's bound-parameter limit for the widest table. */
@@ -61,11 +50,8 @@ async function isSeededWith(db: CatalogDb, sizeName: CatalogSizeName): Promise<b
 }
 
 /** Replaces every catalog row with a freshly generated catalog, in one transaction. */
-async function seed(
-	db: CatalogDb,
-	{ sizeName, generate }: Pick<OpenCatalogDatabaseOptions, 'sizeName' | 'generate'>,
-): Promise<void> {
-	const catalog = generate ? generate(sizeName) : generateCatalog(resolveCatalogSize(sizeName).size);
+async function seed(db: CatalogDb, { sizeName }: Pick<OpenCatalogDatabaseOptions, 'sizeName'>): Promise<void> {
+	const catalog = generateCatalog(resolveCatalogSize(sizeName).size);
 	await db.transaction(async (tx) => {
 		await tx.delete(schema.cartLines);
 		await tx.delete(schema.carts);

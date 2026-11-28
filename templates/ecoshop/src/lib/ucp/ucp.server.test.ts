@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDemoProvider } from '@/lib/commerce/demo/demo-provider';
-import { runStoreTool } from '@/lib/agents/store-tools.server';
 import type { CommerceProvider } from '@/lib/commerce/types';
-import { clearUcpProfileCache, handleUcpMcp, handleUcpProfile, readUcpProfile } from './ucp.server';
 
 const ORIGIN = 'https://shop.test';
 const demo = createDemoProvider();
@@ -24,23 +22,39 @@ const storeProfile = {
 	},
 };
 
+/** Answers every `fetch` of the module under test, the store's included. */
 function storeFetch(handler: (url: string, init: RequestInit) => Response): typeof fetch {
-	return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => handler(String(input), init ?? {}));
+	const send = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => handler(String(input), init ?? {}));
+	vi.stubGlobal('fetch', send);
+	return send;
 }
 
-beforeEach(() => {
-	clearUcpProfileCache();
+let ucp: typeof import('./ucp.server');
+let tools: typeof import('@/lib/agents/store-tools.server');
+
+/** Each test gets the module afresh, so the profile cache of one never reaches another. */
+beforeEach(async () => {
+	vi.resetModules();
+	ucp = await import('./ucp.server');
+	tools = await import('@/lib/agents/store-tools.server');
 });
 
 afterEach(() => {
 	vi.unstubAllGlobals();
+	vi.useRealTimers();
 });
+
+const readUcpProfile: typeof ucp.readUcpProfile = (...args) => ucp.readUcpProfile(...args);
+const handleUcpProfile: typeof ucp.handleUcpProfile = (...args) => ucp.handleUcpProfile(...args);
+const handleUcpMcp: typeof ucp.handleUcpMcp = (...args) => ucp.handleUcpMcp(...args);
+const runStoreTool: typeof tools.runStoreTool = (...args) => tools.runStoreTool(...args);
+const profileRequest = (origin = ORIGIN) => new Request(`${origin}/.well-known/ucp`);
 
 describe('UCP on the demo catalog', () => {
 	it('has no store domain, no profile and no endpoint', async () => {
 		expect(await readUcpProfile(ORIGIN, { provider: demo })).toBeNull();
 
-		const profile = await handleUcpProfile({ provider: demo });
+		const profile = await handleUcpProfile(profileRequest(), { provider: demo });
 		const proxied = await handleUcpMcp(new Request(`${ORIGIN}/api/ucp/mcp`, { method: 'POST', body: '{}' }), {
 			provider: demo,
 		});
@@ -54,7 +68,7 @@ describe('the UCP profile of a connected store', () => {
 	it('is the store profile with its MCP endpoint pointed at this site', async () => {
 		const send = storeFetch(() => Response.json(storeProfile));
 
-		const profile = await readUcpProfile(ORIGIN, { provider: shopify, fetch: send });
+		const profile = await readUcpProfile(ORIGIN, { provider: shopify });
 
 		expect(send).toHaveBeenCalledWith(
 			'https://my-store.myshopify.com/.well-known/ucp',
@@ -78,58 +92,60 @@ describe('the UCP profile of a connected store', () => {
 	});
 
 	it('is asked of the store once in five minutes, and again after that', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(1_000);
 		const send = storeFetch(() => Response.json(storeProfile));
-		let clock = 1_000;
-		const options = { provider: shopify, fetch: send, now: () => clock };
+		const options = { provider: shopify };
 
 		await readUcpProfile(ORIGIN, options);
-		clock += 4 * 60 * 1000;
+		vi.setSystemTime(1_000 + 4 * 60 * 1000);
 		await readUcpProfile(ORIGIN, options);
 		expect(send).toHaveBeenCalledTimes(1);
 
-		clock += 2 * 60 * 1000;
+		vi.setSystemTime(1_000 + 6 * 60 * 1000);
 		await readUcpProfile(ORIGIN, options);
 		expect(send).toHaveBeenCalledTimes(2);
 	});
 
-	it('is not kept when the store did not answer, and is kept apart for each site origin', async () => {
+	it('is not kept when the store did not answer, and is pointed at each host that asks', async () => {
 		let answer = () => new Response('', { status: 503 });
 		const send = storeFetch(() => answer());
 
-		await expect(readUcpProfile(ORIGIN, { provider: shopify, fetch: send })).rejects.toThrow(/503/u);
+		await expect(readUcpProfile(ORIGIN, { provider: shopify })).rejects.toThrow(/503/u);
 		answer = () => Response.json(storeProfile);
-		const here = await readUcpProfile(ORIGIN, { provider: shopify, fetch: send });
-		const elsewhere = await readUcpProfile('https://preview.test', { provider: shopify, fetch: send });
+		const here = await readUcpProfile(ORIGIN, { provider: shopify });
+		const elsewhere = await readUcpProfile('https://preview.test', { provider: shopify });
 
-		expect(send).toHaveBeenCalledTimes(3);
+		expect(send).toHaveBeenCalledTimes(2);
 		expect(JSON.stringify(here)).toContain('https://shop.test/api/ucp/mcp');
 		expect(JSON.stringify(elsewhere)).toContain('https://preview.test/api/ucp/mcp');
+		expect(JSON.stringify(elsewhere)).not.toContain('https://shop.test/api/ucp/mcp');
 	});
 
 	it('is served as JSON at /.well-known/ucp, and a store that has none is a bad gateway', async () => {
-		const served = await handleUcpProfile({
-			provider: shopify,
-			fetch: storeFetch(() => Response.json(storeProfile)),
-			origin: ORIGIN,
-		});
-		clearUcpProfileCache();
-		const missing = await handleUcpProfile({
-			provider: shopify,
-			fetch: storeFetch(() => new Response('', { status: 404 })),
-			origin: ORIGIN,
-		});
+		storeFetch(() => Response.json(storeProfile));
+		const served = await handleUcpProfile(profileRequest(), { provider: shopify });
+		vi.resetModules();
+		ucp = await import('./ucp.server');
+		storeFetch(() => new Response('', { status: 404 }));
+		const missing = await handleUcpProfile(profileRequest(), { provider: shopify });
 
 		expect(served.status).toBe(200);
 		expect(((await served.json()) as typeof storeProfile).ucp.version).toBe('2026-08-25');
 		expect(missing.status).toBe(502);
 	});
 
+	it('points the served profile at the host of the request', async () => {
+		storeFetch(() => Response.json(storeProfile));
+
+		const served = await handleUcpProfile(profileRequest('https://preview.test'), { provider: shopify });
+
+		expect(JSON.stringify(await served.json())).toContain('https://preview.test/api/ucp/mcp');
+	});
+
 	it('is what get_ucp_profile returns to an agent in the browser', async () => {
-		vi.stubGlobal(
-			'fetch',
-			storeFetch(() => Response.json(storeProfile)),
-		);
-		const read = (await (await handleUcpProfile({ provider: shopify, origin: ORIGIN })).json()) as Record<
+		storeFetch(() => Response.json(storeProfile));
+		const read = (await (await handleUcpProfile(profileRequest(), { provider: shopify })).json()) as Record<
 			string,
 			unknown
 		>;
@@ -153,10 +169,7 @@ describe('the UCP profile of a connected store', () => {
 	});
 
 	it('is an error result for get_ucp_profile when the store does not answer', async () => {
-		vi.stubGlobal(
-			'fetch',
-			storeFetch(() => new Response('', { status: 503 })),
-		);
+		storeFetch(() => new Response('', { status: 503 }));
 
 		const { result } = await runStoreTool(
 			'get_ucp_profile',
@@ -209,7 +222,7 @@ describe('the UCP endpoint of a connected store', () => {
 
 		const response = await handleUcpMcp(
 			new Request(`${ORIGIN}/api/ucp/mcp`, { method: 'POST', body: JSON.stringify(search) }),
-			{ provider: shopify, fetch: send },
+			{ provider: shopify },
 		);
 
 		const [url, init] = vi.mocked(send).mock.calls[0] ?? [];
@@ -224,7 +237,6 @@ describe('the UCP endpoint of a connected store', () => {
 
 		const response = await handleUcpMcp(new Request(`${ORIGIN}/api/ucp/mcp`, { method: 'POST', body: '{}' }), {
 			provider: shopify,
-			fetch: send,
 		});
 
 		expect(response.status).toBe(400);
@@ -248,7 +260,7 @@ describe('the UCP endpoint of a connected store', () => {
 					'MCP-Protocol-Version': '2025-06-18',
 				},
 			}),
-			{ provider: shopify, fetch: send },
+			{ provider: shopify },
 		);
 
 		const sent = new Headers(vi.mocked(send).mock.calls[0]?.[1]?.headers);
@@ -265,7 +277,6 @@ describe('the UCP endpoint of a connected store', () => {
 
 		const response = await handleUcpMcp(new Request(`${ORIGIN}/api/ucp/mcp`, { method: 'POST', body: multibyte }), {
 			provider: shopify,
-			fetch: send,
 		});
 
 		expect(multibyte.length).toBeLessThan(256 * 1024);
@@ -287,7 +298,7 @@ describe('the UCP endpoint of a connected store', () => {
 
 		const response = await handleUcpMcp(
 			new Request(`${ORIGIN}/api/ucp/mcp`, { method: 'POST', body: endless, duplex: 'half' } as RequestInit),
-			{ provider: shopify, fetch: send },
+			{ provider: shopify },
 		);
 
 		expect(response.status).toBe(413);
@@ -304,9 +315,10 @@ describe('the UCP endpoint of a connected store', () => {
 			}),
 		);
 
+		storeFetch(() => broken);
+
 		const response = await handleUcpMcp(new Request(`${ORIGIN}/api/ucp/mcp`, { method: 'POST', body: '{}' }), {
 			provider: shopify,
-			fetch: storeFetch(() => broken),
 		});
 
 		expect(response.status).toBe(502);
@@ -316,17 +328,21 @@ describe('the UCP endpoint of a connected store', () => {
 		const send = storeFetch(() => Response.json({}));
 		const large = await handleUcpMcp(
 			new Request(`${ORIGIN}/api/ucp/mcp`, { method: 'POST', body: 'x'.repeat(256 * 1024 + 1) }),
-			{ provider: shopify, fetch: send },
+			{ provider: shopify },
+		);
+		expect(large.status).toBe(413);
+		expect(send).not.toHaveBeenCalled();
+
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => {
+				throw new Error('offline');
+			}),
 		);
 		const down = await handleUcpMcp(new Request(`${ORIGIN}/api/ucp/mcp`, { method: 'POST', body: '{}' }), {
 			provider: shopify,
-			fetch: vi.fn(async () => {
-				throw new Error('offline');
-			}),
 		});
 
-		expect(large.status).toBe(413);
-		expect(send).not.toHaveBeenCalled();
 		expect(down.status).toBe(502);
 	});
 });

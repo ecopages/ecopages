@@ -51,6 +51,23 @@ describe('normalizePreservedModuleOutput', () => {
 		expect(entry.code).not.toContain('dep_exports');
 	});
 
+	it('turns every namespace re-export of the owner into `export * as`, and keeps a quoted export name quoted', () => {
+		const dep = chunk(
+			'dep.js',
+			'import { __exportAll } from "./runtime.js";\nvar dep_exports = /* @__PURE__ */ __exportAll({ a: () => "a" });\nconst a = "a";\nexport { a, dep_exports };\n',
+		);
+		const entry = chunk(
+			'entry.js',
+			'export { dep_exports as first, dep_exports as "foo-bar", dep_exports as second } from "./dep.js";\n',
+		);
+
+		normalizePreservedModuleOutput([dep, entry], new Set());
+
+		expect(entry.code).toBe(
+			'export * as first from "./dep.js";\nexport * as "foo-bar" from "./dep.js";\nexport * as second from "./dep.js";\n',
+		);
+	});
+
 	it('recognises the namespace helper under the alias Rolldown gives it when the module has an export of that name', () => {
 		const dep = chunk(
 			'dep.js',

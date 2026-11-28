@@ -140,19 +140,25 @@ function importNativeNamespaces(chunk: PreservedModuleChunk, owners: ReadonlyMap
 		const source = nameOf(statement.source);
 		const owner = source === undefined ? undefined : owners.get(source.replace(/^\.\//u, ''));
 		const specifiers = nodes(statement.specifiers);
-		const namespace = owner
-			? specifiers.find((specifier) => nameOf(isImport ? specifier.imported : specifier.local) === owner.exported)
-			: undefined;
-		if (!namespace) continue;
+		const namespaces = owner
+			? specifiers.filter(
+					(specifier) => nameOf(isImport ? specifier.imported : specifier.local) === owner.exported,
+				)
+			: [];
+		if (namespaces.length === 0) continue;
 		const kept = specifiers
-			.filter((specifier) => specifier !== namespace)
+			.filter((specifier) => !namespaces.includes(specifier))
 			.map((specifier) => chunk.code.slice(specifier.start, specifier.end));
 		const quoted = JSON.stringify(source);
 		const keptStatement =
 			kept.length > 0 ? `${isImport ? 'import' : 'export'} { ${kept.join(', ')} } from ${quoted};\n` : '';
-		const namespaceStatement = isImport
-			? `import * as ${nameOf(namespace.local)} from ${quoted};`
-			: `export * as ${nameOf(namespace.exported)} from ${quoted};`;
+		const namespaceStatement = namespaces
+			.map((namespace) =>
+				isImport
+					? `import * as ${nameOf(namespace.local)} from ${quoted};`
+					: `export * as ${chunk.code.slice((namespace.exported as AstNode).start, (namespace.exported as AstNode).end)} from ${quoted};`,
+			)
+			.join('\n');
 		edited.overwrite(statement.start, statement.end, `${keptStatement}${namespaceStatement}`);
 		changed = true;
 	}

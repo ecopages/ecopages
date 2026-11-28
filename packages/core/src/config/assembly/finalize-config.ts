@@ -17,6 +17,7 @@ import {
 	DEFAULT_ECOPAGES_WORK_DIR,
 	DEFAULT_MAX_REQUEST_BODY_SIZE,
 } from '../../constants.ts';
+import { assertAllowedHosts } from '../../adapters/shared/http/host-policy.ts';
 import { assertResponseHeaderRules } from '../../adapters/shared/http/response-headers.ts';
 import { collectConfigModuleFiles } from '../config-module-files.ts';
 import { DEFAULT_ECO_CONFIG_FILENAME, resolveUserConfigRootDir } from '../resolve-eco-config-path.ts';
@@ -372,6 +373,7 @@ export async function finalizeEcoPagesConfig(
 		rootDir = resolveEmittedConfigRootDir(rootDir, configFilePath, directories.distDir, cwd);
 		if (userConfig.headers !== undefined) assertResponseHeaderRules(userConfig.headers);
 		assertMaxRequestBodySize(userConfig.maxRequestBodySize);
+		assertAllowedHosts(userConfig.allowedHosts);
 		const integrations = withHtmlPagesIntegration(userConfig.integrations ?? []);
 		const partialConfig: Omit<EcoPagesAppConfig, 'absolutePaths'> = {
 			baseUrl: resolveBaseUrl(userConfig.baseUrl),
@@ -393,6 +395,7 @@ export async function finalizeEcoPagesConfig(
 			serverFiles: userConfig.serverFiles,
 			headers: userConfig.headers,
 			trustProxy: userConfig.trustProxy,
+			allowedHosts: userConfig.allowedHosts,
 			maxRequestBodySize: userConfig.maxRequestBodySize ?? DEFAULT_MAX_REQUEST_BODY_SIZE,
 			cache: userConfig.cache,
 			devToolbar: userConfig.devToolbar,

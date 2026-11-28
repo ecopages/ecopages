@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import { parseSearchParams } from '../../../router/server/parse-search-params.ts';
 import type { EcopagesSocket, EcopagesWebSocketHandler } from '../../../types/contracts.ts';
+import { createHostPolicy } from '../http/host-policy.ts';
 import { attachNodeHttpWebSocketUpgrades } from './node-http-websocket-upgrades.ts';
 
 function emitUpgrade(server: EventEmitter, url: string) {
@@ -80,6 +81,67 @@ describe('attachNodeHttpWebSocketUpgrades request origin', () => {
 		expect(await upgradeUrl()).toBe('http://app.internal/ws/lobby');
 		expect(await upgradeUrl(true)).toBe('https://shop.example/ws/lobby');
 		expect(await upgradeUrl({ proto: true })).toBe('https://app.internal/ws/lobby');
+	});
+});
+
+describe('attachNodeHttpWebSocketUpgrades host policy', () => {
+	const hostPolicy = createHostPolicy({
+		allowedHosts: ['shop.example'],
+		baseUrl: 'https://shop.example',
+		development: false,
+	});
+
+	function upgrade(headers: Record<string, string>, options: { trustProxy?: boolean; url?: string } = {}) {
+		const preflight = vi.fn().mockReturnValue(false);
+		const context = vi.fn().mockRejectedValue(new Error('refuse after the policy'));
+		const server = new EventEmitter();
+		attachNodeHttpWebSocketUpgrades(server as unknown as NodeHttpServer, {
+			runtimeOrigin: 'http://127.0.0.1:3000',
+			trustProxy: options.trustProxy,
+			hostPolicy,
+			websocketHandlers: new Map([['/ws/:room', { context }]]),
+			preflight,
+		});
+		const socket = { destroy: vi.fn(), end: vi.fn(), write: vi.fn() };
+		server.emit('upgrade', { url: options.url ?? '/ws/lobby', method: 'GET', headers }, socket, Buffer.alloc(0));
+		return { socket, context, preflight };
+	}
+
+	const refusal = 'HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n';
+
+	it('refuses an upgrade for a host the app does not serve, before the preflight and context()', () => {
+		const { socket, context, preflight } = upgrade({ host: 'evil.example' });
+
+		expect(socket.end).toHaveBeenCalledWith(refusal);
+		expect(preflight).not.toHaveBeenCalled();
+		expect(context).not.toHaveBeenCalled();
+	});
+
+	it('refuses an upgrade without a usable Host', () => {
+		expect(upgrade({}).socket.end).toHaveBeenCalledWith(refusal);
+		expect(upgrade({ host: 'shop.example/x' }).socket.end).toHaveBeenCalledWith(refusal);
+	});
+
+	it('passes an allowed host on to the preflight and context()', async () => {
+		const { socket, context, preflight } = upgrade({ host: 'shop.example:8080' });
+
+		expect(preflight).toHaveBeenCalledOnce();
+		await vi.waitFor(() => expect(context).toHaveBeenCalledOnce());
+		expect(socket.end).not.toHaveBeenCalledWith(refusal);
+	});
+
+	it('checks a forwarded host only when the proxy is trusted', () => {
+		const headers = { host: 'shop.example', 'x-forwarded-host': 'evil.example' };
+
+		expect(upgrade(headers).socket.end).not.toHaveBeenCalledWith(refusal);
+		expect(upgrade(headers, { trustProxy: true }).socket.end).toHaveBeenCalledWith(refusal);
+	});
+
+	it('matches the route on the checked host, not on a host in the request target', async () => {
+		const { context } = upgrade({ host: 'shop.example' }, { url: '//evil.example/ws/lobby' });
+
+		await Promise.resolve();
+		expect(context).not.toHaveBeenCalled();
 	});
 });
 

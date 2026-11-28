@@ -13,6 +13,7 @@ import {
 import { startDevStaticRoutePrewarm } from '../shared/runtime/dev-static-route-prewarm.ts';
 import type { ServerRequestPipeline } from '../shared/runtime/server-request-pipeline.ts';
 import type { NodeServerInstance } from './server-adapter.ts';
+import type { HostPolicy } from '../shared/http/host-policy.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
 import { HmrManager } from '../shared/hmr/hmr-manager.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
@@ -23,6 +24,8 @@ export type DevSessionOptions = {
 	appConfig: EcoPagesAppConfig;
 	runtime: AppRuntime;
 	server: NodeServerInstance;
+	/** The hosts the dev server answers, applied to WebSocket upgrades, the HMR socket included. */
+	hostPolicy: HostPolicy;
 	requestPipeline: ServerRequestPipeline;
 	/** The `app.onError` handler a prewarmed endpoint's errors resolve with. */
 	errorHandler?: ErrorHandler;
@@ -75,6 +78,7 @@ export class DevSession {
 		attachNodeHttpWebSocketUpgrades(server, {
 			runtimeOrigin: runtime.origin,
 			trustProxy: appConfig.trustProxy,
+			hostPolicy: this.options.hostPolicy,
 			websocketHandlers,
 			preflight: (request, socket, head) => this.handleHmrUpgrade(request, socket, head),
 		});

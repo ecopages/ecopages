@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import { get as httpGet } from 'node:http';
 import { expect, type Page } from '@playwright/test';
 import { test } from '../../app-fixture.ts';
 
@@ -53,6 +54,25 @@ test('a visitor without WebMCP downloads no schema library', async ({ page }) =>
 
 test('a browser with WebMCP downloads the schema library to register the tools', async ({ page }) => {
 	expect(await schemaChunksDownloaded(page, '/products/field-shirt', true)).toHaveLength(1);
+});
+
+/** The status of a GET for `/` that names `host` as its `Host`, sent to the running server's port. */
+function statusForHost(appUrl: string, host: string): Promise<number> {
+	return new Promise((resolve, reject) => {
+		httpGet(
+			{ host: 'localhost', port: Number(new URL(appUrl).port), path: '/', headers: { Host: host } },
+			(res) => {
+				res.resume();
+				resolve(res.statusCode ?? 0);
+			},
+		).on('error', reject);
+	});
+}
+
+test('the production server refuses a request for a host it does not serve', async ({ app }) => {
+	expect(await statusForHost(app.url, 'evil.example')).toBe(400);
+	expect(await statusForHost(app.url, `evil.example:${new URL(app.url).port}`)).toBe(400);
+	expect(await statusForHost(app.url, `localhost:${new URL(app.url).port}`)).toBe(200);
 });
 
 const mcpHeaders = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };

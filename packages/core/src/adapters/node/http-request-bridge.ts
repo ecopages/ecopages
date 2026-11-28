@@ -102,6 +102,53 @@ export function resolveRequestOrigin(
 	runtimeOrigin: string,
 	trustProxy: TrustProxy | undefined,
 ): string {
+	return pickRequestOrigin(req, runtimeOrigin, trustProxy).origin;
+}
+
+/**
+ * The hostname the request URL carries, or `null` when the request names no usable host.
+ *
+ * @remarks
+ * This is the value the host policy checks, read from the same header {@link resolveRequestOrigin} uses, so the
+ * host that was checked is the host `request.url` has. A missing or malformed `Host` gives `null`, not the listen
+ * hostname: the policy refuses a request that does not say where it is going.
+ */
+export function resolveRequestHostname(
+	req: IncomingMessage,
+	runtimeOrigin: string,
+	trustProxy: TrustProxy | undefined,
+): string | null {
+	const { origin, fromHeader } = pickRequestOrigin(req, runtimeOrigin, trustProxy);
+	return fromHeader ? new URL(origin).hostname : null;
+}
+
+/**
+ * The URL of a Node request on `origin`, taking only the path and query from the request target.
+ *
+ * @remarks
+ * The target is not resolved with `new URL(target, origin)`: a target such as `//evil.example/x` or the absolute
+ * form `http://evil.example/x` would replace the host the policy checked. The path and query are appended to the
+ * origin instead, so the URL always carries the host that was checked.
+ */
+export function requestUrlOnOrigin(target: string | undefined, origin: string): URL {
+	const value = target ?? '/';
+	if (value.startsWith('/')) return new URL(`${origin}${value}`);
+	try {
+		const absolute = new URL(value);
+		return new URL(`${origin}${absolute.pathname}${absolute.search}`);
+	} catch {
+		return new URL(`${origin}/`);
+	}
+}
+
+/**
+ * The origin the request names, and whether a header gave it or the listen origin stands in for a missing one.
+ */
+function pickRequestOrigin(
+	req: IncomingMessage,
+	runtimeOrigin: string,
+	trustProxy: TrustProxy | undefined,
+): { origin: string; fromHeader: boolean } {
 	const trusted = typeof trustProxy === 'object' ? trustProxy : { host: trustProxy, proto: trustProxy };
 	const fallback = new URL(runtimeOrigin);
 	const forwardedProto = trusted.proto
@@ -114,9 +161,9 @@ export function resolveRequestOrigin(
 	];
 	for (const host of hosts) {
 		const origin = host ? originOfAuthority(protocol, host) : null;
-		if (origin) return origin;
+		if (origin) return { origin, fromHeader: true };
 	}
-	return `${protocol}//${fallback.host}`;
+	return { origin: `${protocol}//${fallback.host}`, fromHeader: false };
 }
 
 /**
@@ -161,7 +208,7 @@ export class NodeHttpRequestBridge {
 		runtimeOrigin: string,
 		options: { trustProxy?: TrustProxy } = {},
 	): Request {
-		const url = new URL(req.url ?? '/', resolveRequestOrigin(req, runtimeOrigin, options.trustProxy));
+		const url = requestUrlOnOrigin(req.url, resolveRequestOrigin(req, runtimeOrigin, options.trustProxy));
 		const headers = new Headers();
 
 		for (const [key, value] of Object.entries(req.headers)) {

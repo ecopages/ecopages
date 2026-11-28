@@ -15,6 +15,7 @@ export {
 } from '../build/server-bundle-deploy-manifest.ts';
 export { assertProductionDistComplete } from '../build/production-dist-complete.ts';
 export type {
+	AllowedHosts,
 	EcoPagesUserConfig,
 	EcoPagesUserConfigFactory,
 	LoadedEcoPagesUserConfig,

@@ -190,6 +190,30 @@ export default defineConfig({
 });
 ```
 
+## Allowed hosts
+
+<ApiField name="allowedHosts" type="string[] | true" defaultValue="the host of baseUrl in production; localhost and IP addresses in development">
+	The hostnames the Ecopages server answers. A request whose host is not allowed gets HTTP 400 before routing, and a
+	WebSocket upgrade for it is refused the same way. The host checked is the one `request.url` carries: the `Host`
+	header, or `X-Forwarded-Host` when [`trustProxy`](#request-url-and-proxies) trusts it. Entries are hostnames, without
+	scheme, port or path; `*.example.com` matches any subdomain of `example.com`, not `example.com` itself. `true` allows every host.
+</ApiField>
+
+This is the defence against DNS rebinding: an attacker's domain resolves to your server, so the browser sends the attacker's name as `Host` and `Origin`, and a check that compares the two would pass. Once a host is allowed, `request.url` is the address the visitor used, so any handler that compares `Origin` with it is sound.
+
+- In development (`ecopages dev`), `localhost`, its subdomains and IP addresses are always allowed, together with the host of `baseUrl`. `allowedHosts` adds to them.
+- In production (`ecopages start`, `node dist/server/app.mjs`), only the host of `baseUrl` (or `ECOPAGES_BASE_URL`) is allowed, so loopback and every other name are refused. `allowedHosts` replaces it: list the public host again, and `localhost` when a health check calls the server by that name.
+- Ports are not compared. `app.fetch()` is not checked, since it takes the URL it is given, and `ecopages preview` serves only static files.
+
+```typescript
+export default defineConfig({
+	baseUrl: 'https://shop.example.com',
+	allowedHosts: ['shop.example.com', '*.shop.example.com', 'localhost'],
+});
+```
+
+`allowedHosts: true` is unsafe: it turns the check off, so a rebinding attacker can reach the server by name. Use it only when a proxy in front of the server already refuses unknown hosts.
+
 ## Response headers
 
 <ApiField name="headers" type="{ source: string; headers: Record<string, string> }[]">

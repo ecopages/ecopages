@@ -12,10 +12,12 @@ sources:
   - packages/core/src/adapters/node/dev-session.ts
   - packages/core/src/adapters/node/runtime-host.ts
   - packages/core/src/adapters/node/http-request-bridge.ts
+  - packages/core/src/adapters/node/request-host.ts
   - packages/core/src/adapters/shared/runtime/
   - packages/core/src/adapters/shared/http/api-request-pipeline.ts
   - packages/core/src/adapters/shared/http/endpoint-route-handler.ts
   - packages/core/src/adapters/shared/http/response-headers.ts
+  - packages/core/src/adapters/shared/http/host-policy.ts
   - packages/core/src/adapters/shared/ws/node-http-websocket-upgrades.ts
   - packages/core/src/diagnostics/
   - packages/core/src/validation/
@@ -101,7 +103,9 @@ The adapter layer only carries transport. Config finalization, build manifest as
 
 `ApiRequestPipeline.handleError` resolves API handler errors and any error that escapes the request pipeline: a thrown `Response`, then a client abort (499), then `app.onError`, then `HttpError`, then a logged 500. `app.fetch()` therefore always resolves with a `Response`. A Page render failure renders the error page instead and never reaches `app.onError`.
 
-`NodeHttpRequestBridge.createWebRequest()` builds each request's URL on the origin the visitor used: the `Host` header when it is a plain authority (no path, credentials, list or whitespace), else the listen origin the host bound. `attachNodeHttpWebSocketUpgrades` builds its upgrade requests with the same `resolveRequestOrigin()`, so a WebSocket `context()` sees the same origin. `trustProxy` (from `eco.config.ts`, through `getServerOptions()`, `NodeRuntimeServeOptions` and the WebSocket upgrade options) is `true` for both forwarded headers or `{ host, proto }` for one: a trusted first `X-Forwarded-Host` and an `http` or `https` `X-Forwarded-Proto` win over `Host` and the listen protocol, and an invalid forwarded host falls through to `Host`. The listen origin stays the app's `runtime.origin`; only `request.url` changes, so routing, which reads the pathname, is unaffected.
+`NodeHttpRequestBridge.createWebRequest()` builds each request's URL on the origin the visitor used: the `Host` header when it is a plain authority (no path, credentials, list or whitespace), else the listen origin the host bound. `attachNodeHttpWebSocketUpgrades` builds its upgrade requests with the same `resolveRequestOrigin()`, so a WebSocket `context()` sees the same origin. `trustProxy` (from `eco.config.ts`, through `getServerOptions()`, `NodeRuntimeServeOptions` and the WebSocket upgrade options) is `true` for both forwarded headers or `{ host, proto }` for one: a trusted first `X-Forwarded-Host` and an `http` or `https` `X-Forwarded-Proto` win over `Host` and the listen protocol, and an invalid forwarded host falls through to `Host`. The listen origin stays the app's `runtime.origin`; only `request.url` changes, so routing, which reads the pathname, is unaffected. `requestUrlOnOrigin()` appends only the path and query of the request target to that origin, so a target such as `//evil.example/x` or the absolute form `http://evil.example/x` cannot replace the host.
+
+Before any of that, a host policy decides whether the server answers the request. `NodeServerAdapter` builds one `HostPolicy` per adapter with `createHostPolicy()` from `allowedHosts`, `baseUrl` and whether the adapter runs in watch mode, and passes it to `NodeRuntimeHost` (through `getServerOptions()`), to the dev session and to `attachNodeHttpWebSocketUpgrades`. Production allows `allowedHosts`, or the `baseUrl` host when it is unset. Development also allows `localhost`, `*.localhost` and IP literals, which no DNS rebinding can use, and `allowedHosts` adds to them. `true` allows every host. `isRequestHostAllowed()` checks the hostname `resolveRequestHostname()` returns, read from the same header as the request URL, so a forwarded host counts only under `trustProxy` and a missing or malformed `Host` is refused rather than replaced by the listen host. A refused HTTP request is answered 400 with `Connection: close` before `createWebRequest()`, and a refused upgrade is answered 400 before the HMR preflight and `context()`; each refused host is logged once, up to 50. `app.fetch()` and the `ecopages preview` static server skip the policy. With a host allowed, `request.url` is the address the visitor used, which is what makes an `Origin` comparison sound.
 
 On Node, `attachNodeHttpWebSocketUpgrades` handles `/_hmr` (dev only) and user WebSocket routes and destroys any other upgrade. A user route runs `context()` before completing the upgrade; a rejection answers 403, or the status of a thrown `HttpError`, and the client never sees `open`. A failure after the upgrade, such as in `onConnect`, closes with 1011.
 

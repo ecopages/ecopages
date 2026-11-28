@@ -27,6 +27,11 @@ export type ResponseHeaderRule = {
 export type TrustProxy = boolean | { host?: boolean; proto?: boolean };
 
 /**
+ * The hostnames the server answers: a list of hostnames and `*.example.com` wildcards, or `true` for every host.
+ */
+export type AllowedHosts = readonly string[] | true;
+
+/**
  * Author-owned Ecopages configuration declared in `eco.config.ts`.
  *
  * @remarks
@@ -157,6 +162,29 @@ export type EcoPagesUserConfig = {
 	 * @default false
 	 */
 	trustProxy?: TrustProxy;
+
+	/**
+	 * The hostnames the Ecopages server answers: hostnames and `*.example.com` wildcards, or `true` for every host.
+	 * A request whose host is not allowed gets HTTP 400 before routing, and a WebSocket upgrade is refused the same way.
+	 *
+	 * @remarks
+	 * The host checked is the one `request.url` carries: the `Host` header, or `X-Forwarded-Host` when
+	 * `trustProxy` trusts it. It defends against DNS rebinding, where an attacker's domain resolves to your server and
+	 * the browser sends the attacker's name as `Host` and `Origin`. Once a host is allowed, `request.url` is the address the visitor
+	 * used, so `sameOrigin()` and any handler comparing `Origin` with it are sound.
+	 *
+	 * Without it, `ecopages dev` allows `localhost`, its subdomains and IP addresses, plus the host of `baseUrl`.
+	 * `ecopages start` allows only the host of `baseUrl` (or `ECOPAGES_BASE_URL`), so set `baseUrl` to the public
+	 * address, or list every host the server answers here, `localhost` included when a health check calls it by that
+	 * name. In development the list adds to the defaults; in production it replaces the `baseUrl` host. Ports are
+	 * not compared. `*.example.com` matches a subdomain of any depth, not `example.com`.
+	 *
+	 * `true` turns the check off, so a rebinding attacker can reach the server by name. Use it only when a proxy in
+	 * front of the server already refuses unknown hosts. `app.fetch()` is not checked: it takes the URL it is given.
+	 *
+	 * @default the host of `baseUrl` in production, plus `localhost` and IP addresses in development
+	 */
+	allowedHosts?: AllowedHosts;
 
 	/**
 	 * Headers added to every response the server sends: rendered pages, explicit routes and endpoints, and files

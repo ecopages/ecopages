@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { PassThrough, Writable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import type { TrustProxy } from '../../config/user-config-types.ts';
-import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
+import { NodeClientAbortError, NodeHttpRequestBridge, resolveRequestHostname } from './http-request-bridge.ts';
 
 class MockIncomingMessage extends PassThrough {
 	public url = '/submit?ok=1';
@@ -148,6 +148,54 @@ describe('NodeHttpRequestBridge', () => {
 			expect(requestUrl({ host: 'internal:3000', 'x-forwarded-host': 'bad host' }, trust)).toBe(
 				'http://internal:3000/submit?ok=1',
 			);
+		});
+
+		it('keeps the host that was checked when the request target names another host', () => {
+			const headers = { host: 'shop.example' };
+
+			expect(requestUrl(headers, undefined, '//evil.example/x?a=1')).toBe(
+				'http://shop.example//evil.example/x?a=1',
+			);
+			expect(requestUrl(headers, undefined, 'http://evil.example/x?a=1')).toBe('http://shop.example/x?a=1');
+			expect(requestUrl(headers, undefined, 'https://evil.example')).toBe('http://shop.example/');
+			expect(requestUrl(headers, undefined, '*')).toBe('http://shop.example/');
+		});
+	});
+
+	describe('request hostname', () => {
+		const hostname = (headers: Record<string, string | string[] | undefined>, trustProxy?: TrustProxy) =>
+			resolveRequestHostname({ headers } as unknown as IncomingMessage, 'http://127.0.0.1:3000', trustProxy);
+
+		it('is the hostname of the Host the visitor sent, without its port', () => {
+			expect(hostname({ host: 'Shop.Example:8080' })).toBe('shop.example');
+			expect(hostname({ host: '[::1]:3000' })).toBe('[::1]');
+		});
+
+		it('is null when Host is missing or not a host, instead of the listen hostname', () => {
+			for (const host of [
+				undefined,
+				'',
+				'evil.example/path',
+				'user@evil.example',
+				'a b',
+				'a.example,b.example',
+			]) {
+				expect(hostname({ host })).toBeNull();
+			}
+		});
+
+		it('reads a forwarded host only when the app trusts its proxy', () => {
+			const headers = { host: 'internal:3000', 'x-forwarded-host': 'shop.example' };
+
+			expect(hostname(headers)).toBe('internal');
+			expect(hostname(headers, false)).toBe('internal');
+			expect(hostname(headers, { proto: true })).toBe('internal');
+			expect(hostname(headers, true)).toBe('shop.example');
+			expect(hostname(headers, { host: true })).toBe('shop.example');
+		});
+
+		it('falls through to Host when a trusted forwarded host is not a host', () => {
+			expect(hostname({ host: 'internal', 'x-forwarded-host': 'bad host' }, true)).toBe('internal');
 		});
 	});
 

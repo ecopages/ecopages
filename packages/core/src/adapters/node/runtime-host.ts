@@ -4,6 +4,8 @@ import type { Socket } from 'node:net';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
 import type { TrustProxy } from '../../config/user-config-types.ts';
 import { appLogger } from '../../global/app-logger.ts';
+import type { HostPolicy } from '../shared/http/host-policy.ts';
+import { isRequestHostAllowed, refuseHost } from './request-host.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
 import { isNodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 
@@ -14,6 +16,14 @@ export type NodeRuntimeServeOptions = {
 	hostname?: string;
 	/** Which of `X-Forwarded-Host` and `X-Forwarded-Proto` a request URL may read. */
 	trustProxy?: TrustProxy;
+	/**
+	 * The hosts this server answers. A request for any other host gets HTTP 400 before `handleRequest`.
+	 *
+	 * @remarks
+	 * `NodeServerAdapter` always sets it. Without one every host is served, which only tests that bind the host
+	 * directly should rely on.
+	 */
+	hostPolicy?: HostPolicy;
 	handleRequest(request: Request): Promise<Response>;
 };
 
@@ -75,6 +85,10 @@ export class NodeRuntimeHost {
 		server = this.serverFactory(async (req, res) => {
 			try {
 				const runtimeOrigin = this.getOrigin(server, serveOptions);
+				if (!isRequestHostAllowed(req, runtimeOrigin, serveOptions.trustProxy, serveOptions.hostPolicy)) {
+					refuseHost(res);
+					return;
+				}
 				const webRequest = this.requestBridge.createWebRequest(req, runtimeOrigin, {
 					trustProxy: serveOptions.trustProxy,
 				});

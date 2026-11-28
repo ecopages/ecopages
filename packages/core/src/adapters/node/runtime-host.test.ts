@@ -12,6 +12,7 @@ import { ApiRequestPipeline, compileApiRoutes } from '../shared/http/api-request
 import { defineQuery } from '../shared/http/define-api-handler.ts';
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocket-upgrades.ts';
+import { createHostPolicy } from '../shared/http/host-policy.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 import { NodeRuntimeHost } from './runtime-host.ts';
 
@@ -136,6 +137,119 @@ describe('NodeRuntimeHost', () => {
 
 		expect(await seen(false)).toBe('http://shop.example/probe');
 		expect(await seen(true)).toBe('https://proxy.example/probe');
+	});
+
+	describe('host policy', () => {
+		const hostPolicy = createHostPolicy({
+			allowedHosts: ['shop.example', '*.shop.example'],
+			baseUrl: 'https://shop.example',
+			development: false,
+		});
+
+		async function withServer<T>(
+			options: { trustProxy?: boolean; hostPolicy?: typeof hostPolicy },
+			run: (
+				send: (headers: Record<string, string>, path?: string) => Promise<{ status: number; body: string }>,
+			) => Promise<T>,
+		): Promise<{ result: T; handled: string[] }> {
+			const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
+			const handled: string[] = [];
+			const server = await host.start({
+				hostname: '127.0.0.1',
+				port: 0,
+				...options,
+				handleRequest: async (request) => {
+					handled.push(request.url);
+					return new Response(request.url);
+				},
+			});
+			const { port } = server.address() as AddressInfo;
+			const send = (headers: Record<string, string>, path = '/probe') =>
+				new Promise<{ status: number; body: string }>((resolve, reject) => {
+					httpRequest({ host: '127.0.0.1', port, path, headers }, (res) => {
+						const chunks: Buffer[] = [];
+						res.on('data', (chunk: Buffer) => chunks.push(chunk));
+						res.on('end', () =>
+							resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString() }),
+						);
+					})
+						.on('error', reject)
+						.end();
+				});
+			try {
+				return { result: await run(send), handled };
+			} finally {
+				await host.stop(server);
+			}
+		}
+
+		it('answers HTTP 400 for a host the app does not serve, before the handler runs', async () => {
+			const { result, handled } = await withServer({ hostPolicy }, async (send) => [
+				await send({ Host: 'evil.example' }),
+				await send({ Host: 'evil.example:3000' }),
+				await send({ Host: 'shop.example.evil.example' }),
+			]);
+
+			expect(result.map((response) => response.status)).toEqual([400, 400, 400]);
+			expect(handled).toEqual([]);
+		});
+
+		it('passes an allowed host, with a port or a wildcard subdomain', async () => {
+			const { result, handled } = await withServer({ hostPolicy }, async (send) => [
+				await send({ Host: 'shop.example' }),
+				await send({ Host: 'shop.example:8080' }),
+				await send({ Host: 'eu.shop.example' }),
+			]);
+
+			expect(result.map((response) => response.status)).toEqual([200, 200, 200]);
+			expect(handled).toEqual([
+				'http://shop.example/probe',
+				'http://shop.example:8080/probe',
+				'http://eu.shop.example/probe',
+			]);
+		});
+
+		it('refuses a request without a usable Host', async () => {
+			const { result, handled } = await withServer({ hostPolicy }, async (send) => [
+				await send({ Host: '' }),
+				await send({ Host: 'shop.example/evil' }),
+			]);
+
+			expect(result.map((response) => response.status)).toEqual([400, 400]);
+			expect(handled).toEqual([]);
+		});
+
+		it('checks a forwarded host only when the proxy is trusted', async () => {
+			const headers = { Host: 'shop.example', 'X-Forwarded-Host': 'evil.example' };
+
+			const untrusted = await withServer({ hostPolicy, trustProxy: false }, (send) => send(headers));
+			const trusted = await withServer({ hostPolicy, trustProxy: true }, async (send) => [
+				await send(headers),
+				await send({ Host: 'internal:3000', 'X-Forwarded-Host': 'shop.example' }),
+			]);
+
+			expect(untrusted.result.status).toBe(200);
+			expect(untrusted.result.body).toBe('http://shop.example/probe');
+			expect(trusted.result.map((response) => response.status)).toEqual([400, 200]);
+			expect(trusted.handled).toEqual(['http://shop.example/probe']);
+		});
+
+		it('checks the host the request URL carries, not one named by the request target', async () => {
+			const { result, handled } = await withServer({ hostPolicy }, async (send) => [
+				await send({ Host: 'shop.example' }, '//evil.example/probe'),
+				await send({ Host: 'shop.example' }, 'http://evil.example/probe'),
+				await send({ Host: 'evil.example' }, 'http://shop.example/probe'),
+			]);
+
+			expect(result.map((response) => response.status)).toEqual([200, 200, 400]);
+			expect(handled).toEqual(['http://shop.example//evil.example/probe', 'http://shop.example/probe']);
+		});
+
+		it('serves every host when no policy is given', async () => {
+			const { result } = await withServer({}, (send) => send({ Host: 'evil.example' }));
+
+			expect(result.status).toBe(200);
+		});
 	});
 
 	it('delivers a QUERY request body to the handler through the bound server', async () => {

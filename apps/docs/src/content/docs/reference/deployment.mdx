@@ -130,6 +130,16 @@ CMD ["bun", "dist/server/app.mjs"]
 
 Deploy `dist/` and `node_modules/` as listed above. Point the platform at `dist/server/app.mjs`, or run `ecopages start` from that folder. Do not use `app.ts` as the production entry.
 
+### 5. Hosts and reverse proxies
+
+The production server answers only the host of `ECOPAGES_BASE_URL` (or `baseUrl`). A request for any other `Host` gets HTTP 400 before routing, and so does a WebSocket upgrade, which stops a DNS rebinding attacker who points their own domain at your server. Three things follow:
+
+- Set `ECOPAGES_BASE_URL` on the server, not only at build time. With the default `http://localhost:3000`, every public request is refused.
+- A health check that calls the server by IP address or `localhost` is refused too. List the hosts in `allowedHosts` in `eco.config.ts`, which replaces the `baseUrl` host in production: `allowedHosts: ['shop.example.com', 'localhost']`. Entries may be wildcards such as `*.example.com`.
+- Behind a reverse proxy, the check reads the `Host` the proxy forwards. A proxy that rewrites `Host` to an internal name (`app:3000`) needs that name in `allowedHosts`, or must pass the original `Host` on (`proxy_set_header Host $host;` in nginx). With [`trustProxy`](/docs/getting-started/configuration#request-url-and-proxies) the `X-Forwarded-Host` the proxy sets is checked instead, so the proxy must overwrite it.
+
+`allowedHosts: true` turns the check off. Use it only when the proxy already refuses unknown hosts. See [`allowedHosts`](/docs/getting-started/configuration#allowed-hosts).
+
 ---
 
 ## Environment Check
@@ -139,7 +149,7 @@ Before going live, check that these environment variables are set on your hostin
 | Variable            | Recommended Value                                    |
 | :------------------ | :--------------------------------------------------- |
 | `NODE_ENV`          | `production`                                         |
-| `ECOPAGES_BASE_URL` | Your production domain (e.g., `https://example.com`) |
+| `ECOPAGES_BASE_URL` | Your production domain (e.g., `https://example.com`); the server answers only this host unless `allowedHosts` is set |
 | `ECOPAGES_PORT`     | The port required by your host (e.g., `8080`)        |
 | `ECOPAGES_HOSTNAME` | `0.0.0.0` (for Docker/Cloud environments)            |
 

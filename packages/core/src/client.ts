@@ -41,8 +41,11 @@ export {
 	recoverPendingNavigationHref,
 } from './router/client/link-intent.ts';
 export {
+	type FormNavigationDecision,
+	getFormNavigationDecision,
 	getLinkNavigationDecision,
 	getNavigableHrefFromClick,
+	getNavigableHrefFromSubmit,
 	isSamePageHashNavigationHref,
 	isSamePageHref,
 	shouldPrefetchLink,

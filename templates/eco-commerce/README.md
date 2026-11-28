@@ -61,7 +61,7 @@ Endpoints live in `src/pages/**/*.api.ts`: `/api/products`, `/api/products/<slug
 
 ### Filters and sort
 
-Subcategory and search pages share one GET form, `src/components/product-filters/`: material and finish checkboxes, a price range, and a sort. Without JavaScript the form submits to `/search`, so every filtered view is a plain URL a visitor can bookmark or share. With JavaScript, a change applies the filters at once through a client navigation.
+Subcategory and search pages share one GET form, `src/components/product-filters/`: material and finish checkboxes, a price range, and a sort. Without JavaScript the form submits to `/search`, so every filtered view is a plain URL a visitor can bookmark or share. With JavaScript, a change applies the filters at once through a client navigation, and the Apply button is submitted by browser-router as one too.
 
 Listings use `RuiPagination` with `getHref` (`src/components/listing-pagination/`), so each page is an `<a href>` that works without JavaScript, the browser router prefetches and crawlers follow.
 

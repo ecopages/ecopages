@@ -9,7 +9,7 @@ import { CodeTabs } from '@/components/code-tabs';
 
 # Client-Side Navigation
 
-The `@ecopages/browser-router` package enables Single Page Application (SPA) navigation behavior in your Ecopages application. It intercepts link clicks, fetches the next page via fetch, and uses [morphdom](https://github.com/patrick-steele-idem/morphdom) to efficiently diff and update only the parts of the DOM that changed.
+The `@ecopages/browser-router` package enables Single Page Application (SPA) navigation behavior in your Ecopages application. It intercepts link clicks and same-origin GET form submissions, fetches the next page via fetch, and uses [morphdom](https://github.com/patrick-steele-idem/morphdom) to efficiently diff and update only the parts of the DOM that changed.
 
 Elements you mark for [persistence](#persistence) keep their state (audio players, web component internals, form values), and [custom elements](#custom-elements) on the next page start from their own server markup. The router also enables native View Transitions.
 
@@ -88,7 +88,7 @@ You can customize the router behavior by passing an options object:
 | `linkSelector`                    | `string`                        | `'a[href]'`                                  | Selector for links to intercept.                                                                                                                                |
 | `documentElementAttributesToSync` | `string[]`                      | `['lang', 'dir', 'data-eco-document-owner']` | `<html>` attributes to sync from the incoming document. Attributes not listed here are preserved on the live page.                                              |
 | `persistAttribute`                | `string`                        | `'data-eco-persist'`                         | Attribute to mark elements that should persist across navigations.                                                                                              |
-| `reloadAttribute`                 | `string`                        | `'data-eco-reload'`                          | Attribute (on link or element) to force a full hard reload.                                                                                                     |
+| `reloadAttribute`                 | `string`                        | `'data-eco-reload'`                          | Attribute (on a link, a form or its submit button) to force a full hard reload.                                                                                                     |
 | `scrollBehavior`                  | `'top' \| 'preserve' \| 'auto'` | `'top'`                                      | Controls scroll behavior after navigation.                                                                                                                      |
 | `smoothScroll`                    | `boolean`                       | `false`                                      | Enables smooth scrolling.                                                                                                                                       |
 | `viewTransitions`                 | `boolean`                       | `true`                                       | Enables [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API). Disables UA root crossfade by default. `false` disables. |
@@ -271,7 +271,7 @@ const router = createRouter({
 		delay: 65,
 		// Attribute to disable prefetching on specific links
 		noPrefetchAttribute: 'data-eco-no-prefetch',
-		// Whether to respect data-saver mode (default: true)
+		// Skip every prefetch, router.prefetch() included, on Save-Data or a 2g connection (default: true)
 		respectDataSaver: true,
 		// Whether to warm the page's high-priority images (default: true)
 		images: true,
@@ -316,11 +316,32 @@ You can override prefetching behavior on individual links:
 
 #### Caching
 
-The router keeps the pages it fetches or prefetches in memory for the session, so a link back to a page renders it without a request. A page whose response carries `Cache-Control: no-store` or an unqualified `no-cache` is never kept: the router fetches it again on every navigation, back and forward included. A page with a `cache: 'dynamic'` [Cache Strategy](/docs/server/caching) is sent `no-store`, so a cart or any other per-request page stays current without `data-eco-reload` on the links to it. An Explicit Route or Endpoint that returns HTML opts out the same way with `Cache-Control: no-store`. The router does not read `max-age`: a page that allows caching stays for the session.
+The router keeps the pages it fetches or prefetches in memory, so a link back to a page renders it without a request. A page whose response carries `Cache-Control: no-store` or an unqualified `no-cache` is never kept: the router fetches it again on every navigation, back and forward included. A page with a `cache: 'dynamic'` [Cache Strategy](/docs/server/caching) is sent `no-store`, so a cart or any other per-request page stays current without `data-eco-reload` on the links to it. An Explicit Route or Endpoint that returns HTML opts out the same way with `Cache-Control: no-store`. A page sent with a positive `max-age`, which is what a `cache: { revalidate: N }` page carries, is kept for N seconds and fetched again after that. A page sent without one, or with `max-age=0` as a Static Page is, stays until the visitor leaves the site.
 
-Hovering a link to a `no-store` page still prefetches it once, because the header is known only from the response. Set `data-eco-no-prefetch` on links to pages that are costly to render.
+Hovering a link to a `no-store` page still prefetches it once, because the header is known only from the response. The router keeps that one response for five seconds and uses it for the click that follows, so a hover and a click request the page once, even when the click comes before the prefetch has finished. It is used once: a second click, or a click after the five seconds, fetches the page again, so the router never shows a copy older than a few seconds. Set `data-eco-no-prefetch` on links to pages that are costly to render.
 
 The page the visitor lands on is not kept, because a script cannot read the headers of its own document and so cannot tell whether it may be reused. The first link back to it fetches it, and later visits reuse that copy when its response allows. With `prefetch: false` the router keeps no pages at all.
+
+### GET forms
+
+A same-origin `<form method="get">` is submitted as a client navigation. The router goes to the form's action with the fields as the query, the URL the browser would load, and morphs the page like a link click, so a search box or a filter form needs no script of its own. Without JavaScript the form works as it always did.
+
+```html
+<form action="/search" method="get">
+	<input type="search" name="q" />
+	<button type="submit">Search</button>
+</form>
+```
+
+The router follows the browser's own rules for where the form goes: a button's `formaction`, `formmethod` and `formtarget` win over the form's attributes, a file field is sent as its file name, and a query already in the action is replaced. It leaves the submission to the browser when:
+
+- the method is not GET, so a POST form always loads the document;
+- the `target` is not `_self`, or the page has a `<base target>` and the form names none;
+- the action is on another origin or names a static file such as `/report.pdf`;
+- the form, or the button that submitted it, has `data-eco-reload` (or your `reloadAttribute`), which is the opt-out;
+- a `submit` listener of your page already called `preventDefault()`, so a form your own script handles stays yours.
+
+The router listens after the form's own listeners, and only for forms in the light DOM, since a `submit` event does not leave a shadow root. Like a link click, a submission made while a navigation is running replaces it.
 
 ### View Transitions
 

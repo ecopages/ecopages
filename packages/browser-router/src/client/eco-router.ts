@@ -11,7 +11,7 @@ import {
 	recoverPendingNavigationHref,
 	type EcoPendingNavigationIntent,
 } from '@ecopages/core/client';
-import { getNavigableHrefFromClick } from '@ecopages/core/client';
+import { getNavigableHrefFromClick, getNavigableHrefFromSubmit } from '@ecopages/core/client';
 import { decideQueuedNavigationReplay } from '@ecopages/core/client';
 import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS, type EcoRouterOptions } from './types.ts';
 import { PrefetchManager } from './services/prefetch-manager.ts';
@@ -51,6 +51,7 @@ export class EcoRouter {
 		}
 
 		this.handleClick = this.handleClick.bind(this);
+		this.handleSubmit = this.handleSubmit.bind(this);
 		this.handlePointerDown = this.handlePointerDown.bind(this);
 		this.handlePopState = this.handlePopState.bind(this);
 
@@ -81,7 +82,7 @@ export class EcoRouter {
 	/**
 	 * Starts the router and begins intercepting navigation.
 	 *
-	 * Attaches click handlers for links and popstate handlers for browser
+	 * Attaches click handlers for links, submit handlers for GET forms and popstate handlers for browser
 	 * back/forward buttons. Also starts the prefetch manager if configured.
 	 */
 	public start(): void {
@@ -97,6 +98,7 @@ export class EcoRouter {
 
 		document.addEventListener('pointerdown', this.handlePointerDown, true);
 		document.addEventListener('click', this.handleClick, true);
+		document.addEventListener('submit', this.handleSubmit);
 		window.addEventListener('popstate', this.handlePopState);
 		this.prefetchManager?.start();
 		this.unregisterNavigationRuntime?.();
@@ -168,6 +170,7 @@ export class EcoRouter {
 		this.cancelNavigationTransaction();
 		document.removeEventListener('pointerdown', this.handlePointerDown, true);
 		document.removeEventListener('click', this.handleClick, true);
+		document.removeEventListener('submit', this.handleSubmit);
 		window.removeEventListener('popstate', this.handlePopState);
 		this.prefetchManager?.stop();
 		this.unregisterNavigationRuntime?.();
@@ -247,19 +250,45 @@ export class EcoRouter {
 	}
 
 	private handleClick(event: MouseEvent): void {
-		const navigationRuntime = getEcoNavigationRuntime(window);
 		const link = getAnchorFromNavigationEvent(event, this.options.linkSelector);
 		const href = link
 			? getNavigableHrefFromClick(event, link, { reloadAttribute: this.options.reloadAttribute })
 			: this.getRecoveredPointerHref();
 		this.pendingPointerNavigation = null;
 		if (!href) return;
+		this.interceptNavigation(event, href, true);
+	}
+
+	/**
+	 * Intercepts the submission of a same-origin GET form and navigates to the URL the browser would load.
+	 *
+	 * @remarks
+	 * Listens in the bubble phase, after the form's own `submit` listeners, so a handler that took the
+	 * submission over with `preventDefault()` keeps it. The browser validates a form before it fires
+	 * `submit`, so an invalid form never gets here. `getFormNavigationDecision()` in core decides which
+	 * forms stay with the browser.
+	 */
+	private handleSubmit(event: SubmitEvent): void {
+		const href = getNavigableHrefFromSubmit(event, { reloadAttribute: this.options.reloadAttribute });
+		if (!href) return;
+		this.interceptNavigation(event, href, false);
+	}
+
+	/**
+	 * Takes over the browser's handling of a click or submission and navigates to `href`.
+	 *
+	 * @remarks
+	 * Another runtime that owns the document is asked to navigate. Otherwise the navigation starts, or, when
+	 * one is in flight, replaces it once it is cancelled. `stopPropagation` keeps a click from the listeners
+	 * that follow the router's; a submission has none that need it.
+	 */
+	private interceptNavigation(event: Event, href: string, stopPropagation: boolean): void {
 		this.queuedNavigationHref = null;
+		event.preventDefault();
 
 		if (this.isAnotherNavigationRuntimeActive()) {
-			event.preventDefault();
-			event.stopImmediatePropagation();
-			void navigationRuntime.requestNavigation({
+			if (stopPropagation) event.stopImmediatePropagation();
+			void getEcoNavigationRuntime(window).requestNavigation({
 				href,
 				direction: 'forward',
 				source: 'browser-router',
@@ -267,15 +296,12 @@ export class EcoRouter {
 			return;
 		}
 
-		const url = new URL(href, window.location.origin);
-
-		event.preventDefault();
 		if (this.pendingNavigations > 0) {
 			this.queuedNavigationHref = href;
 			this.cancelNavigationTransaction();
 			return;
 		}
-		this.performNavigation(url, 'forward');
+		void this.performNavigation(new URL(href, window.location.origin), 'forward');
 	}
 
 	/**

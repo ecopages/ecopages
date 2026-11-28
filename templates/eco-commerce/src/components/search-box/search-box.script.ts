@@ -1,10 +1,9 @@
 import '@ecopages/radiant-ui/combobox';
 import '@ecopages/radiant-ui/listbox';
-import { RadiantElement, bindTo, customElement, debounce, onEvent, query, ref, state } from '@ecopages/radiant';
+import { RadiantElement, bindTo, customElement, debounce, onEvent, query, state } from '@ecopages/radiant';
 import { navigate } from '@/lib/browser/navigation';
 import { LIMITS } from '@/lib/limits';
 import type { ProductJson, ProductListJson } from '@/lib/storefront/json';
-import { listingUrl, parseListingQuery } from '@/lib/storefront/listing-query';
 import { getJson, isStoreError } from '@/lib/browser/store-api';
 
 const SUGGESTION_COUNT = 6;
@@ -13,8 +12,8 @@ const SUGGESTION_COUNT = 6;
  * `<search-box>`: fills the `RuiCombobox` with the first matches as the visitor types.
  *
  * @remarks
- * Picking an option opens that product; Enter without a picked option opens the search page. Both are client
- * navigations. Answers are kept per term for the page's lifetime, and a newer keystroke aborts an older request.
+ * Picking an option opens that product, a client navigation. Enter without a picked option submits the plain
+ * `GET /search` form, which browser-router turns into a client navigation. Answers are kept per term for the page's lifetime, and a newer keystroke aborts an older request.
  * The combobox opens by itself when the options arrive after the keystroke.
  *
  * The scripts load on the first pointer or focus on the search, so a visitor may have typed before they run: the
@@ -27,7 +26,6 @@ export class SearchBoxElement extends RadiantElement {
 	protected results: ProductJson[] = [];
 
 	@query('input[name="q"]') input!: HTMLInputElement | null;
-	@ref() form!: HTMLFormElement | null;
 
 	private readonly answers = new Map<string, ProductJson[]>();
 	private pending: AbortController | null = null;
@@ -47,13 +45,6 @@ export class SearchBoxElement extends RadiantElement {
 		const combobox = this.querySelector<HTMLElement & { value?: string[] }>('rui-combobox');
 		const url = combobox?.value?.[0];
 		if (event.target === combobox && url) void navigate(url);
-	}
-
-	@onEvent({ ref: 'form', type: 'submit' })
-	onSubmit(event: SubmitEvent): void {
-		event.preventDefault();
-		const term = this.input?.value.trim() ?? '';
-		void navigate(listingUrl(parseListingQuery({ q: term })));
 	}
 
 	private lookUp(): void {

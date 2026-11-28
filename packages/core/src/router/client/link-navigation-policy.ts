@@ -151,6 +151,127 @@ export function getNavigableHrefFromClick(
 	return decision.shouldIntercept ? decision.href : null;
 }
 
+export type FormNavigationDecision =
+	| { shouldIntercept: true; href: string }
+	| {
+			shouldIntercept: false;
+			reason:
+				| 'not-a-form'
+				| 'default-prevented'
+				| 'non-get-method'
+				| 'external-target'
+				| 'explicit-reload'
+				| 'cross-origin'
+				| 'static-asset'
+				| 'ambiguous-path';
+	  };
+
+/**
+ * Decides whether a form submission should be handled as SPA navigation.
+ *
+ * @remarks
+ * Only a GET submission to a same-origin page is a navigation: the browser would load the action URL with the
+ * fields as its query, and the decision carries that same-origin path, query and hash. The method, action and
+ * target come from the submitter first (`formmethod`, `formaction`, `formtarget`), then the form, and the
+ * attributes are read by name, since a control named `action` or `method` shadows the form's own property. A
+ * method that is not `post` or `dialog` is GET, as in a browser. The fields are serialized as a browser does,
+ * a file as its name and a line break as CRLF, and the action's own query is replaced. A submission a listener
+ * already cancelled is declined as `default-prevented`.
+ */
+export function getFormNavigationDecision(
+	event: SubmitEvent,
+	options: LinkNavigationPolicyOptions,
+): FormNavigationDecision {
+	const form = event.target;
+	if (!(form instanceof HTMLFormElement)) {
+		return { shouldIntercept: false, reason: 'not-a-form' };
+	}
+	if (event.defaultPrevented) {
+		return { shouldIntercept: false, reason: 'default-prevented' };
+	}
+
+	const submitter = event.submitter;
+	const ownership = getFormOwnershipReason(form, submitter, options);
+	if (ownership) {
+		return { shouldIntercept: false, reason: ownership };
+	}
+
+	const action = readSubmissionAttribute(form, submitter, 'formaction', 'action');
+	const url = new URL(action || window.location.href, document.baseURI);
+	if (url.origin !== window.location.origin) {
+		return { shouldIntercept: false, reason: 'cross-origin' };
+	}
+	if (isStaticAssetHref(url.href)) {
+		return { shouldIntercept: false, reason: 'static-asset' };
+	}
+	if (url.pathname.startsWith('//')) {
+		return { shouldIntercept: false, reason: 'ambiguous-path' };
+	}
+
+	const params = new URLSearchParams();
+	for (const [name, value] of new FormData(form, submitter)) {
+		params.append(toCrlf(name), toCrlf(typeof value === 'string' ? value : value.name));
+	}
+	url.search = params.toString();
+
+	return { shouldIntercept: true, href: `${url.pathname}${url.search}${url.hash}` };
+}
+
+/**
+ * Reads a submission attribute from the submitter when it has the attribute, even empty, and from the form otherwise.
+ *
+ * @remarks
+ * An empty `formaction` is the document URL and an empty `formtarget` is the current browsing context, so neither
+ * falls back to the form's value the way a missing attribute does. `null` means neither element has it.
+ */
+function readSubmissionAttribute(
+	form: HTMLFormElement,
+	submitter: HTMLElement | null,
+	submitterName: 'formaction' | 'formmethod' | 'formtarget',
+	formName: 'action' | 'method' | 'target',
+): string | null {
+	const owner = submitter?.hasAttribute(submitterName) ? submitter : form;
+	return owner.getAttribute(owner === form ? formName : submitterName);
+}
+
+/** Writes line breaks as the form encoding does, CRLF, so a textarea reaches the server as a browser sends it. */
+function toCrlf(value: string): string {
+	return value.replace(/\r\n|\r|\n/g, '\r\n');
+}
+
+/** Why a submission is left to the browser for its method, target or opt-out, before its action is looked at. */
+function getFormOwnershipReason(
+	form: HTMLFormElement,
+	submitter: HTMLElement | null,
+	options: LinkNavigationPolicyOptions,
+): 'non-get-method' | 'external-target' | 'explicit-reload' | null {
+	const method = (readSubmissionAttribute(form, submitter, 'formmethod', 'method') ?? '').toLowerCase();
+	if (method === 'post' || method === 'dialog') {
+		return 'non-get-method';
+	}
+
+	const baseTarget = document.querySelector('base[target]')?.getAttribute('target');
+	const target = (readSubmissionAttribute(form, submitter, 'formtarget', 'target') ?? baseTarget ?? '').toLowerCase();
+	if (target && target !== '_self') {
+		return 'external-target';
+	}
+
+	const reloadAttribute = options.reloadAttribute;
+	if (reloadAttribute && (form.hasAttribute(reloadAttribute) || submitter?.hasAttribute(reloadAttribute))) {
+		return 'explicit-reload';
+	}
+
+	return null;
+}
+
+/**
+ * Returns the resolved same-origin href when SPA navigation should intercept the submission, otherwise `null`.
+ */
+export function getNavigableHrefFromSubmit(event: SubmitEvent, options: LinkNavigationPolicyOptions): string | null {
+	const decision = getFormNavigationDecision(event, options);
+	return decision.shouldIntercept ? decision.href : null;
+}
+
 /**
  * Returns whether a link is eligible for hover or viewport prefetch.
  */

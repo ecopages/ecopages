@@ -15,6 +15,9 @@ export default eco.page({
 			<a href="/cache-control/dynamic" data-testid="link-dynamic" data-eco-no-prefetch>
 				Dynamic page
 			</a>
+			<a href="/cache-control/dynamic" data-testid="link-dynamic-hover">
+				Dynamic page, prefetched on hover
+			</a>
 		</div>
 	),
 });

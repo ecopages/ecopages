@@ -522,6 +522,19 @@ test('a polyfill that installs document.modelContext after the page loaded gets 
 	await expect(page.locator('cart-count [data-ref="value"]')).toHaveText('1');
 });
 
+test('the header search form is a plain GET form that the router submits as a client navigation', async ({ page }) => {
+	await page.goto('/');
+	await page.evaluate(() => {
+		(window as Window & { __loadMarker?: boolean }).__loadMarker = true;
+	});
+
+	await page.locator('.store-header__search input[name="q"]').fill('shirt');
+	await page.locator('.store-header__search input[name="q"]').press('Enter');
+
+	await expect(page).toHaveURL(/\/search\?q=shirt$/u);
+	expect(await page.evaluate(() => (window as Window & { __loadMarker?: boolean }).__loadMarker)).toBe(true);
+});
+
 test('the cart works without JavaScript', async ({ browser, baseURL }) => {
 	const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
 	const page = await context.newPage();

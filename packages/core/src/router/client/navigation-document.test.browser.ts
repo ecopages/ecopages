@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+	cacheNavigationHtml,
 	clearNavigationHtmlCache,
 	fetchNavigationPage,
 	getCachedNavigationHtml,
@@ -180,6 +181,545 @@ describe('shared navigation document loading', () => {
 			await fetchNavigationPage('https://example.test/order#b');
 
 			expect(fetchMock).toHaveBeenCalledTimes(2);
+		});
+
+		describe('max-age', () => {
+			const at = (seconds: number) => vi.setSystemTime(new Date(Date.UTC(2026, 0, 1, 0, 0, 0) + seconds * 1000));
+
+			beforeEach(() => {
+				vi.useFakeTimers({ toFake: ['Date'] });
+				at(0);
+			});
+
+			afterEach(() => {
+				vi.useRealTimers();
+			});
+
+			it('fetches a page again once it is older than its max-age', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('public, max-age=60, stale-while-revalidate=120'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/news');
+				at(61);
+				await fetchNavigationPage('https://example.test/news');
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('reuses a page that is younger than its max-age', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('public, max-age=60, stale-while-revalidate=120'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/news');
+				at(10);
+				await fetchNavigationPage('https://example.test/news');
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+			});
+
+			it('reports an expired copy as missing', async () => {
+				vi.stubGlobal(
+					'fetch',
+					vi.fn(async () => htmlResponse('max-age=60')),
+				);
+
+				await fetchNavigationPage('https://example.test/news');
+				at(61);
+
+				expect(getCachedNavigationHtml('https://example.test/news')).toBeNull();
+			});
+
+			it('measures the age from the latest fetch', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('max-age=60'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/news');
+				at(61);
+				await fetchNavigationPage('https://example.test/news');
+				at(100);
+				await fetchNavigationPage('https://example.test/news');
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('expires the redirect target together with the requested URL', async () => {
+				const fetchMock = vi.fn(async () => {
+					const response = htmlResponse('max-age=60');
+					Object.defineProperty(response, 'url', { value: 'https://example.test/news/today' });
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/news');
+				at(61);
+				await fetchNavigationPage('https://example.test/news/today');
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('keeps reusing a page sent with max-age=0 for the session', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('public, max-age=0, must-revalidate'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/about');
+				at(86_400);
+				await fetchNavigationPage('https://example.test/about');
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+			});
+
+			it('ignores s-maxage, which is for shared caches', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('public, s-maxage=10'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/about');
+				at(61);
+				await fetchNavigationPage('https://example.test/about');
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+			});
+
+			it('counts the Age of a shared cache against the max-age', async () => {
+				const fetchMock = vi.fn(async () => {
+					const response = htmlResponse('max-age=60');
+					response.headers.set('Age', '50');
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/news');
+				at(9);
+				await fetchNavigationPage('https://example.test/news');
+				expect(fetchMock).toHaveBeenCalledOnce();
+
+				at(11);
+				await fetchNavigationPage('https://example.test/news');
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('does not keep a page that arrives with its max-age used up', async () => {
+				const fetchMock = vi.fn(async () => {
+					const response = htmlResponse('max-age=60');
+					response.headers.set('Age', '60');
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/news');
+				await fetchNavigationPage('https://example.test/news');
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('keeps reusing a page with no max-age', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('private'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/about');
+				at(86_400);
+				await fetchNavigationPage('https://example.test/about');
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+			});
+		});
+
+		describe('one-use hold of a prefetched no-store page', () => {
+			const href = 'https://example.test/cart';
+			const at = (ms: number) => vi.setSystemTime(new Date(Date.UTC(2026, 0, 1, 0, 0, 0) + ms));
+
+			beforeEach(() => {
+				vi.useFakeTimers({ toFake: ['Date'] });
+				at(0);
+			});
+
+			afterEach(() => {
+				vi.useRealTimers();
+			});
+
+			it('serves the prefetched copy to the next navigation without a request', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				const page = await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+				expect(page?.html).toContain('<body>');
+			});
+
+			it('uses the copy once, then fetches again', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				await fetchNavigationPage(href);
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('serves the copy up to the end of the short window', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				at(4_000);
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+			});
+
+			it('fetches again once the short window has passed', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				at(6_000);
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('holds nothing for a navigation fetch', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href);
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('keeps the fragment of the click and the redirect target of the prefetch', async () => {
+				const fetchMock = vi.fn(async () => {
+					const response = htmlResponse('no-store');
+					Object.defineProperty(response, 'url', { value: 'https://example.test/cart/current' });
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				const page = await fetchNavigationPage(`${href}#items`);
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+				expect(page?.finalUrl.href).toBe('https://example.test/cart/current#items');
+			});
+
+			it('drops the copy when a fetch that bypasses the cache has made it stale', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				await fetchNavigationPage(href, { bypassCache: true });
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledTimes(3);
+			});
+
+			it('drops the copy when its URL is invalidated', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				invalidateNavigationHtml(href);
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('drops the copy held for an alias when the page it redirects to is invalidated', async () => {
+				const fetchMock = vi.fn(async () => {
+					const response = htmlResponse('no-store');
+					Object.defineProperty(response, 'url', { value: 'https://example.test/cart/current' });
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage('https://example.test/basket', { prefetch: true });
+				invalidateNavigationHtml('https://example.test/cart/current');
+				await fetchNavigationPage('https://example.test/basket');
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('lets a navigation that starts during the prefetch wait for it, so the page is requested once', async () => {
+				let release!: () => void;
+				const gate = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				const fetchMock = vi.fn(async () => {
+					await gate;
+					return htmlResponse('no-store');
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				const prefetch = fetchNavigationPage(href, { prefetch: true });
+				const navigation = fetchNavigationPage(href);
+				release();
+				await Promise.all([prefetch, navigation]);
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+			});
+
+			it('lets a navigation that starts during a prefetch of a cacheable page share its response', async () => {
+				let release!: () => void;
+				const gate = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				const fetchMock = vi.fn(async () => {
+					await gate;
+					return htmlResponse('public, max-age=60');
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				const prefetch = fetchNavigationPage(href, { prefetch: true });
+				const navigation = fetchNavigationPage(href);
+				release();
+				await Promise.all([prefetch, navigation]);
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+			});
+
+			it('fetches for itself when the prefetch it waited for failed', async () => {
+				const fetchMock = vi
+					.fn()
+					.mockImplementationOnce(async () => {
+						throw new TypeError('network down');
+					})
+					.mockImplementation(async () => htmlResponse('no-store'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				const prefetch = fetchNavigationPage(href, { prefetch: true }).catch(() => null);
+				const page = await fetchNavigationPage(href);
+				await prefetch;
+
+				expect(page?.html).toContain('<body>');
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('stops waiting for a prefetch when the navigation is aborted', async () => {
+				let release!: () => void;
+				const gate = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				vi.stubGlobal(
+					'fetch',
+					vi.fn(async () => {
+						await gate;
+						return htmlResponse('no-store');
+					}),
+				);
+				const controller = new AbortController();
+
+				const prefetch = fetchNavigationPage(href, { prefetch: true });
+				const navigation = fetchNavigationPage(href, { signal: controller.signal });
+				controller.abort();
+
+				await expect(navigation).rejects.toMatchObject({ name: 'AbortError' });
+				release();
+				await prefetch;
+			});
+
+			it('does not hold a prefetched page that arrived with its max-age used up', async () => {
+				const fetchMock = vi.fn(async () => {
+					const response = htmlResponse('max-age=60');
+					response.headers.set('Age', '61');
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('keeps a prefetch that redirected from storing over a newer fetch of its final URL', async () => {
+				let release!: () => void;
+				const gate = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				let visit = 0;
+				const fetchMock = vi.fn(async (input: string | URL | Request) => {
+					visit += 1;
+					const current = visit;
+					const isOld = String(input).endsWith('/old');
+					if (isOld) await gate;
+					const response = new Response(`<html><body>visit ${current}</body></html>`, {
+						headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=60' },
+					});
+					Object.defineProperty(response, 'url', { value: 'https://example.test/new' });
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				const prefetch = fetchNavigationPage('https://example.test/old', { prefetch: true });
+				await fetchNavigationPage('https://example.test/new', { bypassCache: true });
+				release();
+				await prefetch;
+				const next = await fetchNavigationPage('https://example.test/new');
+
+				expect(next?.html).toContain('visit 2');
+			});
+
+			it('does not let a navigation wait for a prefetch that was invalidated while in flight', async () => {
+				let release!: () => void;
+				const gate = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				let visit = 0;
+				const fetchMock = vi.fn(async () => {
+					visit += 1;
+					const current = visit;
+					if (current === 1) await gate;
+					return new Response(`<html><body>visit ${current}</body></html>`, {
+						headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' },
+					});
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				const prefetch = fetchNavigationPage(href, { prefetch: true });
+				invalidateNavigationHtml(href);
+				const next = await fetchNavigationPage(href);
+				release();
+				await prefetch;
+				const after = await fetchNavigationPage(href);
+
+				expect(next?.html).toContain('visit 2');
+				expect(after?.html).toContain('visit 3');
+			});
+
+			it('does not hold a prefetched page that forbids reuse and arrived with its max-age used up', async () => {
+				const fetchMock = vi.fn(async () => {
+					const response = htmlResponse('no-cache, max-age=60');
+					response.headers.set('Age', '61');
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('keeps a prefetch from storing over a newer fetch that reached the same page through another URL', async () => {
+				let release!: () => void;
+				const gate = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				let visit = 0;
+				const fetchMock = vi.fn(async (input: string | URL | Request) => {
+					visit += 1;
+					const current = visit;
+					if (String(input).endsWith('/promo')) await gate;
+					const response = new Response(`<html><body>visit ${current}</body></html>`, {
+						headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=60' },
+					});
+					Object.defineProperty(response, 'url', { value: 'https://example.test/products' });
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				const prefetch = fetchNavigationPage('https://example.test/promo', { prefetch: true });
+				await fetchNavigationPage('https://example.test/featured');
+				release();
+				await prefetch;
+				const next = await fetchNavigationPage('https://example.test/products');
+
+				expect(next?.html).toContain('visit 2');
+			});
+
+			it('disowns a prefetch of an alias when the page it redirects to is invalidated', async () => {
+				let release!: () => void;
+				const gate = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				let visit = 0;
+				const fetchMock = vi.fn(async () => {
+					visit += 1;
+					const current = visit;
+					if (current === 1) await gate;
+					const response = new Response(`<html><body>visit ${current}</body></html>`, {
+						headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' },
+					});
+					Object.defineProperty(response, 'url', { value: 'https://example.test/landing' });
+					return response;
+				});
+				vi.stubGlobal('fetch', fetchMock);
+				cacheNavigationHtml('https://example.test/offer', '<html></html>', 'https://example.test/landing');
+
+				const prefetch = fetchNavigationPage('https://example.test/offer', {
+					prefetch: true,
+					bypassCache: true,
+				});
+				invalidateNavigationHtml('https://example.test/landing');
+				const next = await fetchNavigationPage('https://example.test/offer');
+				release();
+				await prefetch;
+
+				expect(next?.html).toContain('visit 2');
+				expect(fetchMock).toHaveBeenCalledTimes(2);
+			});
+
+			it('rejects a navigation that was aborted by the time its prefetch settled, and leaves the copy for the next', async () => {
+				const controller = new AbortController();
+				let visit = 0;
+				const fetchMock = vi.fn(async () => {
+					visit += 1;
+					return new Response(`<html><body>visit ${visit}</body></html>`, {
+						headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' },
+					});
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				const prefetch = fetchNavigationPage(href, { prefetch: true }).then((page) => {
+					controller.abort();
+					return page;
+				});
+				const navigation = fetchNavigationPage(href, { signal: controller.signal });
+				await prefetch;
+
+				await expect(navigation).rejects.toMatchObject({ name: 'AbortError' });
+				const next = await fetchNavigationPage(href);
+				expect(next?.html).toContain('visit 1');
+			});
+
+			it('keeps a prefetch that a newer fetch of the URL overtook from storing its older copy', async () => {
+				let release!: () => void;
+				const gate = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				let visit = 0;
+				const fetchMock = vi.fn(async () => {
+					visit += 1;
+					const current = visit;
+					if (current === 1) await gate;
+					return new Response(`<html><body>visit ${current}</body></html>`, {
+						headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' },
+					});
+				});
+				vi.stubGlobal('fetch', fetchMock);
+
+				const prefetch = fetchNavigationPage(href, { prefetch: true });
+				await fetchNavigationPage(href, { bypassCache: true });
+				release();
+				await prefetch;
+				const next = await fetchNavigationPage(href);
+
+				expect(next?.html).toContain('visit 3');
+			});
+
+			it('stores a cacheable prefetched page as it always did', async () => {
+				const fetchMock = vi.fn(async () => htmlResponse('public, max-age=60'));
+				vi.stubGlobal('fetch', fetchMock);
+
+				await fetchNavigationPage(href, { prefetch: true });
+				await fetchNavigationPage(href);
+				await fetchNavigationPage(href);
+
+				expect(fetchMock).toHaveBeenCalledOnce();
+			});
 		});
 
 		it('stores the page again once its response allows reuse', async () => {

@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { userEvent } from 'vitest/browser';
-import { clearNavigationHtmlCache, fetchNavigationPage, getCachedNavigationHtml } from '@ecopages/core/client';
+import {
+	clearNavigationHtmlCache,
+	fetchNavigationPage,
+	getCachedNavigationHtml,
+	invalidateNavigationHtml,
+} from '@ecopages/core/client';
 import { PrefetchManager, type PrefetchOptions } from '../src/client/services/prefetch-manager.ts';
 
 const HTML = '<html><head></head><body></body></html>';
@@ -94,6 +99,70 @@ describe('PrefetchManager', () => {
 		});
 	});
 
+	describe('data saver', () => {
+		function withConnection(connection: object): () => void {
+			Object.defineProperty(navigator, 'connection', { value: connection, configurable: true });
+			return () => {
+				Reflect.deleteProperty(navigator, 'connection');
+			};
+		}
+
+		it('makes no request for a direct prefetch while Save-Data is on', async () => {
+			const restore = withConnection({ saveData: true });
+			try {
+				const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+
+				await prefetchManager.prefetch(new URL(destination('saver-direct'), window.location.href).href);
+			} finally {
+				restore();
+			}
+
+			expect(fetchSpy).not.toHaveBeenCalled();
+		});
+
+		it('makes no request for a direct prefetch on a 2g connection', async () => {
+			const restore = withConnection({ effectiveType: '2g' });
+			try {
+				const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+
+				await prefetchManager.prefetch(new URL(destination('saver-2g'), window.location.href).href);
+			} finally {
+				restore();
+			}
+
+			expect(fetchSpy).not.toHaveBeenCalled();
+		});
+
+		it('makes no request for an eager link that appears after the manager started', () => {
+			const prefetchManager = startManager('');
+			const restore = withConnection({ saveData: true });
+			try {
+				const late = document.createElement('div');
+				late.innerHTML = `<a href="${destination('saver-late')}" data-eco-prefetch="eager">Late</a>`;
+				container.append(late);
+
+				prefetchManager.observeLinks(late);
+			} finally {
+				restore();
+			}
+
+			expect(fetchSpy).not.toHaveBeenCalled();
+		});
+
+		it('prefetches when respectDataSaver is off', async () => {
+			const restore = withConnection({ saveData: true });
+			try {
+				const prefetchManager = new PrefetchManager({ strategy: 'hover', respectDataSaver: false });
+
+				await prefetchManager.prefetch(new URL(destination('saver-off'), window.location.href).href);
+			} finally {
+				restore();
+			}
+
+			expect(requestedTests()).toEqual(['saver-off']);
+		});
+	});
+
 	describe('Cache-Control', () => {
 		const noStore = async () =>
 			new Response(HTML, { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' } });
@@ -116,6 +185,101 @@ describe('PrefetchManager', () => {
 			await prefetchManager.prefetch(href);
 
 			expect(requestedTests()).toEqual(['no-store-once']);
+		});
+	});
+
+	describe('one-use hold of a no-store page', () => {
+		const noStore = async () =>
+			new Response(HTML, { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' } });
+
+		beforeEach(() => {
+			fetchSpy.mockImplementation(noStore);
+		});
+
+		async function hover(id: string): Promise<void> {
+			await userEvent.hover(link(id));
+			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+		}
+
+		it('answers the click that follows a hover from the prefetched copy', async () => {
+			startManager(`<a id="cart" href="${destination('hold-click')}">Cart</a>`);
+			await hover('cart');
+
+			await fetchNavigationPage(destination('hold-click'));
+
+			expect(requestedTests()).toEqual(['hold-click']);
+		});
+	});
+
+	describe('pages that expire', () => {
+		const revalidating = async () =>
+			new Response(HTML, { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=60' } });
+		const at = (seconds: number) => vi.setSystemTime(new Date(Date.UTC(2026, 0, 1) + seconds * 1000));
+
+		beforeEach(() => {
+			fetchSpy.mockImplementation(revalidating);
+			vi.useFakeTimers({ toFake: ['Date'] });
+			at(0);
+		});
+
+		it('does not prefetch a page again while its copy is fresh', async () => {
+			const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+			const href = new URL(destination('fresh'), window.location.href).href;
+
+			await prefetchManager.prefetch(href);
+			at(30);
+			await prefetchManager.prefetch(href);
+
+			expect(requestedTests()).toEqual(['fresh']);
+		});
+
+		it('prefetches a page again once its copy has expired', async () => {
+			const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+			const href = new URL(destination('expired'), window.location.href).href;
+
+			await prefetchManager.prefetch(href);
+			at(61);
+			await prefetchManager.prefetch(href);
+
+			expect(requestedTests()).toEqual(['expired', 'expired']);
+		});
+
+		it('prefetches a page again once its copy was invalidated elsewhere', async () => {
+			const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+			const href = new URL(destination('invalidated'), window.location.href).href;
+
+			await prefetchManager.prefetch(href);
+			invalidateNavigationHtml(href);
+			await prefetchManager.prefetch(href);
+
+			expect(requestedTests()).toEqual(['invalidated', 'invalidated']);
+		});
+
+		it('prefetches a visited page again once its copy has expired', async () => {
+			const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+			const href = new URL(destination('visited-expired'), window.location.href).href;
+
+			await fetchNavigationPage(href);
+			prefetchManager.markVisited(href);
+			at(61);
+			await prefetchManager.prefetch(href);
+
+			expect(requestedTests()).toEqual(['visited-expired', 'visited-expired']);
+		});
+
+		it('prefetches a no-store page once however long ago, so a hover does not render it again', async () => {
+			fetchSpy.mockImplementation(
+				async () =>
+					new Response(HTML, { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' } }),
+			);
+			const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+			const href = new URL(destination('no-store-late'), window.location.href).href;
+
+			await prefetchManager.prefetch(href);
+			at(3600);
+			await prefetchManager.prefetch(href);
+
+			expect(requestedTests()).toEqual(['no-store-late']);
 		});
 	});
 

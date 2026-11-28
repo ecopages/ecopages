@@ -28,7 +28,8 @@
 	"scripts": {
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run --root ../.. --project shared-core packages/file-system",
-		"benchmark": "node --experimental-strip-types test/benchmark.ts"
+		"benchmark": "node --experimental-strip-types test/benchmark.ts",
+		"benchmark:rescan": "node --experimental-strip-types test/rescan-benchmark.ts"
 	},
 	"exports": {
 		".": {

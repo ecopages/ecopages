@@ -100,7 +100,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 
 import { NodeFileSystem } from './node.ts';
-import { RecursiveFileWatcher } from './recursive-file-watcher.ts';
+import { RecursiveFileWatcher, rescanNow } from './recursive-file-watcher.ts';
 
 test('reconciles a watched root when native events omit the filename', async () => {
 	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-null-name-'))));
@@ -587,6 +587,28 @@ test('a rescan reports what the native watcher never delivered, once, even if th
 	}
 }, 20_000);
 
+test('an edit made right after ready, which the native watcher has not started to report, is reported within the rescan delay', async () => {
+	const rootDir = makeTempDirectory('eco-node-fs-watch-startup-race-');
+	const edited = path.join(rootDir, 'edited.ts');
+	writeFileSync(edited, 'export const value = 1;', 'utf8');
+	const changes: Array<{ type: string; path: string }> = [];
+	const watcher = watchWithRescans([rootDir], changes);
+
+	try {
+		await watcher.ready;
+		writeFileSync(edited, 'export const value = 22;', 'utf8');
+		await vi.waitFor(() => expect(changes).toContainEqual({ type: 'change', path: edited }), {
+			timeout: 5_000,
+			interval: 10,
+		});
+
+		expect(nativeWatcherOf(rootDir).closed).toBe(false);
+	} finally {
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
 test('a rescan reports a directory before the entries it holds', async () => {
 	const rootDir = makeTempDirectory('eco-node-fs-watch-rescan-order-');
 	const nested = path.join(rootDir, 'nested');
@@ -713,6 +735,40 @@ test('a rescan stops when the watcher is closed', async () => {
 	} finally {
 		nativePromises.failReaddirPath = undefined;
 		nativePromises.failReaddirOnOccurrence = undefined;
+		await watcher.close();
+		rmSync(rootDir, { recursive: true, force: true });
+	}
+}, 20_000);
+
+test('a safety rescan asks `ignored` once per entry of a deep tree, not once per ancestor of each entry', async () => {
+	const rootDir = path.fromNative(realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-rescan-ignored-calls-'))));
+	const deepest = path.join(rootDir, 'a', 'b', 'c', 'd', 'e', 'f');
+	mkdirSync(deepest, { recursive: true });
+	for (let index = 0; index < 20; index += 1) writeFileSync(path.join(deepest, `file-${index}.ts`), '');
+	const ignoredCalls: string[] = [];
+	const watcher = new RecursiveFileWatcher(
+		[rootDir],
+		{
+			onChange: () => {},
+			onError: (error) => {
+				throw error;
+			},
+			ignored: (watchedPath) => {
+				ignoredCalls.push(watchedPath);
+				return false;
+			},
+		},
+		{ rescans: false },
+	);
+
+	try {
+		await watcher.ready;
+		ignoredCalls.length = 0;
+		await rescanNow(watcher);
+
+		const entries = 1 + 6 + 20;
+		expect(ignoredCalls.length).toBeLessThanOrEqual(entries * 1.25);
+	} finally {
 		await watcher.close();
 		rmSync(rootDir, { recursive: true, force: true });
 	}

@@ -4,23 +4,39 @@
  */
 
 import {
+	closeSync,
 	cpSync,
 	type Dirent,
 	existsSync,
+	fstatSync,
+	linkSync,
 	lstatSync,
 	mkdirSync,
 	mkdtempSync,
+	openSync,
 	readdirSync,
 	readFileSync,
 	readlinkSync,
+	readSync,
 	realpathSync,
 	renameSync,
 	rmSync,
 	statSync,
 	type Stats,
 	writeFileSync,
+	writeSync,
 } from 'node:fs';
-import { cp as cpAsync, mkdir as mkdirAsync, readdir, rm as rmAsync, stat as statAsync } from 'node:fs/promises';
+import {
+	cp as cpAsync,
+	type FileHandle,
+	link as linkAsync,
+	lstat as lstatAsync,
+	mkdir as mkdirAsync,
+	open as openAsync,
+	readdir,
+	rm as rmAsync,
+	stat as statAsync,
+} from 'node:fs/promises';
 import { path } from '../path.ts';
 import { tmpdir } from 'node:os';
 import zlib from 'node:zlib';
@@ -31,6 +47,124 @@ import {
 	type GlobOptions,
 	type ReaddirOptions,
 } from '../types.ts';
+
+function errorCodeOf(error: unknown): string | undefined {
+	return error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined;
+}
+
+/** True for the error `link(2)` and an exclusive copy raise when the destination exists, which `linkNew` reports as `false`. */
+function isAlreadyExistsError(error: unknown): boolean {
+	return errorCodeOf(error) === 'EEXIST';
+}
+
+/**
+ * The errors of a link that cannot be made: `EPERM` (FAT and exFAT on macOS and Linux, some network
+ * shares), `EXDEV` (the paths are on two volumes), `EISDIR` (exFAT on Windows), `ENOTSUP`, `EOPNOTSUPP` and `ENOSYS`.
+ */
+const HARD_LINK_UNSUPPORTED_ERRORS: ReadonlySet<string> = new Set([
+	'EPERM',
+	'EXDEV',
+	'EISDIR',
+	'ENOTSUP',
+	'EOPNOTSUPP',
+	'ENOSYS',
+]);
+
+/** True when `error` says the volume has no hard links and `source` can still be installed by copying it. */
+function isHardLinkUnsupportedError(error: unknown): boolean {
+	const code = errorCodeOf(error);
+	return code !== undefined && HARD_LINK_UNSUPPORTED_ERRORS.has(code);
+}
+
+const COPY_CHUNK_BYTES = 64 * 1024;
+
+/**
+ * Copies `source` to a `destination` that this call creates, and says whether it did.
+ *
+ * @remarks
+ * `copyFile` with `COPYFILE_EXCL` unlinks the destination by path when the copy fails, which would delete another
+ * process's file if that process replaced the half-written destination meanwhile. Here a failed copy removes the
+ * destination only while it is still the file this call created. A missing source fails before anything is created. A destination that is already there, a dangling
+ * symlink included, is found by `lstat` first, because Windows opens the target of a dangling symlink for
+ * exclusive create instead of failing.
+ * The check and the removal are two calls, because no portable call removes a path by inode, so a file renamed over
+ * the destination in the instants between them is still lost; that needs a failed write and a rename inside one
+ * window, on a volume without hard links.
+ */
+function copyExclusiveSync(source: string, destination: string): boolean {
+	if (lstatSync(destination, { throwIfNoEntry: false })) return false;
+	const sourceFd = openSync(source, 'r');
+	try {
+		let destinationFd: number;
+		try {
+			destinationFd = openSync(destination, 'wx', fstatSync(sourceFd).mode & 0o777);
+		} catch (error) {
+			if (isAlreadyExistsError(error)) return false;
+			throw error;
+		}
+		try {
+			const chunk = Buffer.allocUnsafe(COPY_CHUNK_BYTES);
+			for (let read = readSync(sourceFd, chunk); read > 0; read = readSync(sourceFd, chunk)) {
+				for (let written = 0; written < read;)
+					written += writeSync(destinationFd, chunk, written, read - written);
+			}
+			return true;
+		} catch (error) {
+			const created = fstatSync(destinationFd);
+			const current = lstatSync(destination, { throwIfNoEntry: false });
+			if (current && current.dev === created.dev && current.ino === created.ino)
+				rmSync(destination, { force: true });
+			throw error;
+		} finally {
+			closeSync(destinationFd);
+		}
+	} finally {
+		closeSync(sourceFd);
+	}
+}
+
+/** Asynchronous {@link copyExclusiveSync}. */
+async function copyExclusive(source: string, destination: string): Promise<boolean> {
+	if (
+		await lstatAsync(destination).then(
+			() => true,
+			() => false,
+		)
+	)
+		return false;
+	const sourceHandle = await openAsync(source, 'r');
+	try {
+		let destinationHandle: FileHandle;
+		try {
+			destinationHandle = await openAsync(destination, 'wx', (await sourceHandle.stat()).mode & 0o777);
+		} catch (error) {
+			if (isAlreadyExistsError(error)) return false;
+			throw error;
+		}
+		try {
+			const chunk = Buffer.allocUnsafe(COPY_CHUNK_BYTES);
+			for (
+				let { bytesRead } = await sourceHandle.read(chunk, 0, chunk.length, null);
+				bytesRead > 0;
+				{ bytesRead } = await sourceHandle.read(chunk, 0, chunk.length, null)
+			) {
+				for (let written = 0; written < bytesRead;)
+					written += (await destinationHandle.write(chunk, written, bytesRead - written)).bytesWritten;
+			}
+			return true;
+		} catch (error) {
+			const created = await destinationHandle.stat();
+			const current = await lstatAsync(destination).catch(() => undefined);
+			if (current && current.dev === created.dev && current.ino === created.ino)
+				await rmAsync(destination, { force: true });
+			throw error;
+		} finally {
+			await destinationHandle.close();
+		}
+	} finally {
+		await sourceHandle.close();
+	}
+}
 
 function toFileStats(stats: Stats): FileStats {
 	return {
@@ -231,6 +365,28 @@ export abstract class BaseFileSystem {
 
 	rename(source: string, destination: string): void {
 		renameSync(source, destination);
+	}
+
+	linkNew(source: string, destination: string): boolean {
+		try {
+			linkSync(source, destination);
+			return true;
+		} catch (error) {
+			if (isAlreadyExistsError(error)) return false;
+			if (!isHardLinkUnsupportedError(error)) throw error;
+		}
+		return copyExclusiveSync(source, destination);
+	}
+
+	async linkNewAsync(source: string, destination: string): Promise<boolean> {
+		try {
+			await linkAsync(source, destination);
+			return true;
+		} catch (error) {
+			if (isAlreadyExistsError(error)) return false;
+			if (!isHardLinkUnsupportedError(error)) throw error;
+		}
+		return copyExclusive(source, destination);
 	}
 
 	/**

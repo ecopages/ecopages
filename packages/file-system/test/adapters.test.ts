@@ -5,7 +5,17 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import os from 'node:os';
 import { path } from '../src/path.ts';
-import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync, rmSync, statSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	realpathSync,
+	symlinkSync,
+	writeFileSync,
+	rmSync,
+	statSync,
+} from 'node:fs';
 import { NodeFileSystem } from '../src/adapters/node';
 import type { FileSystem } from '../src/types';
 
@@ -265,6 +275,118 @@ for (const [name, fs] of adapters) {
 					expect.objectContaining({ code: 'ENOENT' }),
 				);
 			});
+		});
+
+		describe('linkNew', () => {
+			test('installs the source at an absent destination', () => {
+				const source = path.join(testDir, 'seed.tmp');
+				const destination = path.join(testDir, 'catalog.db');
+				writeFileSync(source, 'seeded');
+
+				expect(fs.linkNew(source, destination)).toBe(true);
+
+				expect(readFileSync(destination, 'utf8')).toBe('seeded');
+				expect(fs.exists(source)).toBe(true);
+			});
+
+			test('returns false and leaves an existing destination as it is', () => {
+				const source = path.join(testDir, 'seed.tmp');
+				const destination = path.join(testDir, 'catalog.db');
+				writeFileSync(source, 'seeded');
+				writeFileSync(destination, 'carts');
+
+				expect(fs.linkNew(source, destination)).toBe(false);
+
+				expect(readFileSync(destination, 'utf8')).toBe('carts');
+			});
+
+			test('returns false for an existing destination that is a dangling symlink', () => {
+				const source = path.join(testDir, 'seed.tmp');
+				const destination = path.join(testDir, 'catalog.db');
+				writeFileSync(source, 'seeded');
+				symlinkSync(path.join(testDir, 'missing-target'), destination);
+
+				expect(fs.linkNew(source, destination)).toBe(false);
+			});
+
+			test('throws ENOENT for a missing source', () => {
+				expect(() => fs.linkNew(path.join(testDir, 'missing'), path.join(testDir, 'target'))).toThrow(
+					expect.objectContaining({ code: 'ENOENT' }),
+				);
+			});
+
+			test('installs the source at an absent destination asynchronously', async () => {
+				const source = path.join(testDir, 'seed.tmp');
+				const destination = path.join(testDir, 'catalog.db');
+				writeFileSync(source, 'seeded');
+
+				expect(await fs.linkNewAsync(source, destination)).toBe(true);
+				expect(await fs.linkNewAsync(source, destination)).toBe(false);
+
+				expect(readFileSync(destination, 'utf8')).toBe('seeded');
+			});
+
+			test('returns false for an existing destination that is a dangling symlink asynchronously', async () => {
+				const source = path.join(testDir, 'seed.tmp');
+				const destination = path.join(testDir, 'catalog.db');
+				writeFileSync(source, 'seeded');
+				symlinkSync(path.join(testDir, 'missing-target'), destination);
+
+				expect(await fs.linkNewAsync(source, destination)).toBe(false);
+			});
+
+			test('throws ENOENT for a missing source asynchronously', async () => {
+				await expect(
+					fs.linkNewAsync(path.join(testDir, 'missing'), path.join(testDir, 'target')),
+				).rejects.toMatchObject({ code: 'ENOENT' });
+			});
+
+			test('lets exactly one of several processes install at the same moment', async () => {
+				const destination = path.join(testDir, 'catalog.db');
+				const adapter = path.toFileUrl(
+					path.join(path.dirname(path.fromFileUrl(import.meta.url)), '../src/adapters/node.ts'),
+				).href;
+				const startAt = Date.now() + 1500;
+				const script = `
+					import { NodeFileSystem } from ${JSON.stringify(adapter)};
+					import { writeFileSync } from 'node:fs';
+					const [source, destination, startAt] = process.argv.slice(1);
+					writeFileSync(source, 'seed of ' + process.pid);
+					while (Date.now() < Number(startAt));
+					process.stdout.write(String(new NodeFileSystem().linkNew(source, destination)));
+				`;
+				const runs = Array.from({ length: 4 }, (_, index) => {
+					const source = path.join(testDir, `seed-${index}.tmp`);
+					return new Promise<{ source: string; installed: string }>((resolve, reject) => {
+						const child = spawn(
+							process.execPath,
+							[
+								'--experimental-strip-types',
+								'--input-type=module',
+								'-e',
+								script,
+								source,
+								destination,
+								String(startAt),
+							],
+							{ stdio: ['ignore', 'pipe', 'inherit'] },
+						);
+						let output = '';
+						child.stdout.on('data', (chunk) => (output += chunk));
+						child.on('error', reject);
+						child.on('close', (code) =>
+							code === 0 ? resolve({ source, installed: output }) : reject(new Error(`exit ${code}`)),
+						);
+					});
+				});
+
+				const results = await Promise.all(runs);
+
+				const winners = results.filter(({ installed }) => installed === 'true');
+				expect(winners).toHaveLength(1);
+				expect(results.filter(({ installed }) => installed === 'false')).toHaveLength(3);
+				expect(readFileSync(destination, 'utf8')).toBe(readFileSync(winners[0]!.source, 'utf8'));
+			}, 30_000);
 		});
 
 		describe('ensureDir', () => {

@@ -48,7 +48,7 @@ await watcher.add(['./generated']);
 await watcher.close();
 ```
 
-`watch()` reports file changes as `add`, `change` or `unlink`, and directory changes as `addDir` or `unlinkDir`. Atomic replacement of an existing file is reported as one `change`. If a native event omits its filename, `watch()` reconciles the native root and can emit a `rescan` event for each mapped requested root; consumers should invalidate those roots once. A missing root is watched from its nearest existing parent and begins reporting once it is created. `add()` extends the running subscription and indexes entries already present under the new paths without reporting them. If registration fails, the added paths are rolled back so callers can retry them. Permission-denied children are skipped during indexing so accessible siblings remain watched. Symlinked roots are reported using the path passed to `watch()`. The optional `ignored` predicate runs before existing subdirectory contents are indexed, so ignored subtrees are not scanned. A path the predicate ignores when called without stats is also skipped by the native recursive watcher; on Linux, where Node opens one inotify watch per entry of a recursive root, that keeps trees such as `node_modules` from costing kernel watches. Return `true` without stats only for paths that stay ignored, because a predicate that widens later can only do so for answers given with stats. A directory removed while it is being indexed is treated as gone, not as an error.
+`watch()` reports file changes as `add`, `change` or `unlink`, and directory changes as `addDir` or `unlinkDir`. Atomic replacement of an existing file is reported as one `change`. If a native event omits its filename, `watch()` reconciles the native root and can emit a `rescan` event for each mapped requested root; consumers should invalidate those roots once. A missing root is watched from its nearest existing parent and begins reporting once it is created. `add()` extends the running subscription and indexes entries already present under the new paths without reporting them. If registration fails, the added paths are rolled back so callers can retry them. Permission-denied children are skipped during indexing so accessible siblings remain watched. Symlinked roots are reported using the path passed to `watch()`. The optional `ignored` predicate runs before existing subdirectory contents are indexed, so ignored subtrees are not scanned. A path the predicate ignores when called without stats is also skipped by the native recursive watcher; on Linux, where Node opens one inotify watch per entry of a recursive root, that keeps trees such as `node_modules` from costing kernel watches. Return `true` without stats only for paths that stay ignored, because a predicate that widens later can only do so for answers given with stats. A directory removed while it is being indexed is treated as gone, not as an error. On macOS the watcher also rescans its roots every few seconds to report events the system dropped, and `ignored` runs about once for every entry on each rescan, so keep it cheap.
 
 ## Paths
 
@@ -74,35 +74,37 @@ const module = await import(path.toFileUrl(page).href);
 
 ## API
 
-| Method                             | Description                                   |
-| :--------------------------------- | :-------------------------------------------- |
-| `glob(patterns, options)`          | Find files matching glob patterns             |
-| `readFile(path)`                   | Read file as string (async)                   |
-| `readFileSync(path)`               | Read file as string (sync)                    |
-| `readFileAsBuffer(path)`           | Read file as `Buffer`                         |
-| `write(path, content)`             | Write content to file                         |
-| `writeAsync(path, content)`        | Write content to file (async)                 |
-| `exists(path)`                     | Check if path exists                          |
-| `ensureDir(path)`                  | Ensure directory exists                       |
-| `copyDir(src, dest)`               | Copy directory recursively                    |
-| `copyFile(src, dest)`              | Copy single file                              |
-| `remove(path)`                     | Remove file or directory                      |
-| `removeAsync(path)`                | Remove file or directory (async)              |
-| `hash(path)`                       | Get hash of file contents                     |
-| `gzipFile(path)`                   | Gzip a single file                            |
-| `gzipDir(path, extensions)`        | Gzip files in directory                       |
-| `isDirectory(path)`                | Check if path is directory                    |
-| `realpath(path)`                   | Resolve symlinks to canonical path            |
-| `stat(path)`                       | Kind, size and mtime, following symlinks      |
-| `lstat(path)`                      | Kind, size and mtime of the path itself       |
-| `readdir(path, options)`           | List entries with their kind                  |
-| `readlink(path)`                   | Read a symlink's stored target                |
-| `mkdtemp(prefix)`                  | Create a uniquely named directory             |
-| `tempDir()`                        | The OS directory for temporary files          |
-| `rename(src, dest)`                | Move a file or directory                      |
-| `verifyFileExists(path)`           | Throw if file doesn't exist                   |
-| `watch(paths, options)`            | Watch paths; the returned handle can add more |
-| `installFileSystem(next)`          | Replace the process-wide `fileSystem` (tests) |
-| `createRecordingFileSystem(inner)` | Wrap `inner` and record every path argument   |
+| Method                             | Description                                                            |
+| :--------------------------------- | :--------------------------------------------------------------------- |
+| `glob(patterns, options)`          | Find files matching glob patterns                                      |
+| `readFile(path)`                   | Read file as string (async)                                            |
+| `readFileSync(path)`               | Read file as string (sync)                                             |
+| `readFileAsBuffer(path)`           | Read file as `Buffer`                                                  |
+| `write(path, content)`             | Write content to file                                                  |
+| `writeAsync(path, content)`        | Write content to file (async)                                          |
+| `exists(path)`                     | Check if path exists                                                   |
+| `ensureDir(path)`                  | Ensure directory exists                                                |
+| `copyDir(src, dest)`               | Copy directory recursively                                             |
+| `copyFile(src, dest)`              | Copy single file                                                       |
+| `remove(path)`                     | Remove file or directory                                               |
+| `removeAsync(path)`                | Remove file or directory (async)                                       |
+| `hash(path)`                       | Get hash of file contents                                              |
+| `gzipFile(path)`                   | Gzip a single file                                                     |
+| `gzipDir(path, extensions)`        | Gzip files in directory                                                |
+| `isDirectory(path)`                | Check if path is directory                                             |
+| `realpath(path)`                   | Resolve symlinks to canonical path                                     |
+| `stat(path)`                       | Kind, size and mtime, following symlinks                               |
+| `lstat(path)`                      | Kind, size and mtime of the path itself                                |
+| `readdir(path, options)`           | List entries with their kind                                           |
+| `readlink(path)`                   | Read a symlink's stored target                                         |
+| `mkdtemp(prefix)`                  | Create a uniquely named directory                                      |
+| `tempDir()`                        | The OS directory for temporary files                                   |
+| `rename(src, dest)`                | Move a file or directory                                               |
+| `linkNew(src, dest)`               | Install `src` at `dest` only if `dest` is absent; `false` if it exists |
+| `linkNewAsync(src, dest)`          | Asynchronous `linkNew`                                                 |
+| `verifyFileExists(path)`           | Throw if file doesn't exist                                            |
+| `watch(paths, options)`            | Watch paths; the returned handle can add more                          |
+| `installFileSystem(next)`          | Replace the process-wide `fileSystem` (tests)                          |
+| `createRecordingFileSystem(inner)` | Wrap `inner` and record every path argument                            |
 
-`stat`, `lstat` and `readdir` return plain objects (`isFile`, `isDirectory`, `isSymbolicLink`, plus `size` and `mtimeMs` for stats). `readdir(path, { recursive: true })` also lists subdirectories, naming each entry by its path relative to `path`. `stat`, `lstat`, `readdir`, `readlink`, `mkdtemp` and `rename` throw Node's error unchanged, so a missing path can be detected by `error.code === 'ENOENT'`.
+`stat`, `lstat` and `readdir` return plain objects (`isFile`, `isDirectory`, `isSymbolicLink`, plus `size` and `mtimeMs` for stats). `readdir(path, { recursive: true })` also lists subdirectories, naming each entry by its path relative to `path`. `stat`, `lstat`, `readdir`, `readlink`, `mkdtemp`, `rename` and `linkNew` throw Node's error unchanged, so a missing path can be detected by `error.code === 'ENOENT'`. `linkNew` is the one write that never replaces: of several processes that install a file at one path at once, exactly one gets `true`, which is how a seeded file is published without overwriting another process's copy.

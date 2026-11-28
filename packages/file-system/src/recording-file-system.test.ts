@@ -30,6 +30,27 @@ describe('recording file system', () => {
 		expect(recording.recordedPaths).toEqual([filePath, filePath]);
 	});
 
+	it('records and forwards linkNew and linkNewAsync', async () => {
+		const rootDir = path.fromNative(mkdtempSync(path.join(tmpdir(), 'eco-fs-record-link-')));
+		tempDirs.push(rootDir);
+		const source = path.join(rootDir, 'seed.tmp');
+		const first = path.join(rootDir, 'first.db');
+		const second = path.join(rootDir, 'second.db');
+		writeFileSync(source, 'seeded', 'utf8');
+
+		const recording = createRecordingFileSystem(nodeFs);
+		restoreFns.push(installFileSystem(recording));
+
+		expect(fileSystem.linkNew(source, first)).toBe(true);
+		expect(fileSystem.linkNew(source, first)).toBe(false);
+		expect(await fileSystem.linkNewAsync(source, second)).toBe(true);
+		expect(await fileSystem.linkNewAsync(source, second)).toBe(false);
+
+		expect(nodeFs.readFileSync(first)).toBe('seeded');
+		expect(nodeFs.readFileSync(second)).toBe('seeded');
+		expect(recording.recordedPaths).toEqual([source, first, source, first, source, second, source, second]);
+	});
+
 	it('restores the previous file system after install', () => {
 		const recording = createRecordingFileSystem(nodeFs);
 		const restore = installFileSystem(recording);

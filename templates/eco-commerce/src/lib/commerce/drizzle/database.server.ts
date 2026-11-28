@@ -75,9 +75,13 @@ async function seed(db: CatalogDb, { sizeName }: Pick<OpenCatalogDatabaseOptions
  * Writes a fresh catalog to a local file through a temporary file in the same folder.
  *
  * @remarks
- * The rename is atomic, so a reader never sees a half-seeded database. Two processes that seed at once, such
- * as a dev server and a build, each write their own temporary file. A process that finds a current catalog
- * already in place when its own seed is done keeps that file, which may hold carts by then, and drops its own.
+ * The temporary file is installed in one step, so a reader never sees a half-seeded database. Two processes that
+ * seed at once, such as a dev server and a build, each write their own temporary file. When nothing is at the
+ * path yet, the file is installed with `linkNew`, which creates the file only if the path is still absent, so two
+ * processes that finish at the same instant cannot overwrite each other: one installs, and the other finds a
+ * file that may hold carts by then. A process that finds a current catalog in place keeps that file and drops
+ * its own. A file that is there but stale, or still being copied on a volume without hard links, is replaced with
+ * `rename`.
  */
 async function writeCatalogFile(filePath: string, options: OpenCatalogDatabaseOptions): Promise<void> {
 	fileSystem.ensureDir(path.dirname(filePath));
@@ -92,11 +96,13 @@ async function writeCatalogFile(filePath: string, options: OpenCatalogDatabaseOp
 		client.close();
 		if (!seeded) fileSystem.remove(temporaryPath);
 	}
-	if (await holdsCurrentCatalog(filePath, options)) {
+	try {
+		if (await fileSystem.linkNewAsync(temporaryPath, filePath)) return;
+		if (await holdsCurrentCatalog(filePath, options)) return;
+		fileSystem.rename(temporaryPath, filePath);
+	} finally {
 		fileSystem.remove(temporaryPath);
-		return;
 	}
-	fileSystem.rename(temporaryPath, filePath);
 }
 
 async function holdsCurrentCatalog(filePath: string, options: OpenCatalogDatabaseOptions): Promise<boolean> {

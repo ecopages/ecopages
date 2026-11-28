@@ -199,8 +199,8 @@ export interface BuildOptions {
 	 */
 	singleChunk?: {
 		name: string;
-		/** Modules that go to a second chunk, which only the entries that reach them load, instead of the first. */
-		separate?: { name: string; modules: readonly string[] };
+		/** Modules that go to chunks of their own, each loaded only by the entries that reach its modules, instead of the first. */
+		separate?: readonly { name: string; modules: readonly string[] }[];
 	};
 	/** Collects the warnings of the build into the result without printing them, for a build that only checks. */
 	quietWarnings?: boolean;

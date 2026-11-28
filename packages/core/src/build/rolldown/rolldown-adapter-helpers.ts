@@ -728,16 +728,19 @@ export function getInstalledPackageChunkName(moduleId: string): string | null {
  *
  * @remarks
  * Rolldown puts a module into the first group that matches it, together with the modules it imports that no earlier
- * group claimed, so the main group comes first and claims every module but the separate ones, and the separate group
- * takes what is left.
+ * group claimed, so the main group comes first and claims every module but the separate ones, and each separate group
+ * claims its own modules.
  */
 function createSingleChunkGroups(singleChunk: NonNullable<BuildOptions['singleChunk']>) {
-	const separate = singleChunk.separate;
-	if (!separate) return [{ name: singleChunk.name, test: /./u }];
-	const separateModules = new Set(separate.modules);
+	const separate = singleChunk.separate ?? [];
+	if (separate.length === 0) return [{ name: singleChunk.name, test: /./u }];
+	const separateModules = new Set(separate.flatMap((group) => group.modules));
 	return [
 		{ name: singleChunk.name, test: (id: string) => !separateModules.has(path.fromNative(id)) },
-		{ name: separate.name, test: /./u },
+		...separate.map((group) => {
+			const modules = new Set(group.modules);
+			return { name: group.name, test: (id: string) => modules.has(path.fromNative(id)) };
+		}),
 	];
 }
 

@@ -1198,6 +1198,59 @@ describe('DevTransformVendorRegistry', () => {
 		delete (globalThis as { effectsChunkRan?: string }).effectsChunkRan;
 	});
 
+	it('runs the code of one effectful subpath without running the code of another', async () => {
+		const { rootDir, modules } = createAppRoot('dev-transform-vendor-effects-each');
+		writePackage(
+			path.join(modules, 'effects-each-lib'),
+			'effects-each-lib',
+			{
+				type: 'module',
+				exports: { '.': './index.js', './alpha': './alpha.js', './beta': './beta.js', './gamma': './gamma.js' },
+			},
+			{
+				'index.js': "export const value = 'plain-value';\n",
+				'shared.js':
+					"globalThis.effectsShared = (globalThis.effectsShared ?? 0) + 1;\nexport const shared = 'shared';\n",
+				'alpha.js':
+					"import { shared } from './shared.js';\n(globalThis.effectsRan ??= []).push('alpha');\nexport const name = `alpha-${shared}`;\n",
+				'beta.js':
+					"import { shared } from './shared.js';\n(globalThis.effectsRan ??= []).push('beta');\nexport const name = `beta-${shared}`;\n",
+				'gamma.js': "(globalThis.effectsRan ??= []).push('gamma');\nexport const name = 'gamma';\n",
+			},
+		);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const onVendorGraphChange = vi.fn();
+		const registry = new DevTransformVendorRegistry({ appConfig: config, onVendorGraphChange });
+		const ran = () => (globalThis as { effectsRan?: string[] }).effectsRan ?? [];
+		const reset = () => {
+			delete (globalThis as { effectsRan?: string[] }).effectsRan;
+			delete (globalThis as { effectsShared?: number }).effectsShared;
+		};
+		const alphaUrl = await registry.resolveVendorUrl('effects-each-lib/alpha');
+		const served = await readVendorGraph(registry, [alphaUrl]);
+		reset();
+
+		await importVendorGraph(registry, [alphaUrl]);
+		const afterAlpha = [...ran()];
+		reset();
+		const betaUrl = await registry.resolveVendorUrl('effects-each-lib/beta');
+		await importVendorGraph(registry, [betaUrl]);
+		const afterBeta = [...ran()];
+		const sharedByBeta = (globalThis as { effectsShared?: number }).effectsShared;
+		reset();
+		const gammaUrl = await registry.resolveVendorUrl('effects-each-lib/gamma');
+		await importVendorGraph(registry, [gammaUrl]);
+
+		expect(afterAlpha).toEqual(['alpha']);
+		expect(afterBeta).toEqual(['beta']);
+		expect(sharedByBeta).toBe(1);
+		expect(ran()).toEqual(['gamma']);
+		expect((globalThis as { effectsShared?: number }).effectsShared).toBeUndefined();
+		expect(await readVendorGraph(registry, [alphaUrl])).toEqual(served);
+		expect(onVendorGraphChange).not.toHaveBeenCalled();
+		reset();
+	});
+
 	it('shares one copy of a CommonJS package between the packages that import and require it', async () => {
 		const { rootDir, modules } = createAppRoot('dev-transform-vendor-cjs-sibling');
 		writePackage(

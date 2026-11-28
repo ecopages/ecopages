@@ -769,23 +769,44 @@ export class DevTransformVendorRegistry {
 	}
 
 	/**
-	 * The modules that only entries which run code when they load reach, which go to a chunk of their own.
+	 * The chunks of the modules that only entries which run code when they load reach, one for each set of such
+	 * entries that share them.
 	 *
 	 * @remarks
 	 * The package's main chunk is evaluated by every page that imports the package, so it holds no module that
 	 * registers a custom element, opens a socket or sets a global. Those entries are part of the surface from the
-	 * first build, and their modules are in a second chunk that only their own files import, so an import of such a
-	 * subpath later adds no file and changes none.
+	 * first build. Each one's own modules are in a chunk that only its file imports, and a module that several of them
+	 * reach is in a chunk that those files import, so importing a subpath runs its own code and the code it shares,
+	 * and an import of a subpath later adds no file and changes none. The chunks are listed from the one that the most
+	 * entries share, because the bundler gives a group the modules it imports that no earlier group claimed.
 	 */
-	private findEffectModules(files: readonly string[]): string[] {
+	private findEffectChunks(packageName: string, packageDir: string, files: readonly string[]) {
 		const effectful = files.filter((file) => inspectModuleClosure(file, this.closureTraits).loadTimeEffects);
 		if (effectful.length === 0) return [];
-		const shared = new Set(
+		const main = new Set(
 			files.filter((file) => !effectful.includes(file)).flatMap((file) => [...collectModuleClosure(file)]),
 		);
-		return [...new Set(effectful.flatMap((file) => [...collectModuleClosure(file)]))].filter(
-			(file) => !shared.has(file),
-		);
+		const reachedBy = new Map<string, string[]>();
+		for (const entry of effectful) {
+			for (const module of collectModuleClosure(entry)) {
+				if (main.has(module)) continue;
+				reachedBy.set(module, [...(reachedBy.get(module) ?? []), path.relative(packageDir, entry)]);
+			}
+		}
+		const chunks = new Map<string, { name: string; entries: number; modules: string[] }>();
+		for (const [module, entries] of reachedBy) {
+			const key = entries.sort().join('\0');
+			const chunk = chunks.get(key) ?? {
+				name: `${packageName}~effects~${contentHash(key, 8)}`,
+				entries: entries.length,
+				modules: [],
+			};
+			chunk.modules.push(module);
+			chunks.set(key, chunk);
+		}
+		return [...chunks.values()]
+			.sort((a, b) => b.entries - a.entries)
+			.map(({ name, modules }) => ({ name, modules }));
 	}
 
 	private bundleScope(
@@ -976,11 +997,9 @@ export class DevTransformVendorRegistry {
 	}
 
 	private createSingleChunk(packageName: string, files: readonly string[]) {
-		const modules = this.findEffectModules(files);
-		return {
-			name: `${packageName}~package`,
-			...(modules.length > 0 ? { separate: { name: `${packageName}~effects`, modules } } : {}),
-		};
+		const packageDir = findOwningPackageDir(files[0] ?? '');
+		const separate = this.findEffectChunks(packageName, packageDir, files);
+		return { name: `${packageName}~package`, ...(separate.length > 0 ? { separate } : {}) };
 	}
 
 	private countModules(packageDir: string): number {

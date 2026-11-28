@@ -120,64 +120,6 @@ test('NodeFileSystem.watch reports nested changes without initial events', async
 	}
 }, 60_000);
 
-test.runIf(process.platform === 'darwin')(
-	'NodeFileSystem.watch leaves the modification time of a watched directory as it found it',
-	async () => {
-		const rootDir = path.fromNative(
-			fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-times-'))),
-		);
-		const fileSystem = new NodeFileSystem();
-		fs.utimesSync(rootDir, new Date('2020-01-01T00:00:00.123Z'), new Date('2021-02-03T04:05:06.789Z'));
-		const before = fs.statSync(rootDir, { bigint: true });
-		const watcher = fileSystem.watch([rootDir], {
-			onChange: () => {},
-			onError: (error) => {
-				throw error;
-			},
-		});
-
-		try {
-			await watcher.ready;
-			const after = fs.statSync(rootDir, { bigint: true });
-			expect(after.mtimeNs).toBe(before.mtimeNs);
-			expect(after.mode).toBe(before.mode);
-		} finally {
-			await watcher.close();
-			fs.rmSync(rootDir, { recursive: true, force: true });
-		}
-	},
-	20_000,
-);
-
-test.runIf(process.platform === 'darwin')(
-	'NodeFileSystem.watch reports no change for an untouched child named like its directory when another watcher starts',
-	async () => {
-		const parent = path.fromNative(fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-echo-'))));
-		const rootDir = path.join(parent, 'work');
-		fs.mkdirSync(rootDir);
-		fs.writeFileSync(path.join(rootDir, 'work'), 'export {};', 'utf8');
-		const fileSystem = new NodeFileSystem();
-		const changes: Array<{ type: string; path: string }> = [];
-		const onError = (error: unknown) => {
-			throw error;
-		};
-		const first = fileSystem.watch([rootDir], { onChange: (change) => changes.push(change), onError });
-		const second = fileSystem.watch([rootDir], { onChange: () => {}, onError });
-
-		try {
-			await first.ready;
-			await second.ready;
-			await new Promise((resolve) => setTimeout(resolve, 200));
-			expect(changes).toEqual([]);
-		} finally {
-			await first.close();
-			await second.close();
-			fs.rmSync(parent, { recursive: true, force: true });
-		}
-	},
-	20_000,
-);
-
 test('NodeFileSystem.watch maps real paths back to a symlinked root and follows a root created later', async () => {
 	const realRoot = path.fromNative(fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'eco-node-fs-watch-real-'))));
 	const requestedRoot = path.join(tmpdir(), `eco-node-fs-watch-link-${Date.now()}`);

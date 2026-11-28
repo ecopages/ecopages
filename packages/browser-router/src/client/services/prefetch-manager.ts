@@ -92,7 +92,8 @@ export class PrefetchManager {
 	/**
 	 * Fetches and caches HTML content for a given URL.
 	 *
-	 * Skips cross-origin URLs or already-prefetched URLs. On success, both the
+	 * Skips cross-origin URLs, already-prefetched URLs and every URL while the connection is a slow or
+	 * data-saving one and `respectDataSaver` is on. On success, both the
 	 * HTML content is cached and any new stylesheets are preloaded to prevent
 	 * FOUC during navigation. Unless `images` is off, the page's high-priority
 	 * images are warmed too.
@@ -100,6 +101,8 @@ export class PrefetchManager {
 	 * @param href - The URL to prefetch
 	 */
 	async prefetch(href: string): Promise<void> {
+		if (!this.shouldPrefetch()) return;
+
 		const url = new URL(href, window.location.origin);
 
 		if (url.origin !== window.location.origin) return;
@@ -116,7 +119,7 @@ export class PrefetchManager {
 				return;
 			}
 
-			if (this.options.images && this.shouldPrefetch()) this.prefetchImages(page.document);
+			if (this.options.images) this.prefetchImages(page.document);
 			await this.prefetchStylesheets(page.document);
 		} catch {
 			this.prefetched.delete(url.href);
@@ -394,8 +397,8 @@ export class PrefetchManager {
 	 *
 	 * @remarks
 	 * Runs inside {@link prefetch}, so it follows a page prefetch wherever it comes from: a hover, a focus, a
-	 * viewport entry, an eager link or `router.prefetch()`. Those paths differ in how they check the data-saver
-	 * setting, so the caller checks it again here. The images are the page's own `fetchpriority="high"` images
+	 * viewport entry, an eager link or `router.prefetch()`, and the data-saver check in {@link prefetch} has
+	 * already covered all of them. The images are the page's own `fetchpriority="high"` images
 	 * and image preloads, at most {@link MAX_PREFETCH_IMAGES}, requested at low priority and once each, unless
 	 * a load fails. They are not added to the document, so the browser has nothing to warn about as unused.
 	 * `srcset`, `sizes` and `<picture>` sources are kept, so the candidate warmed is the one this device will

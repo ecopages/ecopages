@@ -94,6 +94,70 @@ describe('PrefetchManager', () => {
 		});
 	});
 
+	describe('data saver', () => {
+		function withConnection(connection: object): () => void {
+			Object.defineProperty(navigator, 'connection', { value: connection, configurable: true });
+			return () => {
+				Reflect.deleteProperty(navigator, 'connection');
+			};
+		}
+
+		it('makes no request for a direct prefetch while Save-Data is on', async () => {
+			const restore = withConnection({ saveData: true });
+			try {
+				const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+
+				await prefetchManager.prefetch(new URL(destination('saver-direct'), window.location.href).href);
+			} finally {
+				restore();
+			}
+
+			expect(fetchSpy).not.toHaveBeenCalled();
+		});
+
+		it('makes no request for a direct prefetch on a 2g connection', async () => {
+			const restore = withConnection({ effectiveType: '2g' });
+			try {
+				const prefetchManager = new PrefetchManager({ strategy: 'hover' });
+
+				await prefetchManager.prefetch(new URL(destination('saver-2g'), window.location.href).href);
+			} finally {
+				restore();
+			}
+
+			expect(fetchSpy).not.toHaveBeenCalled();
+		});
+
+		it('makes no request for an eager link that appears after the manager started', () => {
+			const prefetchManager = startManager('');
+			const restore = withConnection({ saveData: true });
+			try {
+				const late = document.createElement('div');
+				late.innerHTML = `<a href="${destination('saver-late')}" data-eco-prefetch="eager">Late</a>`;
+				container.append(late);
+
+				prefetchManager.observeLinks(late);
+			} finally {
+				restore();
+			}
+
+			expect(fetchSpy).not.toHaveBeenCalled();
+		});
+
+		it('prefetches when respectDataSaver is off', async () => {
+			const restore = withConnection({ saveData: true });
+			try {
+				const prefetchManager = new PrefetchManager({ strategy: 'hover', respectDataSaver: false });
+
+				await prefetchManager.prefetch(new URL(destination('saver-off'), window.location.href).href);
+			} finally {
+				restore();
+			}
+
+			expect(requestedTests()).toEqual(['saver-off']);
+		});
+	});
+
 	describe('Cache-Control', () => {
 		const noStore = async () =>
 			new Response(HTML, { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' } });

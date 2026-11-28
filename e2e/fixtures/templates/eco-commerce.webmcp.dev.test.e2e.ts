@@ -139,7 +139,10 @@ test.describe('WebMCP tools', () => {
 	test('on the order page an agent changes a line quantity and then removes the line', async ({ page }) => {
 		const [first] = (await (await page.request.get('/api/products?in=lounge-chairs&pageSize=1')).json()).items;
 		const { variants } = await (await page.request.get(`/api/products/${first.handle}`)).json();
-		await page.request.post('/cart/add', { form: { variantId: variants[0].id, quantity: '1' } });
+		await page.request.post('/cart/add', {
+			form: { variantId: variants[0].id, quantity: '1' },
+			headers: { 'Sec-Fetch-Site': 'same-origin' },
+		});
 		await page.goto('/order');
 		await expect.poll(() => toolNames(page)).toContain('update_cart_line');
 

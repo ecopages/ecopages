@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { CACHE_TAGS, productIdTag, productTag } from '@/lib/commerce/cache-tags';
+import { readBounded } from '@/lib/http/read-bounded';
 
 /**
  * The part of the page cache the webhook needs: Ecopages' `services.cache`.
@@ -107,6 +108,9 @@ function productReferenceOf(rawBody: Uint8Array): ProductReference {
 	}
 }
 
+/** The most bytes of a webhook this store reads; the product and collection payloads it handles are far smaller. */
+const MAX_WEBHOOK_BYTES = 1024 * 1024;
+
 /**
  * Verifies a Shopify webhook and invalidates the cache tags of the catalog data it reports changed.
  *
@@ -116,7 +120,8 @@ function productReferenceOf(rawBody: Uint8Array): ProductReference {
  * cache purges.
  */
 export async function handleShopifyWebhook(request: Request, options: ShopifyWebhookOptions): Promise<Response> {
-	const rawBody = new Uint8Array(await request.arrayBuffer());
+	const rawBody = await readBounded(request, MAX_WEBHOOK_BYTES);
+	if (!rawBody) return Response.json({ error: 'Request too large' }, { status: 413 });
 	if (!options.secret || !verifyShopifyHmac(rawBody, request.headers.get('x-shopify-hmac-sha256'), options.secret)) {
 		return Response.json({ error: 'Invalid webhook signature' }, { status: 401 });
 	}

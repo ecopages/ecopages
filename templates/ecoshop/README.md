@@ -18,13 +18,13 @@ Open [http://localhost:3000](http://localhost:3000). A banner says the store is 
 1. In Shopify admin, install the [Headless](https://apps.shopify.com/headless) sales channel, create a storefront, and copy its public Storefront API access token. Its Storefront API permissions must include reading product listings (`unauthenticated_read_product_listings`) and reading and writing carts (`unauthenticated_read_checkouts`, `unauthenticated_write_checkouts`).
 2. Copy `.env.example` to `.env` and set:
 
-| Variable                          | Required         | Meaning                                                                                                                                                                                                                               |
-| --------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SHOPIFY_STORE_DOMAIN`            | with the token   | The store domain, such as `my-store.myshopify.com`.                                                                                                                                                                                   |
-| `SHOPIFY_STOREFRONT_ACCESS_TOKEN` | with the domain  | The public Storefront API token.                                                                                                                                                                                                      |
-| `SHOPIFY_API_VERSION`             | no               | Storefront API version. Defaults to `2026-10`, pinned in `src/lib/commerce/provider.server.ts`.                                                                                                                                       |
-| `SHOPIFY_WEBHOOK_SECRET`          | for revalidation | The secret Shopify signs webhooks with.                                                                                                                                                                                               |
-| `ECOPAGES_BASE_URL`               | in production    | The public origin: canonical links, JSON-LD, `/llms.txt` and MCP URLs use it, and `/api/cart`, `/api/agent-tools`, `/mcp` and `/api/ucp/mcp` accept browser requests from it. Behind a proxy, set it or browser cart posts get `403`. |
+| Variable                          | Required         | Meaning                                                                                                                                                                                   |
+| --------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SHOPIFY_STORE_DOMAIN`            | with the token   | The store domain, such as `my-store.myshopify.com`.                                                                                                                                       |
+| `SHOPIFY_STOREFRONT_ACCESS_TOKEN` | with the domain  | The public Storefront API token.                                                                                                                                                          |
+| `SHOPIFY_API_VERSION`             | no               | Storefront API version. Defaults to `2026-10`, pinned in `src/lib/commerce/provider.server.ts`.                                                                                           |
+| `SHOPIFY_WEBHOOK_SECRET`          | for revalidation | The secret Shopify signs webhooks with.                                                                                                                                                   |
+| `ECOPAGES_BASE_URL`               | in production    | The public origin: canonical links, JSON-LD, `/llms.txt` and MCP URLs use it, and in production the server answers only its host (see [Host and origin checks](#host-and-origin-checks)). |
 
 Set both Shopify variables or neither: with one alone, `pnpm build` fails and every page answers with an error, instead of quietly serving the demo catalog. Secrets are only read in `.server` modules.
 
@@ -118,7 +118,7 @@ The tool set was compared on 2026-11-26 with [Shopify's WebMCP documentation](ht
 
 Shopify serves the [Universal Commerce Protocol](https://shopify.dev/docs/agents/catalog/storefront-mcp) (UCP) from every storefront: a profile at `/.well-known/ucp` and an MCP endpoint at `/api/ucp/mcp` for catalog, cart and checkout. A UCP client expects those, so this template forwards them rather than reimplementing UCP over its own tools, whose names and shapes follow Shopify's WebMCP tools.
 
-- **With Shopify credentials set,** `/.well-known/ucp` serves the connected store's profile with its `/api/ucp/mcp` URL replaced by this site's, and `POST /api/ucp/mcp` forwards the client's JSON-RPC request to the store's own endpoint and returns the answer unchanged. The client sends its own `meta.ucp-agent.profile`, as the store requires; nothing is added. The destination is fixed to the connected store, a foreign `Origin` is refused, and a body over 256 kB is refused. The profile is kept for five minutes, as `/.well-known/ucp` tells a client to keep it. Pages register `get_ucp_profile` with WebMCP, which returns that same profile. Whether a store is connected is the provider's to say (`CommerceProvider.ucpOrigin()`, `null` on the demo catalog), and the store domain is written without protocol or trailing slash by `normalizeStoreDomain`, which the configuration, the provider and the Storefront client share.
+- **With Shopify credentials set,** `/.well-known/ucp` serves the connected store's profile with its `/api/ucp/mcp` URL replaced by this site's, and `POST /api/ucp/mcp` forwards the client's JSON-RPC request to the store's own endpoint and returns the answer unchanged. The client sends its own `meta.ucp-agent.profile`, as the store requires; nothing is added. The destination is fixed to the connected store, a request from another site is refused, and a body over 256 kB is refused. The profile is kept for five minutes, as `/.well-known/ucp` tells a client to keep it. Pages register `get_ucp_profile` with WebMCP, which returns that same profile. Whether a store is connected is the provider's to say (`CommerceProvider.ucpOrigin()`, `null` on the demo catalog), and the store domain is written without protocol or trailing slash by `normalizeStoreDomain`, which the configuration, the provider and the Storefront client share.
 - **On the demo catalog,** there is no store to forward to: both URLs answer 404, `get_ucp_profile` is not registered, and the `/mcp` server above is the agent surface.
 
 ### Connect Claude Code
@@ -145,7 +145,15 @@ Any client that speaks Streamable HTTP can use the URL. A JSON client configurat
 
 To explore the tools by hand, run `npx @modelcontextprotocol/inspector` and connect it to `http://localhost:3000/mcp` with the Streamable HTTP transport.
 
-The endpoint refuses browser requests whose `Origin` is another site, so a web page cannot drive it through a visitor's browser. It has no authentication: every tool is either public catalog data or a cart reached by its id.
+The endpoint refuses browser requests from another site (see [Host and origin checks](#host-and-origin-checks)), so a web page cannot drive it through a visitor's browser. It has no authentication: every tool is either public catalog data or a cart reached by its id.
+
+## Host and origin checks
+
+One policy, both from Ecopages core. First, the server answers only the hosts it serves: in `ecopages dev`, `localhost` and IP addresses plus the host of `ECOPAGES_BASE_URL`; in production, only the host of `ECOPAGES_BASE_URL` (add more in `allowedHosts` in `eco.config.ts`, such as `localhost` for a health check). A request for another `Host` gets HTTP 400, which stops a DNS rebinding page from reaching a store running on a shopper's machine, and means `request.url` is the address the visitor used. Second, every state-changing route lists `sameOrigin()` and answers HTTP 403, before it reads the body, to a request another site started: `Sec-Fetch-Site` decides when the browser sends it (`same-origin` or `none` pass), otherwise `Origin` must equal the request origin.
+
+- `POST /api/cart` and `POST /api/agent-tools/:name` serve the store's own pages, so a request with neither header is refused too.
+- `POST /mcp`, `POST /api/ucp/mcp` and the Shopify webhook `POST /api/revalidate` serve clients that are not browsers (agents, Shopify), which send neither header, so they use `sameOrigin({ allowNonBrowser: true })`: those clients pass and a browser request from another site is still refused. The webhook authenticates by its HMAC signature.
+- The cart cookie is `Secure` when the request URL is `https`. Behind a proxy that terminates TLS, set `trustProxy: { proto: true }` in `eco.config.ts`, so the request URL reads `X-Forwarded-Proto`; set `trustProxy: true` only when the proxy also overwrites `X-Forwarded-Host`.
 
 ## Interface
 

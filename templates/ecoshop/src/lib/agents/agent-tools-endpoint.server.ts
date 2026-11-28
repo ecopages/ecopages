@@ -1,8 +1,6 @@
 import { cartCookieFor, readCartId } from '@/lib/cart/cart-cookie';
 import { formatMoney } from '@/lib/commerce/money';
 import type { CommerceProvider } from '@/lib/commerce/types';
-import { isSameOriginRequest } from '@/lib/http/same-origin';
-import { siteOrigin } from '@/lib/site-origin';
 import type { AgentToolResponse } from './agent-tool-types';
 import { findStoreTool, runStoreTool } from './store-tools.server';
 
@@ -12,26 +10,26 @@ import { findStoreTool, runStoreTool } from './store-tools.server';
  *
  * @remarks
  * The host that registered the tool parses an agent's input too, but a request can skip the browser, so the input
- * is checked here, where it is authoritative. `?product=<handle>` names the product of the calling page: `get_product` and
- * `show_variant` default to it, and `add_to_cart` requires it.
+ * is checked here, where it is authoritative. Ecopages has already refused a request from another site and read
+ * the JSON `input` within `maxRequestBodySize`. Results carry URLs on the origin of the request, which the
+ * server's allowed-host check makes the address the visitor used, so the page opens them on the host that serves it.
+ * `?product=<handle>` names the product of the calling page: `get_product` and `show_variant` default to it, and
+ * `add_to_cart` requires it.
  */
 export async function handleAgentToolCall(
 	request: Request,
 	name: string,
 	provider: CommerceProvider,
+	input: unknown,
 ): Promise<Response> {
-	if (!isSameOriginRequest(request, siteOrigin)) {
-		return Response.json({ error: 'Origin not allowed' }, { status: 403 });
-	}
 	if (!findStoreTool(name, 'page')) {
 		return Response.json({ error: `No tool named "${name}"` }, { status: 404 });
 	}
 
-	const input: unknown = await request.json().catch(() => undefined);
 	const currentProductHandle = new URL(request.url).searchParams.get('product') ?? undefined;
 	const outcome = await runStoreTool(name, input, {
 		provider,
-		origin: siteOrigin,
+		origin: new URL(request.url).origin,
 		surface: 'page',
 		cartId: readCartId(request.headers),
 		currentProductHandle,
@@ -46,20 +44,6 @@ export async function handleAgentToolCall(
 			subtotal: outcome.cart.totalQuantity > 0 ? formatMoney(outcome.cart.subtotal) : null,
 		};
 	}
-	if (outcome.navigateTo) body.navigateTo = pathOnThisSite(outcome.navigateTo);
+	if (outcome.navigateTo) body.navigateTo = outcome.navigateTo;
 	return Response.json(body, { headers });
-}
-
-/**
- * Shortens a URL on {@link siteOrigin} to its path, so the page opens it on the host that serves it.
- *
- * @remarks
- * Results carry absolute URLs for the agent, but a preview deployment or a test server is not on the configured
- * origin, and the browser router opens only same-origin pages without a full load. A checkout on another host, such
- * as Shopify's, stays absolute.
- */
-function pathOnThisSite(url: string): string {
-	const target = new URL(url);
-	if (target.origin !== new URL(siteOrigin).origin) return url;
-	return `${target.pathname}${target.search}${target.hash}`;
 }

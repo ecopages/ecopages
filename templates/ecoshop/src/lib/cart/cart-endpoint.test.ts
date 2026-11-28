@@ -7,7 +7,6 @@ import {
 	handleCartGet,
 	handleCartPost as applyCartAction,
 	redirectInvalidPost,
-	refuseCrossOrigin,
 } from './cart-endpoint.server';
 
 const provider = createDemoProvider();
@@ -161,21 +160,5 @@ describe('cart endpoint input and totals', () => {
 		const response = await handleCartGet(new Request('https://shop.test/api/cart'), provider);
 
 		expect(await response.json()).toEqual({ totalQuantity: 0, subtotal: null });
-	});
-});
-
-describe('cart endpoint origin check', () => {
-	it('lets a form posted from the store itself, or by a client with no Origin, go on', () => {
-		expect(refuseCrossOrigin(formPost({}, { Origin: 'https://shop.test' }))).toBeNull();
-		expect(refuseCrossOrigin(formPost({}))).toBeNull();
-	});
-
-	it('refuses a form posted from another site, before its body is read', async () => {
-		const request = formPost({ intent: 'add', variantId: fieldShirtM }, { Origin: 'https://evil.test' });
-
-		const response = refuseCrossOrigin(request);
-
-		expect(response?.status).toBe(403);
-		expect(request.bodyUsed).toBe(false);
 	});
 });

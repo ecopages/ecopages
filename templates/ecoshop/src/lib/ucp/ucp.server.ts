@@ -1,6 +1,6 @@
 import { CommerceBackendError } from '@/lib/commerce/errors';
 import type { CommerceProvider } from '@/lib/commerce/types';
-import { isSameOriginRequest } from '@/lib/http/same-origin';
+import { readBounded } from '@/lib/http/read-bounded';
 import { siteOrigin } from '@/lib/site-origin';
 import { storePaths } from '@/lib/store-urls';
 
@@ -127,33 +127,6 @@ function isUcpEndpoint(value: string): boolean {
 	}
 }
 
-/**
- * Reads a request body, or `null` as soon as it holds more than `limit` bytes, so a client cannot make the server
- * buffer more by streaming without a `Content-Length`.
- */
-async function readBounded(request: Request, limit: number): Promise<Uint8Array<ArrayBuffer> | null> {
-	if (Number(request.headers.get('content-length')) > limit) return null;
-	const reader = request.body?.getReader();
-	if (!reader) return new Uint8Array();
-	const chunks: Uint8Array[] = [];
-	let total = 0;
-	for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
-		total += chunk.value.byteLength;
-		if (total > limit) {
-			await reader.cancel();
-			return null;
-		}
-		chunks.push(chunk.value);
-	}
-	const body = new Uint8Array(total);
-	let offset = 0;
-	for (const chunk of chunks) {
-		body.set(chunk, offset);
-		offset += chunk.byteLength;
-	}
-	return body;
-}
-
 function notConnected(): Response {
 	return Response.json(
 		{
@@ -183,15 +156,12 @@ export async function handleUcpProfile(options: UcpOptions & { origin?: string }
  * @remarks
  * The body is the client's JSON-RPC message, including the `meta.ucp-agent.profile` the store requires, so the
  * store negotiates capabilities with the client itself and nothing is added or removed here. The destination is
- * fixed to the connected store, a foreign `Origin` is refused as on the other endpoints, and a body over 256 kB is
- * refused.
+ * fixed to the connected store, and a body over 256 kB is refused. The route refuses a request another site started
+ * before this runs and passes clients that are not browsers, which UCP clients are.
  */
 export async function handleUcpMcp(request: Request, { provider, fetch: send = fetch }: UcpOptions): Promise<Response> {
 	const storeOrigin = provider.ucpOrigin();
 	if (!storeOrigin) return notConnected();
-	if (!isSameOriginRequest(request, siteOrigin)) {
-		return Response.json({ error: 'Origin not allowed' }, { status: 403 });
-	}
 
 	const body = await readBounded(request, MAX_REQUEST_BYTES);
 	if (!body) return Response.json({ error: 'Request too large' }, { status: 413 });

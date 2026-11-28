@@ -1,5 +1,3 @@
-import { siteOrigin } from '@/lib/site-origin';
-
 export const CART_COOKIE = 'ecoshop_cart';
 
 const THIRTY_DAYS = 60 * 60 * 24 * 30;
@@ -33,10 +31,13 @@ export function cartCookie(cartId: string, secure: boolean): string {
 }
 
 /**
- * The `Set-Cookie` value for a response to `request`: `Secure` when the request or the configured site origin is
- * https, so the cookie stays secure behind a TLS-terminating proxy.
+ * The `Set-Cookie` value for a response to `request`: `Secure` when the request URL is https.
+ *
+ * @remarks
+ * Ecopages builds the request URL from the `Host` it allows, with the protocol it listens on. Behind a proxy that
+ * terminates TLS the server sees plain HTTP, so set `trustProxy: { proto: true }` in `eco.config.ts` and the
+ * request URL reads `X-Forwarded-Proto`.
  */
 export function cartCookieFor(cartId: string, request: Request): string {
-	const secure = new URL(request.url).protocol === 'https:' || new URL(siteOrigin).protocol === 'https:';
-	return cartCookie(cartId, secure);
+	return cartCookie(cartId, new URL(request.url).protocol === 'https:');
 }

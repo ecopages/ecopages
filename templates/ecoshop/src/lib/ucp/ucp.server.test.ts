@@ -312,16 +312,8 @@ describe('the UCP endpoint of a connected store', () => {
 		expect(response.status).toBe(502);
 	});
 
-	it('refuses another site, a body that is too large, and reports a store that does not answer', async () => {
+	it('refuses a body that is too large, and reports a store that does not answer', async () => {
 		const send = storeFetch(() => Response.json({}));
-		const foreign = await handleUcpMcp(
-			new Request(`${ORIGIN}/api/ucp/mcp`, {
-				method: 'POST',
-				body: '{}',
-				headers: { Origin: 'https://evil.test' },
-			}),
-			{ provider: shopify, fetch: send },
-		);
 		const large = await handleUcpMcp(
 			new Request(`${ORIGIN}/api/ucp/mcp`, { method: 'POST', body: 'x'.repeat(256 * 1024 + 1) }),
 			{ provider: shopify, fetch: send },
@@ -333,7 +325,6 @@ describe('the UCP endpoint of a connected store', () => {
 			}),
 		});
 
-		expect(foreign.status).toBe(403);
 		expect(large.status).toBe(413);
 		expect(send).not.toHaveBeenCalled();
 		expect(down.status).toBe(502);

@@ -193,18 +193,4 @@ describe('store MCP server', () => {
 			expect.objectContaining({ handle: 'home', url: `${ORIGIN}/collections/home` }),
 		);
 	});
-
-	it('refuses a browser request from another origin', async () => {
-		const response = await fetch(endpoint, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				Accept: 'application/json, text/event-stream',
-				Origin: 'https://evil.test',
-			},
-			body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
-		});
-
-		expect(response.status).toBe(403);
-	});
 });

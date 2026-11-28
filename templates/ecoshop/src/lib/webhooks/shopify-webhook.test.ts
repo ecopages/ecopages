@@ -104,6 +104,21 @@ describe('Shopify revalidation webhook', () => {
 		expect(response.status).toBe(401);
 	});
 
+	it('answers 413 to a body over 1 MiB without checking it', async () => {
+		const request = webhook('products/update', {});
+		const oversized = new Request(request.url, {
+			method: 'POST',
+			headers: request.headers,
+			body: 'x'.repeat(1024 * 1024 + 1),
+		});
+		const cache = cacheSpy();
+
+		const response = await handleShopifyWebhook(oversized, { secret: SECRET, cache });
+
+		expect(response.status).toBe(413);
+		expect(cache.invalidateByTags).not.toHaveBeenCalled();
+	});
+
 	it('answers 401 when no secret is configured', async () => {
 		const response = await handleShopifyWebhook(webhook('products/update', {}), { secret: undefined, cache: null });
 

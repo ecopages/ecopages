@@ -1,4 +1,4 @@
-import { createMiddleware } from '@ecopages/core';
+import { sameOrigin } from '@ecopages/core';
 import { z } from 'zod';
 import type { CartBackend } from '../commerce/backend.ts';
 import type { CartToken, CartUpdate } from '../commerce/types.ts';
@@ -10,13 +10,8 @@ export const CART_COOKIE = 'store_cart';
 
 const ORDER_PATH = '/order';
 
-/** `Sec-Fetch-Site` values of a request a page on this site sent, or a visitor typed. */
-const SAME_SITE_FETCHES = new Set(['same-origin', 'none']);
-
 export type CartHttpDeps = {
 	cart: CartBackend;
-	/** Whether the cookie is sent over HTTPS only; true when the site is served over HTTPS. */
-	secureCookie: boolean;
 };
 
 export function readCartToken(request: Request): CartToken {
@@ -46,32 +41,29 @@ function wantsJson(request: Request): boolean {
 	return request.headers.get('accept')?.includes('application/json') ?? false;
 }
 
-/**
- * Whether a browser sent the request from another site.
- *
- * @remarks
- * `SameSite=Lax` already keeps the cart cookie off cross-site posts, but such a post could still replace the cart
- * with a new one, so it is refused. The check reads `Sec-Fetch-Site`, which every browser in the build targets
- * sends, rather than comparing `Origin` with the request URL: that URL carries the `Host` the proxy passes on, which
- * is not always the host the visitor used, so the comparison would depend on how the proxy is set up. A request without the header,
- * such as one from a script on the server, passes.
- */
-function isCrossSite(request: Request): boolean {
-	const site = request.headers.get('sec-fetch-site');
-	return site !== null && !SAME_SITE_FETCHES.has(site);
-}
-
 function reject(request: Request, status: number, message: string): Response {
 	return wantsJson(request)
 		? Response.json({ error: message }, { status })
 		: new Response(message, { status, headers: { 'content-type': 'text/plain; charset=utf-8' } });
 }
 
-function respond(request: Request, update: CartUpdate, deps: CartHttpDeps): Response {
+/**
+ * Whether the cart cookie is marked `Secure`: when the request URL is `https`.
+ *
+ * @remarks
+ * The server's allowed-host check makes `request.url` the address the visitor used. Behind a proxy that
+ * terminates TLS the server sees plain HTTP, so set `trustProxy: { proto: true }` in `eco.config.ts` and the
+ * request URL reads `X-Forwarded-Proto`.
+ */
+function isSecureRequest(request: Request): boolean {
+	return new URL(request.url).protocol === 'https:';
+}
+
+function respond(request: Request, update: CartUpdate): Response {
 	if (!update.ok) return reject(request, update.reason === 'cart-full' ? 409 : 400, update.message);
 	const headers = new Headers();
 	if (update.token !== null)
-		headers.set('set-cookie', serializeCartCookie(update.token, { secure: deps.secureCookie }));
+		headers.set('set-cookie', serializeCartCookie(update.token, { secure: isSecureRequest(request) }));
 	if (wantsJson(request)) {
 		headers.set('cache-control', 'no-store');
 		return Response.json(cartJson(update.cart) satisfies CartJson, { headers });
@@ -111,25 +103,24 @@ export function refuseInvalidChange(request: Request): Response {
 }
 
 /**
- * Answers 403 to a post a browser sent from another site, or `null` to go on.
+ * The first stage of the cart change Endpoints: it refuses a post another site started before the body is read.
+ *
+ * @remarks
+ * Every browser posting a cart form sends `Sec-Fetch-Site` or `Origin`, so a request with neither is refused too:
+ * `SameSite=Lax` keeps the cookie off a cross-site post, but one could still replace the cart with a new one.
  */
-export function refuseCrossSite(request: Request): Response | null {
-	return isCrossSite(request) ? reject(request, 403, 'Cart changes must come from this site.') : null;
-}
-
-/**
- * The first stage of the cart change Endpoints: it refuses a cross-site post before the body is read.
- */
-export const sameSiteOnly = createMiddleware((context, next) => refuseCrossSite(context.request) ?? next());
+export const sameOriginOnly = sameOrigin({
+	onReject: (request) => reject(request, 403, 'Cart changes must come from this site.'),
+});
 
 /** `POST /cart/add`: adds `quantity` (default 1) units of `variantId`; plain forms are redirected to `/order`. */
 export async function addToCartAction(request: Request, change: CartChange, deps: CartHttpDeps): Promise<Response> {
-	return respond(request, await deps.cart.addItem(readCartToken(request), change), deps);
+	return respond(request, await deps.cart.addItem(readCartToken(request), change));
 }
 
 /** `POST /cart/update`: sets the quantity of `variantId`; zero removes the line. */
 export async function updateCartAction(request: Request, change: CartChange, deps: CartHttpDeps): Promise<Response> {
-	return respond(request, await deps.cart.updateItem(readCartToken(request), change), deps);
+	return respond(request, await deps.cart.updateItem(readCartToken(request), change));
 }
 
 /** `GET /api/cart`: the visitor's cart as JSON. */

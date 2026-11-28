@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { readCartId } from '@/lib/cart/cart-cookie';
 import { createDemoProvider } from '@/lib/commerce/demo/demo-provider';
 import type { CommerceProvider } from '@/lib/commerce/types';
-import { siteOrigin } from '@/lib/site-origin';
 import { handleAgentToolCall } from './agent-tools-endpoint.server';
 
 const provider = createDemoProvider();
@@ -17,6 +16,7 @@ function call(name: string, input: unknown, headers: Record<string, string> = {}
 		}),
 		name,
 		provider,
+		input,
 	);
 }
 
@@ -61,12 +61,12 @@ describe('agent tools endpoint', () => {
 		expect(response.headers.get('set-cookie')).toBeNull();
 	});
 
-	it('tells the page which path of this site to open, whatever host serves it', async () => {
+	it('answers with URLs on the origin of the request, so the page opens them on the host that serves it', async () => {
 		const response = await call('browse_store', { collection: 'home', navigate: true });
 
 		const body = (await response.json()) as { navigateTo: string; result: { structuredContent: unknown } };
-		expect(body.navigateTo).toBe('/collections/home');
-		expect(body.result.structuredContent).toMatchObject({ url: `${siteOrigin}/collections/home` });
+		expect(body.navigateTo).toBe('https://shop.test/collections/home');
+		expect(body.result.structuredContent).toMatchObject({ url: 'https://shop.test/collections/home' });
 	});
 
 	it("keeps the full URL of the provider's checkout", async () => {
@@ -87,15 +87,10 @@ describe('agent tools endpoint', () => {
 			}),
 			'proceed_to_checkout',
 			offSite,
+			{},
 		);
 
 		expect(await response.json()).toMatchObject({ navigateTo: checkoutUrl });
-	});
-
-	it('refuses a call from another site', async () => {
-		const response = await call('get_cart', {}, { Origin: 'https://evil.test' });
-
-		expect(response.status).toBe(403);
 	});
 
 	it('answers 404 for a tool the page does not have', async () => {

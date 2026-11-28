@@ -2,7 +2,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { runStoreTool, storeTools } from '@/lib/agents/store-tools.server';
 import type { CommerceProvider } from '@/lib/commerce/types';
-import { isSameOriginRequest } from '@/lib/http/same-origin';
 
 export interface StoreMcpOptions {
 	provider: CommerceProvider;
@@ -64,16 +63,14 @@ export function createStoreMcpServer({ provider, origin }: StoreMcpOptions): Mcp
  *
  * @remarks
  * Stateless mode with JSON responses: every tool here answers in one step, so the transport needs no session or
- * SSE stream, and the endpoint works the same on Node, Bun and serverless hosts.
+ * SSE stream, and the endpoint works the same on Node, Bun and serverless hosts. Ecopages reads the JSON-RPC body
+ * within `maxRequestBodySize` and passes it as `parsedBody`, so the transport never reads an unbounded stream.
  */
-export async function handleMcpRequest(request: Request, options: StoreMcpOptions): Promise<Response> {
-	if (!isSameOriginRequest(request, options.origin)) {
-		return Response.json(
-			{ jsonrpc: '2.0', error: { code: -32000, message: 'Origin not allowed' }, id: null },
-			{ status: 403 },
-		);
-	}
-
+export async function handleMcpRequest(
+	request: Request,
+	options: StoreMcpOptions,
+	parsedBody?: unknown,
+): Promise<Response> {
 	const server = createStoreMcpServer(options);
 	const transport = new WebStandardStreamableHTTPServerTransport({
 		sessionIdGenerator: undefined,
@@ -81,7 +78,7 @@ export async function handleMcpRequest(request: Request, options: StoreMcpOption
 	});
 	await server.connect(transport);
 	try {
-		return await transport.handleRequest(request);
+		return await transport.handleRequest(request, { parsedBody });
 	} finally {
 		await server.close();
 	}

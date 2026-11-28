@@ -4,30 +4,35 @@
  */
 
 import {
-	constants,
-	copyFileSync,
+	closeSync,
 	cpSync,
 	type Dirent,
 	existsSync,
+	fstatSync,
 	linkSync,
 	lstatSync,
 	mkdirSync,
 	mkdtempSync,
+	openSync,
 	readdirSync,
 	readFileSync,
 	readlinkSync,
+	readSync,
 	realpathSync,
 	renameSync,
 	rmSync,
 	statSync,
 	type Stats,
 	writeFileSync,
+	writeSync,
 } from 'node:fs';
 import {
-	copyFile as copyFileAsync,
 	cp as cpAsync,
+	type FileHandle,
 	link as linkAsync,
+	lstat as lstatAsync,
 	mkdir as mkdirAsync,
+	open as openAsync,
 	readdir,
 	rm as rmAsync,
 	stat as statAsync,
@@ -69,6 +74,83 @@ const HARD_LINK_UNSUPPORTED_ERRORS: ReadonlySet<string> = new Set([
 function isHardLinkUnsupportedError(error: unknown): boolean {
 	const code = errorCodeOf(error);
 	return code !== undefined && HARD_LINK_UNSUPPORTED_ERRORS.has(code);
+}
+
+const COPY_CHUNK_BYTES = 64 * 1024;
+
+/**
+ * Copies `source` to a `destination` that this call creates, and says whether it did.
+ *
+ * @remarks
+ * `copyFile` with `COPYFILE_EXCL` unlinks the destination by path when the copy fails, which would delete another
+ * process's file if that process replaced the half-written destination meanwhile. Here a failed copy removes the
+ * destination only while it is still the file this call created. A missing source fails before anything is created.
+ */
+function copyExclusiveSync(source: string, destination: string): boolean {
+	const sourceFd = openSync(source, 'r');
+	try {
+		let destinationFd: number;
+		try {
+			destinationFd = openSync(destination, 'wx', fstatSync(sourceFd).mode & 0o777);
+		} catch (error) {
+			if (isAlreadyExistsError(error)) return false;
+			throw error;
+		}
+		try {
+			const chunk = Buffer.allocUnsafe(COPY_CHUNK_BYTES);
+			for (let read = readSync(sourceFd, chunk); read > 0; read = readSync(sourceFd, chunk)) {
+				for (let written = 0; written < read;)
+					written += writeSync(destinationFd, chunk, written, read - written);
+			}
+			return true;
+		} catch (error) {
+			const created = fstatSync(destinationFd);
+			const current = lstatSync(destination, { throwIfNoEntry: false });
+			if (current && current.dev === created.dev && current.ino === created.ino)
+				rmSync(destination, { force: true });
+			throw error;
+		} finally {
+			closeSync(destinationFd);
+		}
+	} finally {
+		closeSync(sourceFd);
+	}
+}
+
+/** Asynchronous {@link copyExclusiveSync}. */
+async function copyExclusive(source: string, destination: string): Promise<boolean> {
+	const sourceHandle = await openAsync(source, 'r');
+	try {
+		let destinationHandle: FileHandle;
+		try {
+			destinationHandle = await openAsync(destination, 'wx', (await sourceHandle.stat()).mode & 0o777);
+		} catch (error) {
+			if (isAlreadyExistsError(error)) return false;
+			throw error;
+		}
+		try {
+			const chunk = Buffer.allocUnsafe(COPY_CHUNK_BYTES);
+			for (
+				let { bytesRead } = await sourceHandle.read(chunk, 0, chunk.length, null);
+				bytesRead > 0;
+				{ bytesRead } = await sourceHandle.read(chunk, 0, chunk.length, null)
+			) {
+				for (let written = 0; written < bytesRead;)
+					written += (await destinationHandle.write(chunk, written, bytesRead - written)).bytesWritten;
+			}
+			return true;
+		} catch (error) {
+			const created = await destinationHandle.stat();
+			const current = await lstatAsync(destination).catch(() => undefined);
+			if (current && current.dev === created.dev && current.ino === created.ino)
+				await rmAsync(destination, { force: true });
+			throw error;
+		} finally {
+			await destinationHandle.close();
+		}
+	} finally {
+		await sourceHandle.close();
+	}
 }
 
 function toFileStats(stats: Stats): FileStats {
@@ -280,13 +362,7 @@ export abstract class BaseFileSystem {
 			if (isAlreadyExistsError(error)) return false;
 			if (!isHardLinkUnsupportedError(error)) throw error;
 		}
-		try {
-			copyFileSync(source, destination, constants.COPYFILE_EXCL);
-			return true;
-		} catch (error) {
-			if (isAlreadyExistsError(error)) return false;
-			throw error;
-		}
+		return copyExclusiveSync(source, destination);
 	}
 
 	async linkNewAsync(source: string, destination: string): Promise<boolean> {
@@ -297,13 +373,7 @@ export abstract class BaseFileSystem {
 			if (isAlreadyExistsError(error)) return false;
 			if (!isHardLinkUnsupportedError(error)) throw error;
 		}
-		try {
-			await copyFileAsync(source, destination, constants.COPYFILE_EXCL);
-			return true;
-		} catch (error) {
-			if (isAlreadyExistsError(error)) return false;
-			throw error;
-		}
+		return copyExclusive(source, destination);
 	}
 
 	/**

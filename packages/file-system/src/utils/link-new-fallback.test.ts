@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { path } from '../path.ts';
@@ -86,6 +86,30 @@ describe('linkNew on a volume that cannot hold the link', () => {
 			expect(() => nodeFs.linkNew(missing, destination)).toThrow(expect.objectContaining({ code: 'ENOENT' }));
 			await expect(nodeFs.linkNewAsync(missing, destination)).rejects.toMatchObject({ code: 'ENOENT' });
 		});
+	});
+
+	it('removes the destination it created when the copy fails, and reports the error', async () => {
+		linkFailure.code = 'EPERM';
+		const directory = path.join(testDir, 'not-a-file');
+		mkdirSync(directory);
+
+		expect(() => nodeFs.linkNew(directory, destination)).toThrow();
+		await expect(nodeFs.linkNewAsync(directory, destination)).rejects.toThrow();
+
+		expect(nodeFs.exists(destination)).toBe(false);
+	});
+
+	it('copies a file larger than one chunk byte for byte', async () => {
+		linkFailure.code = 'EPERM';
+		const content = Buffer.alloc(3 * 64 * 1024 + 17, 'ecopages');
+		writeFileSync(source, content);
+
+		expect(await nodeFs.linkNewAsync(source, destination)).toBe(true);
+		expect(readFileSync(destination).equals(content)).toBe(true);
+
+		rmSync(destination);
+		expect(nodeFs.linkNew(source, destination)).toBe(true);
+		expect(readFileSync(destination).equals(content)).toBe(true);
 	});
 
 	it('reports a link failure of another kind without copying', async () => {
